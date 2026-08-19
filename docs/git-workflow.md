@@ -107,6 +107,22 @@ it ([backend ADR 0002](backend/adr/0002-spec-first-openapi.md)).
 - A pull request that changes a structural decision carries its ADR in the same
   diff — never merged first and documented later
 
+## Hooks
+
+The rule above is also enforced mechanically: `.githooks/pre-commit` refuses a
+commit made directly on `main` or `develop`. A written rule is read by whoever
+takes the time; the hook catches the moment nobody does.
+
+Hooks live in the repository but are **not active in a fresh clone** — git only
+runs what `core.hooksPath` points at. Enable them once, per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+A hook is opt-in per clone and per machine, so it is a convenience, never the
+guarantee. What cannot be skipped runs in CI.
+
 ## Branch naming
 
 ```
