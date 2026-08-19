@@ -1,0 +1,60 @@
+# OS
+.DS_Store
+
+# IDE
+.idea
+*.suo
+*.sw?
+
+# Environment
+.env
+.env.local
+*.local
+
+# Secrets (local keys, never committed)
+.secret/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Logs
+logs/
+*.log
+
+# Temporary
+tmp/
+
+# Build artifacts
+bin/
+dist/
+
+# =============================================================================
+# Server and CLI (Go)
+# =============================================================================
+
+coverage.out
+coverage.html
+apps/server/config/config.yaml
+apps/server/config/config.*.local.yaml
+
+# Local capture store — content-addressed blobs, never tracked (ADR 0004 backend)
+var/blobs/
+
+# =============================================================================
+# Web client
+# =============================================================================
+
+node_modules/
+dist-ssr/
+coverage/
+*.tsbuildinfo
+.eslintcache
+apps/web/test-results/
+apps/web/playwright-report/
+*.timestamp-*-*.mjs
+
+# =============================================================================
+# Generated documentation (audits, reports — regenerated, never tracked)
+# =============================================================================
+
+docs/**/generated/
