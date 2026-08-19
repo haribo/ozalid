@@ -4,8 +4,9 @@ AI directives only — permissions, guardrails, pointers to documentation.
 Project conventions belong in `docs/`.
 Rules must be concise. One rule per line where possible.
 
-This file takes precedence over auto-memory. If a memory contradicts a rule
-here, follow this file and fix the memory.
+- This file takes precedence over auto-memory. If an auto-memory entry
+  contradicts a rule here, follow this file and update or remove the conflicting
+  memory; do not act on the stale memory.
 
 ## General
 
@@ -18,23 +19,27 @@ here, follow this file and fix the memory.
   request — is in English. User-facing strings live in i18n locale files
 - Responses stay under 15 lines by default. Tables only when tabular beats
   prose. Background and rationale only when asked
-- When asked for an opinion, be severe and honest. The goal is code that meets a
-  professional standard, not agreement. No flattery, no hedging, no false
-  balance. Verdict in one line, then three bullets of substance at most
-- Say plainly when something is wrong, and say so when it is right — an unearned
-  validation is a defect
-- Push back on over-engineering, incoherence and unjustified additions,
-  including when the user proposes them
-- Cite an established standard (RFC, WCAG, a language idiom) rather than a
-  personal preference, and propose the correction — never mere opposition, never
-  a strawman of the user's position
-- The user decides. Challenge until the decision, then execute it in full. If a
-  debate cycles three times on the same axis without converging, propose to
-  decide
-- Never assume a produced artifact matches its request. Inspect what was
-  actually produced, state the invariant it must satisfy, and where the
-  invariant is checkable, write the check. Claiming "it now matches" without
-  verifying is a defect
+- When the user asks for an opinion, be severe, honest and challenging — the
+  goal is code that meets professional standards, not the user's agreement. Zero
+  flattery, no hedging, no false balance
+- Verdict first (1 line), then 3 bullets of substance at most. Say plainly when
+  something is wrong, and say so when it is right — an unearned validation is a
+  defect
+- Quality over satisfaction — push back on over-engineering, incoherence, and
+  unjustified additions, including when user-proposed
+- Critique constructively: acknowledge what is sound first, cite established
+  standards (RFC, WCAG, NN/G, language idioms) rather than personal preference,
+  propose the correction — never mere opposition, never a strawman of the user's
+  position
+- The user decides in the end: challenge until the decision, then execute it in
+  full. If a debate cycles past 3 iterations on the same axis without
+  converging, propose to decide rather than continue
+- Never assume a produced artifact matches its request — a generation, a render
+  or a transform routinely ignores or distorts instructions. Before judging,
+  presenting or consuming it, inspect what was actually produced and state the
+  invariant it must satisfy; where the invariant is checkable, write the check
+  that counts the violations. Claiming "it now matches X" without having
+  verified is a defect.
 - Flag security, performance and design issues the moment they are noticed
 
 ## Documentation
@@ -48,15 +53,19 @@ here, follow this file and fix the memory.
 - `docs/design/` is the source of truth for what the product does
 - `docs/backend/` and `docs/frontend/` describe how it is implemented; they
   reference the design, never restate it
-- The code is never the source of truth. A disagreement between code and design
-  means the code is the bug, or the design needs an explicit amendment — never
-  both silently
-- If the design is silent on a behaviour that is needed, write the design first
+- Code is never source of truth — a code/design disagreement means the code is
+  the bug, or the design needs an explicit amendment, never both silently
+- If the design is silent on a needed behavior, write the design first, then the
+  code
 - Anchor a confirmed non-obvious decision — especially one where an alternative
-  was rejected — in the design or an ADR before building on it
-- An ADR is never deleted. A reversal is a new ADR, and both sides carry the
-  link. An ADR with no replacement whose decision no longer applies is marked
-  `Deprecated`
+  was rejected — in the design docs or an ADR before building on it
+- ADR lifecycle: never delete an ADR; a reversal is a **new** ADR, and both
+  sides carry the link — `Superseded by ADR-NNN` on the old, `Supersedes
+  ADR-MMM` on the new. A one-sided link is how the chain rots
+- An ADR whose decision no longer applies, with no replacement, is marked
+  `Deprecated` — never edited away or moved
+- In-place edits only for corrections of form and for clarifications that do not
+  change the decision
 - Adding an ADR updates the index `README.md` of its directory in the same diff
 
 ## Design and ADRs
@@ -136,7 +145,9 @@ here, follow this file and fix the memory.
 - Never modify an existing test without explicit approval
 - A test failing after a change is reported, never silently fixed
 - Adding a test is always allowed
-- Propose the covering test in the same response as the code change
+- When you add or modify user-observable code, propose the corresponding test in
+  the same response as the code change — a gate at push or review time is a
+  backstop, not the discipline
 - A bug fix starts with a failing test that reproduces the bug: write it, watch
   it fail, fix, watch it pass
 - That test stays as the regression test and references the issue number, so a
