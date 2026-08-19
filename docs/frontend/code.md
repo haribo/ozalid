@@ -1,0 +1,49 @@
+# Web client code conventions
+
+Rules that a linter cannot enforce. Everything a linter can enforce **is** a
+linter rule, per the lint-first principle of
+[ADR 0009](../adr/0009-documentation-strategy.md).
+
+Comments: see [`docs/code-comments.md`](../code-comments.md).
+
+Layers, slices and public APIs: see
+[frontend ADR 0002](adr/0002-fsd-architecture.md).
+
+## Themes
+
+Every colour utility carries its `dark:` counterpart. A component that renders
+correctly in one theme only is a defect, not an omission — this product exists
+to display light and dark renderings side by side
+([`product.md` § 2](../design/product.md)), and a book that cannot render both
+has no standing to judge them.
+
+Theme-blind reasoning about a diff is not a substitute for looking: check both.
+
+## Chrome versus content
+
+The interface frames someone else's screenshots. A reviewer must never wonder
+whether a border, a shadow or a background belongs to the capture or to ozalid.
+
+- A capture sits in a container that is visually inert, on a neutral surface.
+- No decorative effect over or around a capture — no gradient, no blur, no
+  rounded corner cutting into the image.
+- Chrome uses the interface's own palette, kept distinct from anything a
+  captured product is likely to use.
+
+## Talking to the server
+
+The generated OpenAPI client is the only path to the API
+([backend ADR 0002](../backend/adr/0002-spec-first-openapi.md)). A hand-written
+`fetch` against an endpoint bypasses the contract and is a defect.
+
+## Testing
+
+Unit tests are colocated:
+
+```
+CaseGrid.vue
+CaseGrid.spec.ts
+```
+
+A new source file ships with its `.spec.ts` — barrels and pure type files
+excepted. End-to-end tests run headless; `--headed` is for local debugging only.

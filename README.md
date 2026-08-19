@@ -1,0 +1,54 @@
+# ozalid
+
+A hosted review book for end-to-end test evidence.
+
+Your e2e suite already walks through every user flow. ozalid captures what the
+user actually saw at each step — in every variant that matters (desktop/mobile,
+light/dark, and whatever else your product ships) — and turns it into a
+catalogue a human reviews instead of clicking through the app by hand.
+
+The point is not to assert that pixels did not move. It is to let a reviewer
+judge the product from evidence, and then to **only ever re-review what
+actually changed**.
+
+> An *ozalid* is the final proof pulled before a print run: the last chance to
+> read every page, annotate what is wrong, and sign off.
+
+## Status
+
+Design phase. Nothing is implemented. The specification and the structural
+decisions are complete enough to start building.
+
+- [`docs/design/product.md`](docs/design/product.md) — what the product does,
+  its vocabulary, its data model, and its review cycle. **Start here.**
+- [`docs/adr/`](docs/adr/) — the product and cross-cutting decisions, each with
+  the alternatives that were rejected and why.
+- [`docs/backend/adr/`](docs/backend/adr/),
+  [`docs/frontend/adr/`](docs/frontend/adr/) — the decisions confined to one
+  side of the stack.
+
+## Stack
+
+Settled in [ADR 0011](docs/adr/0011-technology-stack.md); one repository holds
+the three applications ([ADR 0010](docs/adr/0010-monorepo-with-server-web-and-cli.md)).
+
+| | |
+| --- | --- |
+| `apps/server` | Go — the API, the review lifecycle, the capture store |
+| `apps/web` | Vue 3, TypeScript, Vite, Tailwind — the review book |
+| `apps/cli` | Go — intake, runner adapters, issue-link reporting |
+
+State lives in PostgreSQL; capture bytes live on the filesystem, addressed by
+content. The OpenAPI document is the contract the three share, and it is
+authored, not generated.
+
+## Origin
+
+ozalid is the extraction of an internal tool built inside a product monorepo
+between July and August 2026. That tool proved the concept over 240 test cases
+and is now frozen: its architecture (flat JSON files, derived-on-read state,
+direct file edits alongside a partial API) does not survive multiple reviewers
+or a hosted deployment. ozalid keeps the concept and rebuilds the foundations.
+
+See [ADR 0001](docs/adr/0001-standalone-multi-project-service.md) for the full
+account of what was learned and what it costs.
