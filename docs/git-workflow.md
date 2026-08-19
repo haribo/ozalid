@@ -95,6 +95,7 @@ check is intended, not a missing step.
 | Server CI | `apps/server/**`, `apps/cli/**`, the workflow file |
 | Web CI | `apps/web/**`, `apps/server/api/openapi.yaml`, the workflow file |
 | PR validation | every pull request |
+| Security (secret scan) | every push to a permanent branch, every pull request |
 
 The API document appears in the web filter deliberately: the typed client is
 generated from it, so a contract change must re-check the client that consumes
@@ -126,7 +127,8 @@ git config core.hooksPath .githooks
 ```
 
 A hook is opt-in per clone and per machine, so it is a convenience, never the
-guarantee. What cannot be skipped runs in CI.
+guarantee. What cannot be skipped runs in CI — secret scanning included, which
+is why `gitleaks` is a workflow and not only a hook.
 
 ## Branch naming
 
