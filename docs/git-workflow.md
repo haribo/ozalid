@@ -61,8 +61,10 @@ gh pr create --base main --head develop
 # 2. Wait for CI
 gh pr checks
 
-# 3. Merge commit — never squash a release
-gh pr merge --merge
+# 3. Merge commit — never squash a release. Set the subject explicitly:
+#    left to GitHub, it writes "Merge pull request #N from <owner>/develop",
+#    the one non-conventional subject in an otherwise clean history
+gh pr merge <n> --merge --subject "chore(release): vX.Y.Z (#<n>)" --body ""
 
 # 4. Tag
 git tag vX.Y.Z && git push origin vX.Y.Z
@@ -73,10 +75,13 @@ git tag vX.Y.Z && git push origin vX.Y.Z
 | Target | Strategy | Command |
 | --- | --- | --- |
 | Feature → `develop` | **Squash** | `/gh-merge-develop` |
-| `develop` → `main` | **Merge commit** | `gh pr merge --merge` |
+| `develop` → `main` | **Merge commit** | `gh pr merge <n> --merge --subject "chore(release): vX.Y.Z (#<n>)" --body ""` |
 
 **Never merge a feature pull request with `--merge`** — a squash keeps
 `develop` readable, one line per delivered change.
+**Never leave a merge subject to GitHub** — the release merge lands on `main`,
+gets tagged, and a release binary points at that tag. It is immutable in
+practice, so the subject is chosen at merge time or never.
 **Never target `main` with a feature pull request** — always `develop`.
 
 ## CI gating
