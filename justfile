@@ -31,12 +31,43 @@ hooks:
     git config core.hooksPath .githooks
     @echo "hooks enabled from .githooks"
 
+# ------------------------------------------------------------------- database
+
+# Off the default port on purpose — a dev machine often already runs a Postgres.
+pg_port := env_var_or_default("OZALID_PG_PORT", "5442")
+dsn := "postgres://ozalid:ozalid@localhost:" + pg_port + "/ozalid?sslmode=disable"
+goose := "GOOSE_DRIVER=postgres GOOSE_DBSTRING='" + dsn + "' GOOSE_MIGRATION_DIR=apps/server/db/migrations go tool goose"
+
+# Apply every pending migration.
+db-up:
+    {{goose}} up
+
+# Roll the last migration back.
+db-down:
+    {{goose}} down
+
+# Show which migrations have been applied.
+db-status:
+    {{goose}} status
+
+# Create a migration. One feature, one migration; once merged, never edited.
+db-new name:
+    {{goose}} create {{name}} sql
+
+# Generate the typed Go from the hand-written SQL.
+gen-db:
+    cd apps/server/db && go tool sqlc generate
+
+# Run the tests that need a live database.
+db-test: db-up
+    OZALID_TEST_DSN="{{dsn}}" go test -count=1 ./apps/server/internal/adapters/...
+
 # ------------------------------------------------------------------- contract
 
 # Regenerate everything derived from the OpenAPI document.
 # The document is the source of truth (backend ADR 0002); everything below it
 # is an artifact and is never edited by hand.
-gen: gen-bundle gen-server gen-web
+gen: gen-bundle gen-server gen-web gen-db
 
 # Bundle apps/server/api/src/ into the single committed artifact.
 gen-bundle:
