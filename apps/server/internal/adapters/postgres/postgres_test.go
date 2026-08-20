@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 
@@ -33,7 +34,7 @@ func withTx(t *testing.T) (context.Context, *sqlcgen.Queries) {
 		t.Fatalf("beginning the transaction: %v", err)
 	}
 	t.Cleanup(func() {
-		if err := tx.Rollback(ctx); err != nil && err != pgx.ErrTxClosed {
+		if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 			t.Errorf("rolling back: %v", err)
 		}
 	})
