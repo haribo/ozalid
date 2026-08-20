@@ -21,6 +21,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/blobs/{hash}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The content address, as `sha256:` followed by 64 lowercase hex characters. */
+                hash: string;
+            };
+            cookie?: never;
+        };
+        /** Download the content at this address */
+        get: operations["getBlob"];
+        /**
+         * Store content under its address
+         * @description Idempotent: storing content that is already held changes nothing. The bytes
+         *     are refused if they do not produce the announced address — content sitting
+         *     at an address that does not describe it would hand every future reader the
+         *     wrong evidence with no way to notice.
+         *
+         *     When the address is already held the upload is answered `204` without the
+         *     body being read at all, so a client sending the wrong bytes under a known
+         *     address is not told. The stored content is still correct; verifying would
+         *     mean reading every upload in full, which is the cost this avoids. Call
+         *     `HEAD` first and skip what is already held.
+         */
+        put: operations["putBlob"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        /**
+         * Report whether the store already holds this content
+         * @description Intake calls this before sending bytes: content already held is never
+         *     uploaded again, which is what makes a full visual history affordable.
+         */
+        head: operations["headBlob"];
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -43,7 +81,26 @@ export interface components {
             instance?: string;
         };
     };
-    responses: never;
+    responses: {
+        /** @description The request is malformed. */
+        BadRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["problem"];
+            };
+        };
+        /** @description No such resource. */
+        NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["problem"];
+            };
+        };
+    };
     parameters: never;
     requestBodies: never;
     headers: never;
@@ -76,6 +133,102 @@ export interface operations {
                         version: string;
                     };
                 };
+            };
+        };
+    };
+    getBlob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The content address, as `sha256:` followed by 64 lowercase hex characters. */
+                hash: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The content. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putBlob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The content address, as `sha256:` followed by 64 lowercase hex characters. */
+                hash: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description The content is stored. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The store already held this content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description The bytes do not produce the announced address. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["problem"];
+                };
+            };
+        };
+    };
+    headBlob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The content address, as `sha256:` followed by 64 lowercase hex characters. */
+                hash: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The store holds this content. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description The store does not hold this content. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

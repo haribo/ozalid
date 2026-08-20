@@ -12,12 +12,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/oapi-codegen/runtime"
 )
 
 // Defines values for GetHealth200JSONResponseBodyStatus.
@@ -35,11 +37,44 @@ func (e GetHealth200JSONResponseBodyStatus) Valid() bool {
 	}
 }
 
+// Problem defines model for problem.
+type Problem struct {
+	// Detail An explanation specific to this occurrence.
+	Detail   *string `json:"detail,omitempty"`
+	Instance *string `json:"instance,omitempty"`
+
+	// Status The HTTP status code.
+	Status int `json:"status"`
+
+	// Title A short, human-readable summary, stable for a given type.
+	Title string `json:"title"`
+
+	// Type A URI identifying the problem type.
+	//
+	// Examples: https://ozalid.dev/problems/case-not-found
+	Type string `json:"type"`
+}
+
+// BadRequest defines model for BadRequest.
+type BadRequest = Problem
+
+// NotFound defines model for NotFound.
+type NotFound = Problem
+
 // GetHealth200JSONResponseBodyStatus defines parameters for GetHealth.
 type GetHealth200JSONResponseBodyStatus string
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetBlob Download the content at this address
+	// (GET /blobs/{hash})
+	GetBlob(w http.ResponseWriter, r *http.Request, hash string)
+	// HeadBlob Report whether the store already holds this content
+	// (HEAD /blobs/{hash})
+	HeadBlob(w http.ResponseWriter, r *http.Request, hash string)
+	// PutBlob Store content under its address
+	// (PUT /blobs/{hash})
+	PutBlob(w http.ResponseWriter, r *http.Request, hash string)
 	// GetHealth Report whether the service is able to serve
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -53,6 +88,84 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetBlob operation middleware
+func (siw *ServerInterfaceWrapper) GetBlob(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "hash" -------------
+	var hash string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "hash", r.PathValue("hash"), &hash, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "hash", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetBlob(w, r, hash)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// HeadBlob operation middleware
+func (siw *ServerInterfaceWrapper) HeadBlob(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "hash" -------------
+	var hash string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "hash", r.PathValue("hash"), &hash, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "hash", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.HeadBlob(w, r, hash)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutBlob operation middleware
+func (siw *ServerInterfaceWrapper) PutBlob(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "hash" -------------
+	var hash string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "hash", r.PathValue("hash"), &hash, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "hash", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutBlob(w, r, hash)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Request) {
@@ -189,8 +302,170 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/health", wrapper.GetHealth)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/blobs/{hash}", wrapper.GetBlob)
+	m.HandleFunc(http.MethodHead+" "+options.BaseURL+"/blobs/{hash}", wrapper.HeadBlob)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/blobs/{hash}", wrapper.PutBlob)
 
 	return m
+}
+
+type BadRequestApplicationProblemPlusJSONResponse Problem
+
+type NotFoundApplicationProblemPlusJSONResponse Problem
+
+type GetBlobRequestObject struct {
+	Hash string `json:"hash"`
+}
+
+type GetBlobResponseObject interface {
+	VisitGetBlobResponse(w http.ResponseWriter) error
+}
+
+type GetBlob200ApplicationoctetStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetBlob200ApplicationoctetStreamResponse) VisitGetBlobResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetBlob400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response GetBlob400ApplicationProblemPlusJSONResponse) VisitGetBlobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBlob404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response GetBlob404ApplicationProblemPlusJSONResponse) VisitGetBlobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type HeadBlobRequestObject struct {
+	Hash string `json:"hash"`
+}
+
+type HeadBlobResponseObject interface {
+	VisitHeadBlobResponse(w http.ResponseWriter) error
+}
+
+type HeadBlob200Response struct {
+}
+
+func (response HeadBlob200Response) VisitHeadBlobResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
+type HeadBlob400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response HeadBlob400ApplicationProblemPlusJSONResponse) VisitHeadBlobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type HeadBlob404Response struct {
+}
+
+func (response HeadBlob404Response) VisitHeadBlobResponse(w http.ResponseWriter) error {
+	w.WriteHeader(404)
+	return nil
+}
+
+type PutBlobRequestObject struct {
+	Hash string `json:"hash"`
+	Body io.Reader
+}
+
+type PutBlobResponseObject interface {
+	VisitPutBlobResponse(w http.ResponseWriter) error
+}
+
+type PutBlob201Response struct {
+}
+
+func (response PutBlob201Response) VisitPutBlobResponse(w http.ResponseWriter) error {
+	w.WriteHeader(201)
+	return nil
+}
+
+type PutBlob204Response struct {
+}
+
+func (response PutBlob204Response) VisitPutBlobResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PutBlob400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response PutBlob400ApplicationProblemPlusJSONResponse) VisitPutBlobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutBlob422ApplicationProblemPlusJSONResponse Problem
+
+func (response PutBlob422ApplicationProblemPlusJSONResponse) VisitPutBlobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetHealthRequestObject struct {
@@ -223,6 +498,15 @@ func (response GetHealth200JSONResponse) VisitGetHealthResponse(w http.ResponseW
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// GetBlob Download the content at this address
+	// (GET /blobs/{hash})
+	GetBlob(ctx context.Context, request GetBlobRequestObject) (GetBlobResponseObject, error)
+	// HeadBlob Report whether the store already holds this content
+	// (HEAD /blobs/{hash})
+	HeadBlob(ctx context.Context, request HeadBlobRequestObject) (HeadBlobResponseObject, error)
+	// PutBlob Store content under its address
+	// (PUT /blobs/{hash})
+	PutBlob(ctx context.Context, request PutBlobRequestObject) (PutBlobResponseObject, error)
 	// GetHealth Report whether the service is able to serve
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
@@ -267,6 +551,86 @@ type strictHandler struct {
 	options     StrictHTTPServerOptions
 }
 
+// GetBlob operation middleware
+func (sh *strictHandler) GetBlob(w http.ResponseWriter, r *http.Request, hash string) {
+	var request GetBlobRequestObject
+
+	request.Hash = hash
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetBlob(ctx, request.(GetBlobRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetBlob")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetBlobResponseObject); ok {
+		if err := validResponse.VisitGetBlobResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// HeadBlob operation middleware
+func (sh *strictHandler) HeadBlob(w http.ResponseWriter, r *http.Request, hash string) {
+	var request HeadBlobRequestObject
+
+	request.Hash = hash
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.HeadBlob(ctx, request.(HeadBlobRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "HeadBlob")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(HeadBlobResponseObject); ok {
+		if err := validResponse.VisitHeadBlobResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutBlob operation middleware
+func (sh *strictHandler) PutBlob(w http.ResponseWriter, r *http.Request, hash string) {
+	var request PutBlobRequestObject
+
+	request.Hash = hash
+
+	request.Body = r.Body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutBlob(ctx, request.(PutBlobRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutBlob")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutBlobResponseObject); ok {
+		if err := validResponse.VisitPutBlobResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetHealth operation middleware
 func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 	var request GetHealthRequestObject
@@ -296,12 +660,29 @@ func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

@@ -8,20 +8,23 @@ package http
 import (
 	"net/http"
 
+	"github.com/haribo/ozalid/apps/server/internal/adapters/blobstore"
 	"github.com/haribo/ozalid/apps/server/internal/ports/http/openapi"
 )
 
 // Server implements the generated API interface.
 type Server struct {
 	version string
+	blobs   blobstore.Store
 }
 
 // Compile-time proof that every operation in the contract is implemented.
 var _ openapi.StrictServerInterface = (*Server)(nil)
 
-// New returns a Server reporting the given build version.
-func New(version string) *Server {
-	return &Server{version: version}
+// New returns a Server reporting the given build version and storing capture
+// bytes in blobs.
+func New(version string, blobs blobstore.Store) *Server {
+	return &Server{version: version, blobs: blobs}
 }
 
 // Handler returns the routes described by the contract, mounted under /api.

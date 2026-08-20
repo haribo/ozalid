@@ -74,16 +74,36 @@ gen-bundle:
     {{web}}/node_modules/.bin/redocly bundle apps/server/api/src/openapi.yaml -o apps/server/api/openapi.yaml
 
 # Generate the Go handler interface, in strict server mode.
+# Generated from the bundle, not from src/: the bundle is the artifact every
+# consumer reads, so both sides generate from exactly the same bytes.
 gen-server:
-    cd apps/server/api && go tool oapi-codegen -config oapi-codegen.yaml src/openapi.yaml
+    cd apps/server/api && go tool oapi-codegen -config oapi-codegen.yaml openapi.yaml
 
 # Generate the web client's types.
 gen-web:
     {{web}}/node_modules/.bin/openapi-typescript apps/server/api/openapi.yaml -o {{web}}/src/shared/api/schema.gen.ts
 
-# Fail if the generated files are stale. This is what CI runs.
-gen-check: gen
-    @git diff --exit-code --stat -- apps/server/api/openapi.yaml apps/server/internal/ports/http/openapi {{web}}/src/shared/api/schema.gen.ts       || (echo "generated files are stale — run 'just gen' and commit the result" && exit 1)
+# Fail if the generated files are not what the document produces.
+#
+# Compares the tree before and after regenerating rather than asking git, so it
+# gives the same answer whether or not the work is committed.
+gen-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    targets=(
+      apps/server/api/openapi.yaml
+      apps/server/internal/ports/http/openapi
+      apps/server/internal/adapters/postgres/sqlcgen
+      {{web}}/src/shared/api/schema.gen.ts
+    )
+    before=$(find "${targets[@]}" -type f -exec sha256sum {} + | sort)
+    just gen >/dev/null
+    after=$(find "${targets[@]}" -type f -exec sha256sum {} + | sort)
+    if [[ "$before" != "$after" ]]; then
+      echo "generated files are stale — 'just gen' changed them:"
+      diff <(echo "$before") <(echo "$after") | grep '^[<>]' | awk '{print "  " $3}' | sort -u
+      exit 1
+    fi
 
 # ------------------------------------------------------------- server and cli
 
