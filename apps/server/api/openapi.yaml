@@ -1,0 +1,63 @@
+openapi: 3.1.0
+info:
+  title: ozalid
+  version: 0.1.0
+  description: A hosted review book for end-to-end test evidence.
+servers:
+  - url: /api
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Report whether the service is able to serve
+      tags:
+        - service
+      responses:
+        '200':
+          description: The service is serving.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - version
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - ok
+                  version:
+                    type: string
+                    description: The build this instance runs.
+                    examples:
+                      - 0.1.0
+components:
+  schemas:
+    Problem:
+      $ref: '#/components/schemas/problem'
+    problem:
+      type: object
+      required:
+        - type
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+          description: A URI identifying the problem type.
+          examples:
+            - https://ozalid.dev/problems/case-not-found
+        title:
+          type: string
+          description: A short, human-readable summary, stable for a given type.
+        status:
+          type: integer
+          description: The HTTP status code.
+        detail:
+          type: string
+          description: An explanation specific to this occurrence.
+        instance:
+          type: string
+          format: uri-reference

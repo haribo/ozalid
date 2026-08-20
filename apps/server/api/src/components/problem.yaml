@@ -1,0 +1,22 @@
+# RFC 9457 problem details. Every error response carries this shape, so a
+# client never has to guess what a failure looks like.
+type: object
+required: [type, title, status]
+properties:
+  type:
+    type: string
+    format: uri
+    description: A URI identifying the problem type.
+    examples: ["https://ozalid.dev/problems/case-not-found"]
+  title:
+    type: string
+    description: A short, human-readable summary, stable for a given type.
+  status:
+    type: integer
+    description: The HTTP status code.
+  detail:
+    type: string
+    description: An explanation specific to this occurrence.
+  instance:
+    type: string
+    format: uri-reference

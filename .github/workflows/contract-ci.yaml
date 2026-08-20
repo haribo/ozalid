@@ -1,0 +1,51 @@
+name: Contract
+
+# The OpenAPI document is the source of truth (backend ADR 0002). Everything
+# derived from it is committed, so this job's only purpose is to prove that
+# what is committed is what the document produces.
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "apps/server/api/**"
+      - "apps/server/internal/ports/http/openapi/**"
+      - "apps/web/src/shared/api/schema.gen.ts"
+      - ".github/workflows/contract-ci.yaml"
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - "apps/server/api/**"
+      - "apps/server/internal/ports/http/openapi/**"
+      - "apps/web/src/shared/api/schema.gen.ts"
+      - ".github/workflows/contract-ci.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  generated-is-current:
+    name: Generated files match the document
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v5.0.0
+        with:
+          node-version-file: apps/web/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install the generators
+        run: npm ci
+        working-directory: apps/web
+
+      - uses: extractions/setup-just@e33e0265a09d6d736e2ee1e0eb685ef1de4669ff # v3.0.0
+
+      - name: Regenerate and fail on any difference
+        run: just gen-check
