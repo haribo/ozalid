@@ -1,0 +1,79 @@
+parameters:
+  - name: hash
+    in: path
+    required: true
+    description: The content address, as `sha256:` followed by 64 lowercase hex characters.
+    schema:
+      type: string
+      pattern: "^sha256:[0-9a-f]{64}$"
+    examples:
+      capture:
+        value: sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+
+head:
+  operationId: headBlob
+  summary: Report whether the store already holds this content
+  description: |
+    Intake calls this before sending bytes: content already held is never
+    uploaded again, which is what makes a full visual history affordable.
+  tags: [blobs]
+  responses:
+    "200":
+      description: The store holds this content.
+    "400":
+      $ref: "../components/responses.yaml#/BadRequest"
+    "404":
+      description: The store does not hold this content.
+
+get:
+  operationId: getBlob
+  summary: Download the content at this address
+  tags: [blobs]
+  responses:
+    "200":
+      description: The content.
+      content:
+        application/octet-stream:
+          schema:
+            type: string
+            format: binary
+    "400":
+      $ref: "../components/responses.yaml#/BadRequest"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
+
+put:
+  operationId: putBlob
+  summary: Store content under its address
+  description: |
+    Idempotent: storing content that is already held changes nothing. The bytes
+    are refused if they do not produce the announced address — content sitting
+    at an address that does not describe it would hand every future reader the
+    wrong evidence with no way to notice.
+
+    When the address is already held the upload is answered `204` without the
+    body being read at all, so a client sending the wrong bytes under a known
+    address is not told. The stored content is still correct; verifying would
+    mean reading every upload in full, which is the cost this avoids. Call
+    `HEAD` first and skip what is already held.
+  tags: [blobs]
+  requestBody:
+    required: true
+    content:
+      application/octet-stream:
+        schema:
+          type: string
+          format: binary
+  responses:
+    "201":
+      description: The content is stored.
+    "204":
+      description: The store already held this content.
+    "400":
+      $ref: "../components/responses.yaml#/BadRequest"
+    "422":
+      description: The bytes do not produce the announced address.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "../components/problem.yaml"

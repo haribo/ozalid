@@ -1,0 +1,13 @@
+BadRequest:
+  description: The request is malformed.
+  content:
+    application/problem+json:
+      schema:
+        $ref: "./problem.yaml"
+
+NotFound:
+  description: No such resource.
+  content:
+    application/problem+json:
+      schema:
+        $ref: "./problem.yaml"

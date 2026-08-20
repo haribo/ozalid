@@ -17,6 +17,8 @@ servers:
 paths:
   /health:
     $ref: "./paths/health.yaml"
+  /blobs/{hash}:
+    $ref: "./paths/blob.yaml"
 
 components:
   schemas:
