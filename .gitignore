@@ -45,6 +45,7 @@ var/blobs/
 # =============================================================================
 
 node_modules/
+.vite/
 dist-ssr/
 coverage/
 *.tsbuildinfo

@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ozalid
+      POSTGRES_PASSWORD: ozalid
+      POSTGRES_DB: ozalid
+    ports:
+      # Off the default port on purpose: a developer machine often already runs
+      # a Postgres on 5432. Override with OZALID_PG_PORT.
+      - "${OZALID_PG_PORT:-5442}:5432"
+    volumes:
+      # Postgres 18+ wants a single mount at /var/lib/postgresql, not at its
+      # data subdirectory — that is what makes pg_upgrade --link possible later.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ozalid"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
