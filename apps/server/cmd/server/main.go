@@ -12,13 +12,16 @@ import (
 	ozhttp "github.com/haribo/ozalid/apps/server/internal/ports/http"
 )
 
+// version is stamped at build time with -ldflags.
+var version = "dev"
+
 func main() {
 	addr := os.Getenv("OZALID_ADDR")
 	if addr == "" {
 		addr = ":8080"
 	}
 
-	srv := &http.Server{Addr: addr, Handler: ozhttp.NewMux()}
+	srv := &http.Server{Addr: addr, Handler: ozhttp.New(version).Handler()}
 
 	slog.Info("listening", "addr", addr)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
