@@ -33,14 +33,17 @@ Two things follow, and they define the product:
 | Term | Meaning |
 | --- | --- |
 | **Project** | A product under review. Owns its own configuration, users, cases and storage. First-class from day one ([ADR 0001](../adr/0001-standalone-multi-project-service.md)). |
-| **Case** | One reviewable user flow — in practice, one instrumented e2e test. Carries a stable server-assigned id, independent of file path or title. |
+| **Case** | One reviewable user flow. Carries a short server-generated id; title and description are mutable and carry no identity ([ADR 0014](../adr/0014-server-generated-case-identity-and-catalogue-tree.md)). |
+| **Category** | A node in the project's catalogue tree, of unrestricted depth. A case belongs to exactly one. |
 | **Step** | A named business moment inside a case ("submits the form"). Ordered. |
-| **Variant** | A rendering axis combination the project declares — e.g. `desktop-light`, `mobile-dark`. Fully configurable per project; ozalid ships no built-in list. |
-| **Capture** | One image: a given step, in a given variant, at a given edition. Also covers the flow recording (video), reviewed per variant like any other capture. |
-| **Edition** | One accepted intake of a run: the complete set of captures pushed for a project at a point in time. Immutable once accepted. |
-| **Problem** | A defect or improvement a reviewer reports against a step and a set of variants. A durable entity with its own lifecycle ([§6](#6-problems)). |
-| **Verdict** | A reviewer's judgment on one capture: `unseen`, `validated`, `to-fix`, `to-improve`. |
-| **Reference** | The capture bytes a case was last approved against. What "has it changed?" is measured from. |
+| **Axis** | A rendering dimension the project declares — `theme`, `viewport`, `locale`, or anything else. ozalid ships no built-in list. |
+| **Variant** | A combination of axis values. An axis the client does not supply is simply absent from the combination. |
+| **Capture** | One image: a given step, in a given variant, at a given edition. Comparable, hashed, referenced. |
+| **Recording** | The flow video. Optional, viewable, **never** compared byte-wise and never a source of state ([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md)). |
+| **Edition** | One accepted intake of a run. Immutable once accepted. |
+| **Comment** | A reviewer's report against a step and a set of variants. A durable entity with its own lifecycle ([§6](#6-comments)). Formerly called a *problem*. |
+| **Verdict** | The stored status of one capture: `to-review`, `to-fix`, `validated`. Computed by the server from the comments covering it. |
+| **Reference** | The capture bytes a given capture was last approved against. What "has it changed?" is measured from. |
 
 Grammar convention, inherited and kept: **"to + verb" means pending, a past
 participle means done**. `to review` is work waiting; `reviewed` is work
@@ -56,16 +59,23 @@ this is a hard rule, not a preference.
 Stored, never received as a parameter — the server computes every transition
 from the facts it just recorded ([ADR 0002](../adr/0002-server-owns-the-review-lifecycle.md)).
 
-| State | Meaning | Ball |
-| --- | --- | --- |
-| `not-instrumented` | No captures and no verdict. Outside the funnel. | nobody |
-| `to-review` | Never judged, or judgment incomplete. | reviewer |
-| `to-fix` | At least one open defect with no issue linked. | dev (triage) |
-| `to-improve` | No untracked defect, but at least one open improvement with no issue linked. | dev (triage) |
-| `tracked` | At least one open problem, and every open problem carries an issue. Implementation in progress. | dev, then reviewer |
-| `reviewed` | Judged, zero open problem. The only clean state. | nobody |
+The state answers **one** question and carries no detail: the detail lives on
+the comments ([ADR 0012](../adr/0012-case-carries-the-ball-comment-carries-the-detail.md)).
 
-`to-fix` outranks `to-improve` when both apply.
+| State | Condition | Ball |
+| --- | --- | --- |
+| `not-instrumented` | No capture and no verdict. Outside the funnel. | nobody |
+| `to-review` | Something is waiting for the reviewer's judgment. | reviewer |
+| `to-fix` | Nothing awaits the reviewer, and at least one comment awaits the dev. | dev |
+| `reviewed` | No open comment. The only clean state. | nobody |
+
+`to-review` outranks `to-fix` when both apply: a verdict can cancel work in
+progress, so it comes first.
+
+Each capture also carries a **stored status** — `to-review`, `to-fix`,
+`validated` — recomputed by the server whenever a comment covering it changes.
+Recording a comment and recomputing the captures it covers happen in one
+operation; nothing else writes that status.
 
 ### 3.2 Occupancy (is someone working on it right now)
 
@@ -80,40 +90,49 @@ afterwards.
 
 ### 3.3 Freshness (is the evidence still the evidence that was judged)
 
-Computed at intake, relative to the case's reference:
+Computed at intake, per capture, against that capture's reference:
 
-- `current` — the captures the reviewer approved are still the captures on
-  display.
-- `to-re-review` — at least one capture moved. The changed cells are marked
+- `current` — the bytes the reviewer approved are still the bytes on display.
+- `to-re-review` — the capture moved. The changed cells are marked
   individually; the reviewer re-passes those, not the whole case.
-- `to-re-watch` — captures are byte-identical but the code moved. Video cannot
-  be compared byte-wise, so it is re-watched and revalidated in one click.
 
-Freshness is an **overlay**, not a state. A `reviewed` case that goes
-`to-re-review` is still `reviewed` until the reviewer says otherwise; a
-`tracked` case going `to-re-review` means delivery evidence has arrived and is
-judged problem by problem.
+A capture counts as moved when its hash differs **and** a bounded pixel
+comparison exceeds a per-project threshold — below it, the difference is
+rasterisation noise. The number of differing pixels is recorded so the
+threshold can be judged rather than guessed.
+
+Recordings are never compared: encoding is not deterministic, so a video can
+never prove anything about its own freshness
+([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md)).
+
+Freshness is an **overlay**, not a state. A `reviewed` case whose captures move
+is still `reviewed` until the reviewer says otherwise.
 
 ### 3.4 Transitions
 
 Every transition is journalled: `{case, from, to, at, actor, cause, inputs}`.
 
 `inputs` is not decoration. It is a fingerprint of the facts the server used to
-compute the transition — open problems, their issue links, capture references.
+compute the transition — open comments, their issue links, capture references.
 Without it, a stored state cannot serve as a regression oracle: when the
 computation rule later changes and a replay produces a different result, there
-is no way to tell a code regression from data that legitimately moved. This was
-the decisive argument for storing state at all, so the guarantee must be real.
+is no way to tell a code regression from data that legitimately moved.
 
 Facts that trigger a recomputation:
 
 | Fact recorded | Possible effect |
 | --- | --- |
-| A review is saved (per-capture verdicts + problems) | any cycle transition |
-| A problem is linked to an issue | `to-fix`/`to-improve` → `tracked` |
-| A problem is discarded with a reason | may clear the last blocker → `reviewed` |
-| A fix is accepted or rejected on a tracked problem | `tracked` → `reviewed`, or stay |
-| An edition is accepted | freshness axis only — never the cycle state |
+| A review is saved (capture verdicts + comments) | any cycle transition |
+| A comment is linked to an issue | comment → `tracked` |
+| A comment is discarded with a reason | may clear the last blocker → `reviewed` |
+| The dev asks for a judgment on a delivered comment | comment → `to-review`, case → `to-review` |
+| A delivery is accepted or refused | comment → `validated` or `refused` |
+| An edition is accepted | freshness only — never the cycle state |
+
+Returning to `to-review` is **requested by the dev**, never inferred from
+captures moving: images also move for a refactor or a dependency bump, and
+summoning the reviewer for that is noise. The dev may ask without having
+implemented everything — one issue can depend on the verdict given on another.
 
 ## 4. Capture storage
 
@@ -143,39 +162,64 @@ variants, captures. Translating a Playwright, Cypress or anything-else report
 into that vocabulary is the client's job. Supporting a new runner never touches
 the server.
 
-**ozalid knows nothing about issue trackers.** A problem may carry an opaque
-external reference — an id and a URL. ozalid never creates, reads, closes or
+**ozalid knows nothing about issue trackers.** A comment may carry an opaque
+external reference — an id, a URL and a title, all three **supplied by the
+client**. ozalid never fetches them, never refreshes them, and will never know
+the issue was closed. ozalid never creates, reads, closes or
 comments an issue, and never holds a tracker credential. The flow runs
 **outward**: the reviewer accepts a fix in ozalid, and something else closes
 the issue as a consequence. Nothing about the review depends on a third party
 being reachable.
 
-## 6. Problems
+## 6. Comments
 
-A problem is a durable entity, not a scratch note ([ADR 0006](../adr/0006-problems-are-durable-entities.md)).
+A comment is a durable entity, not a scratch note
+([ADR 0006](../adr/0006-problems-are-durable-entities.md)). It was called a
+*problem* until 2026-08-20.
 
 - Fields: kind (`defect` | `improvement`), text, the step it anchors to, the
   variants it appears on, its state, and its history.
-- One real defect spanning four variants is **one** problem with four variants
-  checked — never four problems.
-- States: `open` → `tracked` (an external reference was attached) or
-  `discarded` (with a mandatory reason). A tracked problem then goes
-  `accepted` or `rejected` (with a mandatory comment) when the fix is judged.
-- Nothing is deleted. A discarded problem stays visible on its case, with its
-  reason and its author. "I reported this three months ago, who removed it?"
-  must always have an answer.
+- One real defect spanning four variants is **one** comment with four variants
+  checked — never four comments.
+- The **kind stays on the comment**. It is what the issue is written from, and
+  it never colours the case's state
+  ([ADR 0012](../adr/0012-case-carries-the-ball-comment-carries-the-detail.md)).
+
+### 6.1 Lifecycle
+
+| State | Meaning | Terminal |
+| --- | --- | --- |
+| `to-track` | Reported, no issue attached | no |
+| `tracked` | Carries an external issue reference | no |
+| `to-review` | The dev delivered and asked for a judgment | no |
+| `refused` | Refused, with a mandatory remark | no — returns to `to-review` on the next delivery |
+| `validated` | Accepted | yes |
+| `discarded` | Set aside, with a mandatory reason | yes |
+
+A refusal is **not** a way to die. The dev reworks, delivers again, and the
+comment returns to `to-review` — as many rounds as needed. Every refusal is
+kept: three round trips on one comment is information.
+
+Nothing is deleted. A discarded comment stays visible on its case, with its
+reason and its author. "I reported this three months ago, who removed it?" must
+always have an answer.
 
 ## 7. Run intake
 
 A client pushes an edition: the manifest (cases, steps, variants) plus the
-capture bytes that ozalid does not already hold.
+capture bytes that ozalid does not already hold. Each case is named by the id
+ozalid generated for it; a manifest naming the same case twice is refused
+([ADR 0014](../adr/0014-server-generated-case-identity-and-catalogue-tree.md)).
+
+An archived case is not part of intake and never blocks it.
 
 Intake is governed by a **per-project policy** ([ADR 0007](../adr/0007-run-intake-policy.md)):
 
 - `strict` — intake is refused outright while any case sits outside
-  `{reviewed, tracked, not-instrumented}`. The refusal lists the blocking
-  cases. This keeps pressure on finishing reviews, at the cost of blocking the
-  whole project on one unfinished review.
+  `{reviewed, to-fix, not-instrumented}` — that is, while any case is
+  `to-review`. The refusal lists the blocking cases. This keeps pressure on
+  finishing reviews, at the cost of blocking the whole project on one
+  unfinished review.
 - `per-case` — intake is always accepted and stored; each case keeps pointing
   at the edition its reviewer is judging, and advances when that review ends.
 
@@ -201,12 +245,17 @@ enters through the API, no path writes state behind it.**
 ```
 POST   /projects/:p/editions                  intake a run (manifest + blobs)
 GET    /projects/:p/cases?state=…&freshness=…  filter on stored state, no scan
-GET    /projects/:p/cases/:id                 case detail, captures, problems
+GET    /projects/:p/cases/:id                 case detail, captures, comments
+POST   /projects/:p/cases                     create a case, returns its id
+PATCH  /projects/:p/cases/:id                 title, description, category
+POST   /projects/:p/cases/:id/archive         leave the catalogue, keep everything
+GET    /projects/:p/categories                the catalogue tree
 POST   /projects/:p/cases/:id/lock            claim / heartbeat / release
 POST   /projects/:p/cases/:id/reviews         save a review session
-POST   /projects/:p/problems/:id/reference    attach an external issue
-POST   /projects/:p/problems/:id/discard      discard with a reason
-POST   /projects/:p/problems/:id/judgment     accept or reject a fix
+POST   /projects/:p/comments/:id/reference    attach an external issue
+POST   /projects/:p/comments/:id/discard      discard with a reason
+POST   /projects/:p/comments/:id/delivery     the dev asks for a judgment
+POST   /projects/:p/comments/:id/judgment     accept or refuse a delivery
 GET    /projects/:p/events                    server-sent event stream
 GET    /projects/:p/cases/:id/history         the transition journal
 ```
@@ -229,6 +278,10 @@ Named so they are not smuggled in:
 - Hosting or executing test suites. Clients run their own.
 - Tracker integration of any kind (see [§5](#5-boundaries)).
 - Cross-environment capture comparison. Recorded, flagged, not reconciled.
+- Deleting a non-empty category. Only an empty one can be removed
+  ([ADR 0014](../adr/0014-server-generated-case-identity-and-catalogue-tree.md)).
+- Comparing recordings. Encoding is not deterministic
+  ([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md)).
 - Migration from the predecessor tool. Deliberately none — the book starts empty
   ([ADR 0008](../adr/0008-no-migration-frozen-predecessor.md)).
 
