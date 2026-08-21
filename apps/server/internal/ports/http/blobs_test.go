@@ -19,7 +19,7 @@ func newServer(t *testing.T) http.Handler {
 	if err != nil {
 		t.Fatalf("creating the store: %v", err)
 	}
-	return ozhttp.New("test", store).Handler()
+	return ozhttp.New("test", store, nil).Handler()
 }
 
 func do(t *testing.T, h http.Handler, method, path string, body io.Reader) *httptest.ResponseRecorder {

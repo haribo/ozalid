@@ -175,3 +175,42 @@ func TestSiblingCategoriesCannotShareANameAtTheRoot(t *testing.T) {
 		t.Error("a duplicate root category was accepted, want a unique violation")
 	}
 }
+
+func TestACategoryHoldingOnlyAnArchivedCaseStillCannotBeDeleted(t *testing.T) {
+	ctx, q := withTx(t)
+	project := seedProject(t, ctx, q)
+
+	category, err := q.CreateCategory(ctx, sqlcgen.CreateCategoryParams{
+		ProjectID: project.ID, Name: "emptied", Position: 0,
+	})
+	if err != nil {
+		t.Fatalf("creating the category: %v", err)
+	}
+	created, err := q.CreateCase(ctx, sqlcgen.CreateCaseParams{
+		ProjectID: project.ID, CategoryID: &category.ID, Title: "was here",
+	})
+	if err != nil {
+		t.Fatalf("creating the case: %v", err)
+	}
+	if _, err := q.ArchiveCase(ctx, created.ID); err != nil {
+		t.Fatalf("archiving the case: %v", err)
+	}
+
+	// The case left the catalogue but still records where it was filed, and an
+	// archived case is meant to stay whole (ADR 0014).
+	rows, err := q.DeleteEmptyCategory(ctx, category.ID)
+	if err != nil {
+		t.Fatalf("attempting the deletion: %v", err)
+	}
+	if rows != 0 {
+		t.Error("a category holding an archived case was deleted")
+	}
+
+	counts, err := q.CountCategoryContents(ctx, &category.ID)
+	if err != nil {
+		t.Fatalf("counting the contents: %v", err)
+	}
+	if counts.Cases != 1 || counts.ArchivedCases != 1 {
+		t.Errorf("counted %d cases (%d archived), want 1 and 1", counts.Cases, counts.ArchivedCases)
+	}
+}

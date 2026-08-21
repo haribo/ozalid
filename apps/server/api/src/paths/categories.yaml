@@ -1,0 +1,49 @@
+parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
+
+get:
+  operationId: listCategories
+  summary: Read the catalogue tree
+  tags: [categories]
+  responses:
+    "200":
+      description: The tree, parents before children.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: "../components/schemas.yaml#/Category"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
+
+post:
+  operationId: createCategory
+  summary: Add a node to the tree
+  tags: [categories]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "../components/schemas.yaml#/NewCategory"
+  responses:
+    "201":
+      description: The category.
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/Category"
+    "400":
+      $ref: "../components/responses.yaml#/BadRequest"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
+    "409":
+      description: A sibling already carries that name.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "../components/problem.yaml"

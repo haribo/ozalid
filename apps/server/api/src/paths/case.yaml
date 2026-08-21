@@ -1,0 +1,42 @@
+parameters:
+  - name: caseId
+    in: path
+    required: true
+    schema: { type: string }
+
+get:
+  operationId: getCase
+  summary: Read a case, archived or not
+  tags: [cases]
+  responses:
+    "200":
+      description: The case.
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/Case"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
+
+patch:
+  operationId: updateCase
+  summary: Change what is mutable about a case
+  description: Its id and its state are not part of that.
+  tags: [cases]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "../components/schemas.yaml#/CaseUpdate"
+  responses:
+    "200":
+      description: The updated case.
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/Case"
+    "400":
+      $ref: "../components/responses.yaml#/BadRequest"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
