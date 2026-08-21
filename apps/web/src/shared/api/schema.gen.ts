@@ -123,6 +123,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{slug}/editions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take a run's evidence into the book
+         * @description Push the complete manifest. Ask `HEAD /blobs/{hash}` first and upload what
+         *     the store does not hold — a manifest referencing absent content is refused
+         *     with the list of addresses to send.
+         *
+         *     The edition is written in one transaction: it exists whole, or not at all.
+         *     There is no pending edition.
+         */
+        post: operations["createEdition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{slug}/categories": {
         parameters: {
             query?: never;
@@ -284,6 +311,72 @@ export interface components {
             title: string;
             description?: string;
             categoryId?: string;
+        };
+        /**
+         * @description A combination of axis values, such as `{"theme":"dark","viewport":"mobile"}`.
+         *     The project declares its own axes — ozalid ships no list. An axis the client
+         *     does not supply is simply absent: a site with no theme has no theme.
+         * @example {
+         *       "theme": "dark",
+         *       "viewport": "mobile",
+         *       "locale": "fr"
+         *     }
+         * @example {
+         *       "locale": "en"
+         *     }
+         */
+        Variant: {
+            [key: string]: string;
+        };
+        /**
+         * @description Where the capture was produced. Byte comparison only means something within
+         *     one environment, so this is recorded and never guessed.
+         */
+        Provenance: {
+            os?: string;
+            browser?: string;
+            browserVersion?: string;
+            /** @description The effective resolution, recorded as provenance and never as identity. */
+            resolution?: string;
+            environmentId?: string;
+        };
+        ManifestCapture: {
+            variant: components["schemas"]["Variant"];
+            hash: string;
+            provenance?: components["schemas"]["Provenance"];
+        };
+        ManifestStep: {
+            name: string;
+            captures: components["schemas"]["ManifestCapture"][];
+        };
+        ManifestRecording: {
+            variant: components["schemas"]["Variant"];
+            hash: string;
+        };
+        ManifestCase: {
+            /** @description The id ozalid generated when the case was created. */
+            id: string;
+            steps: components["schemas"]["ManifestStep"][];
+            /** @description The flow video per variant. Optional, and never compared byte-wise. */
+            recordings?: components["schemas"]["ManifestRecording"][];
+        };
+        Manifest: {
+            /**
+             * @description Opaque to ozalid: displayed, never computed on. A commit hash, a build
+             *     number — whatever the client means by "which version produced this".
+             */
+            revision?: string;
+            cases: components["schemas"]["ManifestCase"][];
+        };
+        EditionAccepted: {
+            editionId: string;
+            cases: number;
+            captures: number;
+            recordings: number;
+        };
+        IntakeRefused: components["schemas"]["problem"] & {
+            /** @description The addresses to upload before pushing again. */
+            missingContent?: string[];
         };
         Category: {
             id: string;
@@ -563,6 +656,46 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    createEdition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Manifest"];
+            };
+        };
+        responses: {
+            /** @description The edition is in the book. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditionAccepted"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /**
+             * @description The manifest cannot be taken in: content is missing, a case is unknown
+             *     or named twice, or the project runs `strict` and a review is open.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["IntakeRefused"];
+                };
+            };
         };
     };
     listCategories: {

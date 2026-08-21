@@ -1,0 +1,42 @@
+parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
+
+post:
+  operationId: createEdition
+  summary: Take a run's evidence into the book
+  description: |
+    Push the complete manifest. Ask `HEAD /blobs/{hash}` first and upload what
+    the store does not hold — a manifest referencing absent content is refused
+    with the list of addresses to send.
+
+    The edition is written in one transaction: it exists whole, or not at all.
+    There is no pending edition.
+  tags: [editions]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "../components/manifest.yaml#/Manifest"
+  responses:
+    "201":
+      description: The edition is in the book.
+      content:
+        application/json:
+          schema:
+            $ref: "../components/manifest.yaml#/EditionAccepted"
+    "400":
+      $ref: "../components/responses.yaml#/BadRequest"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
+    "409":
+      description: |
+        The manifest cannot be taken in: content is missing, a case is unknown
+        or named twice, or the project runs `strict` and a review is open.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "../components/manifest.yaml#/IntakeRefused"

@@ -137,6 +137,90 @@ type Category struct {
 	Position int     `json:"position"`
 }
 
+// EditionAccepted defines model for EditionAccepted.
+type EditionAccepted struct {
+	Captures   int    `json:"captures"`
+	Cases      int    `json:"cases"`
+	EditionId  string `json:"editionId"`
+	Recordings int    `json:"recordings"`
+}
+
+// IntakeRefused defines model for IntakeRefused.
+type IntakeRefused struct {
+	// Detail An explanation specific to this occurrence.
+	Detail   *string `json:"detail,omitempty"`
+	Instance *string `json:"instance,omitempty"`
+
+	// MissingContent The addresses to upload before pushing again.
+	MissingContent *[]string `json:"missingContent,omitempty"`
+
+	// Status The HTTP status code.
+	Status int `json:"status"`
+
+	// Title A short, human-readable summary, stable for a given type.
+	Title string `json:"title"`
+
+	// Type A URI identifying the problem type.
+	//
+	// Examples: https://ozalid.dev/problems/case-not-found
+	Type string `json:"type"`
+}
+
+// Manifest defines model for Manifest.
+type Manifest struct {
+	Cases []ManifestCase `json:"cases"`
+
+	// Revision Opaque to ozalid: displayed, never computed on. A commit hash, a build
+	// number — whatever the client means by "which version produced this".
+	Revision *string `json:"revision,omitempty"`
+}
+
+// ManifestCapture defines model for ManifestCapture.
+type ManifestCapture struct {
+	Hash string `json:"hash"`
+
+	// Provenance Where the capture was produced. Byte comparison only means something within
+	// one environment, so this is recorded and never guessed.
+	Provenance *Provenance `json:"provenance,omitempty"`
+
+	// Variant A combination of axis values, such as `{"theme":"dark","viewport":"mobile"}`.
+	// The project declares its own axes — ozalid ships no list. An axis the client
+	// does not supply is simply absent: a site with no theme has no theme.
+	//
+	//
+	// Examples: {"locale":"fr","theme":"dark","viewport":"mobile"}, {"locale":"en"}
+	Variant Variant `json:"variant"`
+}
+
+// ManifestCase defines model for ManifestCase.
+type ManifestCase struct {
+	// Id The id ozalid generated when the case was created.
+	Id string `json:"id"`
+
+	// Recordings The flow video per variant. Optional, and never compared byte-wise.
+	Recordings *[]ManifestRecording `json:"recordings,omitempty"`
+	Steps      []ManifestStep       `json:"steps"`
+}
+
+// ManifestRecording defines model for ManifestRecording.
+type ManifestRecording struct {
+	Hash string `json:"hash"`
+
+	// Variant A combination of axis values, such as `{"theme":"dark","viewport":"mobile"}`.
+	// The project declares its own axes — ozalid ships no list. An axis the client
+	// does not supply is simply absent: a site with no theme has no theme.
+	//
+	//
+	// Examples: {"locale":"fr","theme":"dark","viewport":"mobile"}, {"locale":"en"}
+	Variant Variant `json:"variant"`
+}
+
+// ManifestStep defines model for ManifestStep.
+type ManifestStep struct {
+	Captures []ManifestCapture `json:"captures"`
+	Name     string            `json:"name"`
+}
+
 // NewCase defines model for NewCase.
 type NewCase struct {
 	CategoryId  *string `json:"categoryId,omitempty"`
@@ -176,6 +260,25 @@ type Project struct {
 // ProjectIntakePolicy `strict` refuses intake while any case is to-review; `per-case` never
 // refuses.
 type ProjectIntakePolicy string
+
+// Provenance Where the capture was produced. Byte comparison only means something within
+// one environment, so this is recorded and never guessed.
+type Provenance struct {
+	Browser        *string `json:"browser,omitempty"`
+	BrowserVersion *string `json:"browserVersion,omitempty"`
+	EnvironmentId  *string `json:"environmentId,omitempty"`
+	Os             *string `json:"os,omitempty"`
+
+	// Resolution The effective resolution, recorded as provenance and never as identity.
+	Resolution *string `json:"resolution,omitempty"`
+}
+
+// Variant A combination of axis values, such as `{"theme":"dark","viewport":"mobile"}`.
+// The project declares its own axes — ozalid ships no list. An axis the client
+// does not supply is simply absent: a site with no theme has no theme.
+//
+// Examples: {"locale":"fr","theme":"dark","viewport":"mobile"}, {"locale":"en"}
+type Variant map[string]string
 
 // Problem defines model for problem.
 type Problem struct {
@@ -222,6 +325,9 @@ type CreateCaseJSONRequestBody = NewCase
 // CreateCategoryJSONRequestBody defines body for CreateCategory for application/json ContentType.
 type CreateCategoryJSONRequestBody = NewCategory
 
+// CreateEditionJSONRequestBody defines body for CreateEdition for application/json ContentType.
+type CreateEditionJSONRequestBody = Manifest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// GetBlob Download the content at this address
@@ -266,6 +372,9 @@ type ServerInterface interface {
 	// CreateCategory Add a node to the tree
 	// (POST /projects/{slug}/categories)
 	CreateCategory(w http.ResponseWriter, r *http.Request, slug string)
+	// CreateEdition Take a run's evidence into the book
+	// (POST /projects/{slug}/editions)
+	CreateEdition(w http.ResponseWriter, r *http.Request, slug string)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -646,6 +755,32 @@ func (siw *ServerInterfaceWrapper) CreateCategory(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// CreateEdition operation middleware
+func (siw *ServerInterfaceWrapper) CreateEdition(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateEdition(w, r, slug)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -774,6 +909,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}", wrapper.GetProject)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/cases", wrapper.ListCases)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/cases", wrapper.CreateCase)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/editions", wrapper.CreateEdition)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/categories", wrapper.ListCategories)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/categories", wrapper.CreateCategory)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cases/{caseId}", wrapper.GetCase)
@@ -1447,6 +1583,75 @@ func (response CreateCategory409ApplicationProblemPlusJSONResponse) VisitCreateC
 	return err
 }
 
+type CreateEditionRequestObject struct {
+	Slug string `json:"slug"`
+	Body *CreateEditionJSONRequestBody
+}
+
+type CreateEditionResponseObject interface {
+	VisitCreateEditionResponse(w http.ResponseWriter) error
+}
+
+type CreateEdition201JSONResponse EditionAccepted
+
+func (response CreateEdition201JSONResponse) VisitCreateEditionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateEdition400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response CreateEdition400ApplicationProblemPlusJSONResponse) VisitCreateEditionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateEdition404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response CreateEdition404ApplicationProblemPlusJSONResponse) VisitCreateEditionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateEdition409ApplicationProblemPlusJSONResponse IntakeRefused
+
+func (response CreateEdition409ApplicationProblemPlusJSONResponse) VisitCreateEditionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetBlob Download the content at this address
@@ -1491,6 +1696,9 @@ type StrictServerInterface interface {
 	// CreateCategory Add a node to the tree
 	// (POST /projects/{slug}/categories)
 	CreateCategory(ctx context.Context, request CreateCategoryRequestObject) (CreateCategoryResponseObject, error)
+	// CreateEdition Take a run's evidence into the book
+	// (POST /projects/{slug}/editions)
+	CreateEdition(ctx context.Context, request CreateEditionRequestObject) (CreateEditionResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -1923,59 +2131,107 @@ func (sh *strictHandler) CreateCategory(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
+// CreateEdition operation middleware
+func (sh *strictHandler) CreateEdition(w http.ResponseWriter, r *http.Request, slug string) {
+	var request CreateEditionRequestObject
+
+	request.Slug = slug
+
+	var body CreateEditionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateEdition(ctx, request.(CreateEditionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateEdition")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateEditionResponseObject); ok {
+		if err := validResponse.VisitCreateEditionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
 // Stored as a slice of fixed-width chunks rather than one concatenated
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"2/w3AAD//w==",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,
