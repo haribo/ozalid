@@ -24,13 +24,19 @@ linters:
               desc: "app must not import an adapter — declare an interface in ports.go and wire it in cmd/server (backend ADR 0001)"
             - pkg: github.com/haribo/ozalid/apps/server/internal/ports
               desc: "app must not import a port — dependencies point inward (backend ADR 0001)"
-        # domain is pure: it knows nothing of the rest of the product.
+        # domain is pure: it knows nothing of the rest of the product. Two
+        # domain packages may talk to each other — that stays pure — but
+        # nothing above them may be reached.
         domain-layer:
           files:
             - "**/apps/server/internal/domain/**"
           deny:
-            - pkg: github.com/haribo/ozalid
-              desc: "domain must not import any project package — it is pure (backend ADR 0001)"
+            - pkg: github.com/haribo/ozalid/apps/server/internal/app
+              desc: "domain must not import app — dependencies point inward (backend ADR 0001)"
+            - pkg: github.com/haribo/ozalid/apps/server/internal/adapters
+              desc: "domain must not import an adapter — it is pure (backend ADR 0001)"
+            - pkg: github.com/haribo/ozalid/apps/server/internal/ports
+              desc: "domain must not import a port — it is pure (backend ADR 0001)"
 
     forbidigo:
       # app receives its I/O through interfaces, so a use case stays testable

@@ -12,20 +12,27 @@ import (
 const countCategoryContents = `-- name: CountCategoryContents :one
 SELECT
     (SELECT count(*) FROM categories WHERE parent_id = $1) AS subcategories,
-    (SELECT count(*) FROM cases WHERE category_id = $1 AND archived_at IS NULL) AS cases
+    (SELECT count(*) FROM cases WHERE category_id = $1) AS cases,
+    (SELECT count(*) FROM cases WHERE category_id = $1 AND archived_at IS NOT NULL) AS archived_cases
 `
 
 type CountCategoryContentsRow struct {
 	Subcategories int64
 	Cases         int64
+	ArchivedCases int64
 }
 
 // Refused unless empty: deleting a filing drawer must not move what is inside
 // it (ADR 0014).
+//
+// An archived case still points at its category, so it counts. Otherwise
+// deleting the category would leave it pointing at nothing, and an archived
+// case is meant to stay whole -- captures, comments, journal and where it was
+// filed.
 func (q *Queries) CountCategoryContents(ctx context.Context, parentID *string) (CountCategoryContentsRow, error) {
 	row := q.db.QueryRow(ctx, countCategoryContents, parentID)
 	var i CountCategoryContentsRow
-	err := row.Scan(&i.Subcategories, &i.Cases)
+	err := row.Scan(&i.Subcategories, &i.Cases, &i.ArchivedCases)
 	return i, err
 }
 

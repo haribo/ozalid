@@ -1,0 +1,25 @@
+post:
+  operationId: createProject
+  summary: Open a book
+  tags: [projects]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "../components/schemas.yaml#/NewProject"
+  responses:
+    "201":
+      description: The project is open.
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/Project"
+    "400":
+      $ref: "../components/responses.yaml#/BadRequest"
+    "409":
+      description: That slug is taken.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "../components/problem.yaml"

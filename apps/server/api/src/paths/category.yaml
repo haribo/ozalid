@@ -1,0 +1,28 @@
+parameters:
+  - name: categoryId
+    in: path
+    required: true
+    schema: { type: string }
+
+delete:
+  operationId: deleteCategory
+  summary: Remove an empty node
+  description: |
+    Only an empty one. Deleting a filing drawer must not silently move what was
+    inside it, so a category holding a sub-category or a case is refused.
+
+    An **archived** case counts as content: it still records where it was filed,
+    and an archived case is meant to stay whole. Move it first if the category
+    has to go.
+  tags: [categories]
+  responses:
+    "204":
+      description: The category is gone.
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
+    "409":
+      description: The category is not empty.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "../components/problem.yaml"

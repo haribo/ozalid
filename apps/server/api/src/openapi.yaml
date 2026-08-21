@@ -19,6 +19,20 @@ paths:
     $ref: "./paths/health.yaml"
   /blobs/{hash}:
     $ref: "./paths/blob.yaml"
+  /projects:
+    $ref: "./paths/projects.yaml"
+  /projects/{slug}:
+    $ref: "./paths/project.yaml"
+  /projects/{slug}/cases:
+    $ref: "./paths/cases.yaml"
+  /projects/{slug}/categories:
+    $ref: "./paths/categories.yaml"
+  /cases/{caseId}:
+    $ref: "./paths/case.yaml"
+  /cases/{caseId}/archive:
+    $ref: "./paths/case-archive.yaml"
+  /categories/{categoryId}:
+    $ref: "./paths/category.yaml"
 
 components:
   schemas:

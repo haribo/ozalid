@@ -6,11 +6,14 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
 
 	"github.com/haribo/ozalid/apps/server/internal/adapters/blobstore"
+	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres"
+	"github.com/haribo/ozalid/apps/server/internal/app/catalogue"
 	ozhttp "github.com/haribo/ozalid/apps/server/internal/ports/http"
 )
 
@@ -20,12 +23,14 @@ var version = "dev"
 type config struct {
 	addr     string
 	blobRoot string
+	dsn      string
 }
 
 func load() config {
 	return config{
 		addr:     env("OZALID_ADDR", ":8080"),
 		blobRoot: env("OZALID_BLOB_ROOT", "var/blobs"),
+		dsn:      env("OZALID_DSN", "postgres://ozalid:ozalid@localhost:5442/ozalid?sslmode=disable"),
 	}
 }
 
@@ -37,22 +42,36 @@ func env(key, fallback string) string {
 }
 
 func main() {
+	if err := run(); err != nil {
+		slog.Error("server stopped", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	ctx := context.Background()
 	cfg := load()
 
 	blobs, err := blobstore.NewFileStore(cfg.blobRoot)
 	if err != nil {
-		slog.Error("cannot open the capture store", "root", cfg.blobRoot, "error", err)
-		os.Exit(1)
+		return err
 	}
 
-	srv := &http.Server{
-		Addr:    cfg.addr,
-		Handler: ozhttp.New(version, blobs).Handler(),
+	store, err := postgres.Open(ctx, cfg.dsn)
+	if err != nil {
+		return err
 	}
+	defer store.Close()
+
+	// The assembly itself: the adapter satisfies the port the use cases
+	// declared, and nothing above ever sees a generated row or a driver error.
+	api := ozhttp.New(version, blobs, catalogue.New(store))
+
+	srv := &http.Server{Addr: cfg.addr, Handler: api.Handler()}
 
 	slog.Info("listening", "addr", cfg.addr, "blobs", cfg.blobRoot)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		slog.Error("server stopped", "error", err)
-		os.Exit(1)
+		return err
 	}
+	return nil
 }

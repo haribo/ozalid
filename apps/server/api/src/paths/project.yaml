@@ -1,0 +1,19 @@
+parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
+
+get:
+  operationId: getProject
+  summary: Read a project
+  tags: [projects]
+  responses:
+    "200":
+      description: The project.
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/Project"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"

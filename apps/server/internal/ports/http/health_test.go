@@ -9,7 +9,7 @@ import (
 )
 
 func TestGetHealthReportsTheBuildItRuns(t *testing.T) {
-	srv := ozhttp.New("1.2.3", nil)
+	srv := ozhttp.New("1.2.3", nil, nil)
 
 	got, err := srv.GetHealth(context.Background(), openapi.GetHealthRequestObject{})
 	if err != nil {
