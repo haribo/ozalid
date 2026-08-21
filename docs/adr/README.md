@@ -21,11 +21,12 @@ on the new one. The full lifecycle is set by
 | [0007](0007-run-intake-policy.md) | Run intake is governed by a per-project policy |
 | [0008](0008-no-migration-frozen-predecessor.md) | No migration; the predecessor is frozen |
 | [0009](0009-documentation-strategy.md) | Documentation strategy |
-| [0010](0010-monorepo-with-server-web-and-cli.md) | One repository holding server, web client and CLI |
+| [0010](0010-monorepo-with-server-web-and-cli.md) | One repository holding server, web client and CLI — *partly superseded by 0015* |
 | [0011](0011-technology-stack.md) | Technology stack |
 | [0012](0012-case-carries-the-ball-comment-carries-the-detail.md) | The case carries the ball, the comment carries the detail |
 | [0013](0013-a-recording-is-not-a-capture.md) | A recording is not a capture |
 | [0014](0014-server-generated-case-identity-and-catalogue-tree.md) | Server-generated case identity, and a catalogue tree |
+| [0015](0015-no-cli-clients-call-the-api.md) | No CLI; clients call the API directly |
 
 0001 to 0008 were decided in a single design conversation on 2026-08-18/19 and
 settle what the product is. 0009 to 0011 followed on 2026-08-19 and settle how

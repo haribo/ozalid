@@ -97,7 +97,7 @@ Rules must be concise. One rule per line where possible.
   current branch
 - No AI references in commits, code, issues or pull requests
 
-## Server and CLI (`apps/server/`, `apps/cli/`)
+## Server (`apps/server/`)
 
 - Follow `docs/backend/code.md` and `docs/code-comments.md` strictly
 - Layering is enforced by linter — see `docs/backend/adr/0001-hexagonal-layers.md`.
@@ -109,8 +109,9 @@ Rules must be concise. One rule per line where possible.
 - No endpoint accepts a case state as an argument — state is written by the
   server as a consequence of a recorded fact
   (`docs/adr/0002-server-owns-the-review-lifecycle.md`)
-- The capture hash is a cross-application contract. Changing the algorithm or
-  its encoding requires a new ADR — it orphans every blob already stored
+- The capture hash is a published contract: a client computes it before
+  uploading. Changing the algorithm or its encoding requires a new ADR — it
+  orphans every blob already stored and makes every client re-upload
 
 ## Web client (`apps/web/`)
 

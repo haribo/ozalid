@@ -57,8 +57,6 @@ linters:
       # cmd wires the concrete world, and tests build their own.
       - path: apps/server/cmd/
         linters: [forbidigo]
-      - path: apps/cli/
-        linters: [forbidigo]
       - path: _test\.go
         linters: [forbidigo]
 

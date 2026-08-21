@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted — 2026-08-19
+Accepted — 2026-08-19. **Partly superseded by
+[ADR 0015](0015-no-cli-clients-call-the-api.md)** on 2026-08-21: the monorepo
+layout stands, the CLI is withdrawn. The reasoning below about a CLI being
+structurally necessary is the part that did not hold — see ADR 0015 for why.
 
 ## Context
 
@@ -27,7 +30,7 @@ three of them, or one of them breaks silently.
 ```
 apps/server      Go   — the API, the lifecycle, the store
 apps/web         Vue  — the review book
-apps/cli         Go   — intake, runner adapters, issue-link reporting
+apps/cli         Go   — intake, runner adapters, issue-link reporting   (withdrawn, ADR 0015)
 ```
 
 The OpenAPI document is authored once under `apps/server/api/src/` and consumed
