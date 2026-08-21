@@ -50,3 +50,7 @@ func (r *Repository) Queries() *sqlcgen.Queries { return r.q }
 func (r *Repository) Begin(ctx context.Context) (pgx.Tx, error) {
 	return r.pool.Begin(ctx)
 }
+
+// Pool exposes the connection pool for tests that need to assert on rows no
+// query exposes. Production code goes through Queries.
+func (r *Repository) Pool() *pgxpool.Pool { return r.pool }

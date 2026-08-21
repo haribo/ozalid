@@ -99,6 +99,19 @@ func (s *Server) PutBlob(ctx context.Context, request openapi.PutBlobRequestObje
 	if err != nil {
 		return nil, err
 	}
+
+	// The database holds what it needs to know about the bytes on disk: their
+	// address and their size. The bytes themselves never go near it
+	// (backend ADR 0004).
+	if s.blobRecorder != nil {
+		size, err := s.blobs.Size(ctx, request.Hash)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.blobRecorder.RecordBlob(ctx, request.Hash, size); err != nil {
+			return nil, err
+		}
+	}
 	return openapi.PutBlob201Response{}, nil
 }
 

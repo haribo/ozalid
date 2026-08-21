@@ -220,6 +220,50 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+  /projects/{slug}/editions:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: createEdition
+      summary: Take a run's evidence into the book
+      description: |
+        Push the complete manifest. Ask `HEAD /blobs/{hash}` first and upload what
+        the store does not hold — a manifest referencing absent content is refused
+        with the list of addresses to send.
+
+        The edition is written in one transaction: it exists whole, or not at all.
+        There is no pending edition.
+      tags:
+        - editions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Manifest'
+      responses:
+        '201':
+          description: The edition is in the book.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EditionAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            The manifest cannot be taken in: content is missing, a case is unknown
+            or named twice, or the project runs `strict` and a review is open.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/IntakeRefused'
   /projects/{slug}/categories:
     parameters:
       - name: slug
@@ -501,6 +545,132 @@ components:
           type: string
         categoryId:
           type: string
+    Variant:
+      type: object
+      additionalProperties:
+        type: string
+      description: |
+        A combination of axis values, such as `{"theme":"dark","viewport":"mobile"}`.
+        The project declares its own axes — ozalid ships no list. An axis the client
+        does not supply is simply absent: a site with no theme has no theme.
+      examples:
+        - theme: dark
+          viewport: mobile
+          locale: fr
+        - locale: en
+    Provenance:
+      type: object
+      description: |
+        Where the capture was produced. Byte comparison only means something within
+        one environment, so this is recorded and never guessed.
+      properties:
+        os:
+          type: string
+        browser:
+          type: string
+        browserVersion:
+          type: string
+        resolution:
+          type: string
+          description: The effective resolution, recorded as provenance and never as identity.
+        environmentId:
+          type: string
+    ManifestCapture:
+      type: object
+      required:
+        - variant
+        - hash
+      properties:
+        variant:
+          $ref: '#/components/schemas/Variant'
+        hash:
+          type: string
+          pattern: ^sha256:[0-9a-f]{64}$
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+    ManifestStep:
+      type: object
+      required:
+        - name
+        - captures
+      properties:
+        name:
+          type: string
+          minLength: 1
+        captures:
+          type: array
+          items:
+            $ref: '#/components/schemas/ManifestCapture'
+    ManifestRecording:
+      type: object
+      required:
+        - variant
+        - hash
+      properties:
+        variant:
+          $ref: '#/components/schemas/Variant'
+        hash:
+          type: string
+          pattern: ^sha256:[0-9a-f]{64}$
+    ManifestCase:
+      type: object
+      required:
+        - id
+        - steps
+      properties:
+        id:
+          type: string
+          description: The id ozalid generated when the case was created.
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/ManifestStep'
+        recordings:
+          type: array
+          description: The flow video per variant. Optional, and never compared byte-wise.
+          items:
+            $ref: '#/components/schemas/ManifestRecording'
+    Manifest:
+      type: object
+      required:
+        - cases
+      properties:
+        revision:
+          type: string
+          description: |
+            Opaque to ozalid: displayed, never computed on. A commit hash, a build
+            number — whatever the client means by "which version produced this".
+        cases:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ManifestCase'
+    EditionAccepted:
+      type: object
+      required:
+        - editionId
+        - cases
+        - captures
+        - recordings
+      properties:
+        editionId:
+          type: string
+        cases:
+          type: integer
+        captures:
+          type: integer
+        recordings:
+          type: integer
+    IntakeRefused:
+      allOf:
+        - $ref: '#/components/schemas/problem'
+        - type: object
+          properties:
+            missingContent:
+              type: array
+              description: The addresses to upload before pushing again.
+              items:
+                type: string
     Category:
       type: object
       required:

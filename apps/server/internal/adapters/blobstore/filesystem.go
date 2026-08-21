@@ -28,6 +28,7 @@ type Store interface {
 	Put(ctx context.Context, hash string, r io.Reader) error
 	Get(ctx context.Context, hash string) (io.ReadCloser, error)
 	Exists(ctx context.Context, hash string) (bool, error)
+	Size(ctx context.Context, hash string) (int64, error)
 }
 
 // FileStore keeps blobs in a directory tree rooted at Root.
@@ -128,6 +129,22 @@ func (s *FileStore) Put(ctx context.Context, hash string, r io.Reader) error {
 		return fmt.Errorf("moving the content into place: %w", err)
 	}
 	return nil
+}
+
+// Size reports how many bytes are stored at that address.
+func (s *FileStore) Size(_ context.Context, hash string) (int64, error) {
+	p, err := s.path(hash)
+	if err != nil {
+		return 0, err
+	}
+	info, err := os.Stat(p)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, ErrNotFound
+	}
+	if err != nil {
+		return 0, fmt.Errorf("measuring the content: %w", err)
+	}
+	return info.Size(), nil
 }
 
 // Get opens the content at that address.
