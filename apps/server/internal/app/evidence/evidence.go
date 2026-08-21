@@ -1,0 +1,77 @@
+// Package evidence reads back what a run put in the book.
+//
+// A reviewer judges a case from a grid: its steps in order, the variants that
+// exist, and the capture sitting at each cell.
+package evidence
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/haribo/ozalid/internal/contract"
+)
+
+// ErrNoEdition means the project has taken nothing in yet, so there is nothing
+// to read. It is not a failure — a book starts empty (ADR 0008).
+var ErrNoEdition = errors.New("evidence: the project has no edition yet")
+
+// Variant is a combination of axis values, named.
+type Variant struct {
+	ID     string
+	Label  string
+	Values map[string]string
+}
+
+// Cell is one capture: a variant, and the address of its bytes.
+type Cell struct {
+	VariantID  string
+	Hash       string
+	Provenance contract.Provenance
+}
+
+// Step is a named business moment and the captures taken at it.
+type Step struct {
+	ID       string
+	Name     string
+	Position int
+	Cells    []Cell
+}
+
+// Recording is the flow video for one variant. Optional, never compared
+// (ADR 0013).
+type Recording struct {
+	VariantID string
+	Hash      string
+}
+
+// Grid is what a case is judged from.
+type Grid struct {
+	CaseID     string
+	EditionID  string
+	Revision   string
+	TakenAt    time.Time
+	Variants   []Variant
+	Steps      []Step
+	Recordings []Recording
+}
+
+// Repository is the outbound port this package needs.
+type Repository interface {
+	CaseGrid(ctx context.Context, caseID string, editionID *string) (Grid, error)
+}
+
+// Service reads evidence.
+type Service struct{ repo Repository }
+
+// New returns a Service backed by repo.
+func New(repo Repository) *Service { return &Service{repo: repo} }
+
+// Grid returns the evidence for a case at one edition, defaulting to the
+// project's most recent.
+//
+// A case with no capture answers with an empty grid rather than an error: not
+// being instrumented is a legitimate state, not a failure (ADR 0012).
+func (s *Service) Grid(ctx context.Context, caseID string, editionID *string) (Grid, error) {
+	return s.repo.CaseGrid(ctx, caseID, editionID)
+}

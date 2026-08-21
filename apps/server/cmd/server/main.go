@@ -14,6 +14,7 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/adapters/blobstore"
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres"
 	"github.com/haribo/ozalid/apps/server/internal/app/catalogue"
+	"github.com/haribo/ozalid/apps/server/internal/app/evidence"
 	"github.com/haribo/ozalid/apps/server/internal/app/intake"
 	ozhttp "github.com/haribo/ozalid/apps/server/internal/ports/http"
 )
@@ -72,6 +73,7 @@ func run() error {
 		BlobRecorder: store,
 		Catalogue:    catalogue.New(store),
 		Intake:       intake.New(store),
+		Evidence:     evidence.New(store),
 	})
 
 	srv := &http.Server{Addr: cfg.addr, Handler: api.Handler()}

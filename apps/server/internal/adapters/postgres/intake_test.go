@@ -207,3 +207,128 @@ func assertNoEdition(t *testing.T, ctx context.Context, repo *postgres.Repositor
 		t.Errorf("a refused manifest left %d edition(s) behind", editions)
 	}
 }
+
+func TestTheGridComesBackInStepOrderWithOnlyTheVariantsThatExist(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+
+	light := storeBlob(t, ctx, repo, "step one, light")
+	dark := storeBlob(t, ctx, repo, "step one, dark")
+	second := storeBlob(t, ctx, repo, "step two, light only")
+
+	m := contract.Manifest{
+		Revision: "rev-1",
+		Cases: []contract.ManifestCase{{
+			ID: kase.ID,
+			Steps: []contract.ManifestStep{
+				{Name: "opens the form", Captures: []contract.ManifestCapture{
+					{Variant: map[string]string{"theme": "light"}, Hash: light,
+						Provenance: contract.Provenance{Browser: "chromium", Resolution: "1920x1080"}},
+					{Variant: map[string]string{"theme": "dark"}, Hash: dark},
+				}},
+				// Not every variant exists at every step.
+				{Name: "submits", Captures: []contract.ManifestCapture{
+					{Variant: map[string]string{"theme": "light"}, Hash: second},
+				}},
+			},
+		}},
+	}
+	if _, err := repo.WriteEdition(ctx, project.Slug, m); err != nil {
+		t.Fatalf("taking the edition in: %v", err)
+	}
+
+	grid, err := repo.CaseGrid(ctx, kase.ID, nil)
+	if err != nil {
+		t.Fatalf("reading the grid: %v", err)
+	}
+
+	if grid.Revision != "rev-1" {
+		t.Errorf("revision = %q, want it carried through", grid.Revision)
+	}
+	if len(grid.Steps) != 2 {
+		t.Fatalf("got %d steps, want 2", len(grid.Steps))
+	}
+	// The order the manifest gave, not whatever the database felt like.
+	if grid.Steps[0].Name != "opens the form" || grid.Steps[1].Name != "submits" {
+		t.Errorf("steps = %q then %q, want manifest order", grid.Steps[0].Name, grid.Steps[1].Name)
+	}
+	if len(grid.Steps[0].Cells) != 2 || len(grid.Steps[1].Cells) != 1 {
+		t.Errorf("cells = %d and %d, want 2 then 1 — a missing cell is absent, not null",
+			len(grid.Steps[0].Cells), len(grid.Steps[1].Cells))
+	}
+	if len(grid.Variants) != 2 {
+		t.Errorf("got %d variants, want the 2 that exist", len(grid.Variants))
+	}
+	if grid.Variants[0].Label >= grid.Variants[1].Label {
+		t.Error("variants are not in label order, so the columns would move between reads")
+	}
+
+	// Provenance survives the round trip: byte comparison only means something
+	// within one environment (ADR 0004).
+	var found bool
+	for _, cell := range grid.Steps[0].Cells {
+		if cell.Provenance.Browser == "chromium" && cell.Provenance.Resolution == "1920x1080" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("the provenance recorded at intake did not come back")
+	}
+}
+
+func TestACaseThatWasNeverCapturedReadsAsAnEmptyGrid(t *testing.T) {
+	ctx, repo, _, kase := intakeFixture(t)
+
+	// Not being instrumented is a legitimate state, not a failure (ADR 0012).
+	grid, err := repo.CaseGrid(ctx, kase.ID, nil)
+	if err != nil {
+		t.Fatalf("reading the grid: %v", err)
+	}
+	if grid.EditionID != "" || len(grid.Steps) != 0 || len(grid.Variants) != 0 {
+		t.Errorf("grid = %+v, want it empty", grid)
+	}
+}
+
+func TestAnOlderEditionCanStillBeRead(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+
+	before := storeBlob(t, ctx, repo, "before the change")
+	after := storeBlob(t, ctx, repo, "after the change")
+
+	push := func(hash string) string {
+		t.Helper()
+		res, err := repo.WriteEdition(ctx, project.Slug, contract.Manifest{
+			Cases: []contract.ManifestCase{{
+				ID: kase.ID,
+				Steps: []contract.ManifestStep{{
+					Name:     "opens the form",
+					Captures: []contract.ManifestCapture{{Variant: map[string]string{"theme": "light"}, Hash: hash}},
+				}},
+			}},
+		})
+		if err != nil {
+			t.Fatalf("taking an edition in: %v", err)
+		}
+		return res.EditionID
+	}
+
+	first := push(before)
+	push(after)
+
+	// A case may sit on an older edition while it is being reviewed: an
+	// incoming run must never destroy what a reviewer is looking at (ADR 0004).
+	old, err := repo.CaseGrid(ctx, kase.ID, &first)
+	if err != nil {
+		t.Fatalf("reading the older edition: %v", err)
+	}
+	if old.Steps[0].Cells[0].Hash != before {
+		t.Error("the older edition does not show the bytes it was taken with")
+	}
+
+	latest, err := repo.CaseGrid(ctx, kase.ID, nil)
+	if err != nil {
+		t.Fatalf("reading the latest edition: %v", err)
+	}
+	if latest.Steps[0].Cells[0].Hash != after {
+		t.Error("the default read did not land on the most recent edition")
+	}
+}

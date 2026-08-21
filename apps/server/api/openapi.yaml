@@ -359,6 +359,42 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+  /cases/{caseId}/captures:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getCaseCaptures
+      summary: Read the evidence a case is judged from
+      description: |
+        The grid: steps in order, the variants that exist, and the capture sitting
+        at each cell. A cell with no capture is simply absent — not every variant
+        exists at every step.
+
+        Defaults to the project's most recent edition. A specific one can be asked
+        for, since a case may sit on an older edition while it is being reviewed.
+
+        A case that has never been captured answers with an empty grid, not an
+        error: not being instrumented is a legitimate state.
+      tags:
+        - cases
+      parameters:
+        - name: editionId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The evidence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Grid'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /cases/{caseId}/archive:
     parameters:
       - name: caseId
@@ -714,6 +750,98 @@ components:
         categoryId:
           type: string
           nullable: true
+    GridVariant:
+      type: object
+      required:
+        - id
+        - label
+        - values
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+          description: A readable rendering of the combination, such as `dark·mobile`.
+        values:
+          type: object
+          additionalProperties:
+            type: string
+    GridCell:
+      type: object
+      required:
+        - variantId
+        - hash
+      properties:
+        variantId:
+          type: string
+        hash:
+          type: string
+          description: Fetch the image at `/blobs/{hash}`.
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+    GridStep:
+      type: object
+      required:
+        - id
+        - name
+        - position
+        - cells
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        position:
+          type: integer
+        cells:
+          type: array
+          description: One entry per variant that has a capture at this step.
+          items:
+            $ref: '#/components/schemas/GridCell'
+    GridRecording:
+      type: object
+      required:
+        - variantId
+        - hash
+      properties:
+        variantId:
+          type: string
+        hash:
+          type: string
+    Grid:
+      type: object
+      required:
+        - caseId
+        - variants
+        - steps
+        - recordings
+      properties:
+        caseId:
+          type: string
+        editionId:
+          type: string
+          description: Absent when the project has taken nothing in yet.
+        revision:
+          type: string
+          description: |
+            What the client declared this edition was built from. Displayed, never
+            computed on.
+        takenAt:
+          type: string
+          format: date-time
+        variants:
+          type: array
+          description: The variants present in this edition, in label order.
+          items:
+            $ref: '#/components/schemas/GridVariant'
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/GridStep'
+        recordings:
+          type: array
+          items:
+            $ref: '#/components/schemas/GridRecording'
   responses:
     BadRequest:
       description: The request is malformed.
