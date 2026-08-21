@@ -105,9 +105,9 @@ gen-check:
       exit 1
     fi
 
-# ------------------------------------------------------------- server and cli
+# ------------------------------------------------------------------- server
 
-# Build both binaries.
+# Build the server.
 be-build:
     go build {{gopkgs}}
 

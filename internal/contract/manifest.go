@@ -1,7 +1,9 @@
-// Package contract holds the wire types shared by the server and the CLI.
+// Package contract holds the wire shapes of the API and the rule for
+// addressing content.
 //
-// It is deliberately dependency-free: both binaries must agree on these shapes
-// forever, so nothing here may pull in a framework or a driver.
+// It is deliberately dependency-free. These shapes are published in the OpenAPI
+// document, which is where any client reads them (ADR 0015), so nothing here
+// may pull in a framework or a driver.
 package contract
 
 // Manifest is what a client pushes to fill the book with one run's evidence.

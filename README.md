@@ -29,14 +29,14 @@ decisions are complete enough to start building.
 
 ## Stack
 
-Settled in [ADR 0011](docs/adr/0011-technology-stack.md); one repository holds
-the three applications ([ADR 0010](docs/adr/0010-monorepo-with-server-web-and-cli.md)).
+Settled in [ADR 0011](docs/adr/0011-technology-stack.md). One repository holds
+both applications; a client pushes evidence by calling the API, and ozalid ships
+no client program ([ADR 0015](docs/adr/0015-no-cli-clients-call-the-api.md)).
 
 | | |
 | --- | --- |
 | `apps/server` | Go — the API, the review lifecycle, the capture store |
 | `apps/web` | Vue 3, TypeScript, Vite, Tailwind — the review book |
-| `apps/cli` | Go — intake, runner adapters, issue-link reporting |
 
 State lives in PostgreSQL; capture bytes live on the filesystem, addressed by
 content. The OpenAPI document is the contract the three share, and it is

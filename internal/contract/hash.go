@@ -22,8 +22,10 @@ var hashPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 // HashReader reads r to completion and returns the address of its bytes.
 //
-// The server and the CLI both call this: the same bytes must produce the same
-// address on both sides, or intake would re-upload everything forever.
+// A client computes the same address before uploading, from the algorithm the
+// OpenAPI document publishes. Getting it wrong means re-uploading the whole
+// catalogue on every run, which is why the algorithm changes only through a new
+// ADR (ADR 0004).
 func HashReader(r io.Reader) (string, int64, error) {
 	h := sha256.New()
 	n, err := io.Copy(h, r)

@@ -92,7 +92,7 @@ check is intended, not a missing step.
 
 | Workflow | Triggering paths |
 | --- | --- |
-| Server CI | `apps/server/**`, `apps/cli/**`, the workflow file |
+| Server CI | `apps/server/**`, `internal/**`, the Go module files, the workflow file |
 | Web CI | `apps/web/**`, `apps/server/api/openapi.yaml`, the workflow file |
 | PR validation | every pull request |
 | Security (secret scan) | every push to a permanent branch, every pull request |
