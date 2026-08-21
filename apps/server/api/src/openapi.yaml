@@ -31,6 +31,8 @@ paths:
     $ref: "./paths/categories.yaml"
   /cases/{caseId}:
     $ref: "./paths/case.yaml"
+  /cases/{caseId}/captures:
+    $ref: "./paths/case-captures.yaml"
   /cases/{caseId}/archive:
     $ref: "./paths/case-archive.yaml"
   /categories/{categoryId}:

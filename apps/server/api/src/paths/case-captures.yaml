@@ -1,0 +1,33 @@
+parameters:
+  - name: caseId
+    in: path
+    required: true
+    schema: { type: string }
+
+get:
+  operationId: getCaseCaptures
+  summary: Read the evidence a case is judged from
+  description: |
+    The grid: steps in order, the variants that exist, and the capture sitting
+    at each cell. A cell with no capture is simply absent — not every variant
+    exists at every step.
+
+    Defaults to the project's most recent edition. A specific one can be asked
+    for, since a case may sit on an older edition while it is being reviewed.
+
+    A case that has never been captured answers with an empty grid, not an
+    error: not being instrumented is a legitimate state.
+  tags: [cases]
+  parameters:
+    - name: editionId
+      in: query
+      schema: { type: string }
+  responses:
+    "200":
+      description: The evidence.
+      content:
+        application/json:
+          schema:
+            $ref: "../components/evidence.yaml#/Grid"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"

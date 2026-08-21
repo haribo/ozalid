@@ -193,6 +193,36 @@ export interface paths {
         patch: operations["updateCase"];
         trace?: never;
     };
+    "/cases/{caseId}/captures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Read the evidence a case is judged from
+         * @description The grid: steps in order, the variants that exist, and the capture sitting
+         *     at each cell. A cell with no capture is simply absent — not every variant
+         *     exists at every step.
+         *
+         *     Defaults to the project's most recent edition. A specific one can be asked
+         *     for, since a case may sit on an older edition while it is being reviewed.
+         *
+         *     A case that has never been captured answers with an empty grid, not an
+         *     error: not being instrumented is a legitimate state.
+         */
+        get: operations["getCaseCaptures"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{caseId}/archive": {
         parameters: {
             query?: never;
@@ -394,6 +424,47 @@ export interface components {
             title: string;
             description?: string | null;
             categoryId?: string | null;
+        };
+        GridVariant: {
+            id: string;
+            /** @description A readable rendering of the combination, such as `dark·mobile`. */
+            label: string;
+            values: {
+                [key: string]: string;
+            };
+        };
+        GridCell: {
+            variantId: string;
+            /** @description Fetch the image at `/blobs/{hash}`. */
+            hash: string;
+            provenance?: components["schemas"]["Provenance"];
+        };
+        GridStep: {
+            id: string;
+            name: string;
+            position: number;
+            /** @description One entry per variant that has a capture at this step. */
+            cells: components["schemas"]["GridCell"][];
+        };
+        GridRecording: {
+            variantId: string;
+            hash: string;
+        };
+        Grid: {
+            caseId: string;
+            /** @description Absent when the project has taken nothing in yet. */
+            editionId?: string;
+            /**
+             * @description What the client declared this edition was built from. Displayed, never
+             *     computed on.
+             */
+            revision?: string;
+            /** Format: date-time */
+            takenAt?: string;
+            /** @description The variants present in this edition, in label order. */
+            variants: components["schemas"]["GridVariant"][];
+            steps: components["schemas"]["GridStep"][];
+            recordings: components["schemas"]["GridRecording"][];
         };
     };
     responses: {
@@ -806,6 +877,31 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getCaseCaptures: {
+        parameters: {
+            query?: {
+                editionId?: string;
+            };
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The evidence. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Grid"];
+                };
+            };
             404: components["responses"]["NotFound"];
         };
     };

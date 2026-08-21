@@ -11,6 +11,7 @@ import (
 
 	"github.com/haribo/ozalid/apps/server/internal/adapters/blobstore"
 	"github.com/haribo/ozalid/apps/server/internal/app/catalogue"
+	"github.com/haribo/ozalid/apps/server/internal/app/evidence"
 	"github.com/haribo/ozalid/apps/server/internal/app/intake"
 	"github.com/haribo/ozalid/apps/server/internal/ports/http/openapi"
 )
@@ -28,6 +29,7 @@ type Server struct {
 	blobRecorder BlobRecorder
 	catalogue    *catalogue.Service
 	intake       *intake.Service
+	evidence     *evidence.Service
 }
 
 // Compile-time proof that every operation in the contract is implemented.
@@ -41,6 +43,7 @@ type Deps struct {
 	BlobRecorder BlobRecorder
 	Catalogue    *catalogue.Service
 	Intake       *intake.Service
+	Evidence     *evidence.Service
 }
 
 // New returns a Server wired to deps.
@@ -51,6 +54,7 @@ func New(deps Deps) *Server {
 		blobRecorder: deps.BlobRecorder,
 		catalogue:    deps.Catalogue,
 		intake:       deps.Intake,
+		evidence:     deps.Evidence,
 	}
 }
 

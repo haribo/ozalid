@@ -1,0 +1,70 @@
+Grid:
+  type: object
+  required: [caseId, variants, steps, recordings]
+  properties:
+    caseId: { type: string }
+    editionId:
+      type: string
+      description: Absent when the project has taken nothing in yet.
+    revision:
+      type: string
+      description: |
+        What the client declared this edition was built from. Displayed, never
+        computed on.
+    takenAt: { type: string, format: date-time }
+    variants:
+      type: array
+      description: The variants present in this edition, in label order.
+      items:
+        $ref: "#/GridVariant"
+    steps:
+      type: array
+      items:
+        $ref: "#/GridStep"
+    recordings:
+      type: array
+      items:
+        $ref: "#/GridRecording"
+
+GridVariant:
+  type: object
+  required: [id, label, values]
+  properties:
+    id: { type: string }
+    label:
+      type: string
+      description: A readable rendering of the combination, such as `dark·mobile`.
+    values:
+      type: object
+      additionalProperties: { type: string }
+
+GridStep:
+  type: object
+  required: [id, name, position, cells]
+  properties:
+    id: { type: string }
+    name: { type: string }
+    position: { type: integer }
+    cells:
+      type: array
+      description: One entry per variant that has a capture at this step.
+      items:
+        $ref: "#/GridCell"
+
+GridCell:
+  type: object
+  required: [variantId, hash]
+  properties:
+    variantId: { type: string }
+    hash:
+      type: string
+      description: Fetch the image at `/blobs/{hash}`.
+    provenance:
+      $ref: "./manifest.yaml#/Provenance"
+
+GridRecording:
+  type: object
+  required: [variantId, hash]
+  properties:
+    variantId: { type: string }
+    hash: { type: string }
