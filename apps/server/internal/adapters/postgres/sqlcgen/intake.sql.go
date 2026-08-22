@@ -173,6 +173,78 @@ func (q *Queries) DeleteStepsBeyond(ctx context.Context, arg DeleteStepsBeyondPa
 	return err
 }
 
+const enterReviewOnFirstCaptures = `-- name: EnterReviewOnFirstCaptures :many
+UPDATE cases k
+SET state = 'to-review', updated_at = now()
+WHERE k.id = ANY($1::text[])
+  AND k.state = 'not-instrumented'
+  AND EXISTS (
+      SELECT 1 FROM steps s
+      JOIN captures c ON c.step_id = s.id
+      WHERE s.case_id = k.id
+  )
+RETURNING k.id
+`
+
+// A case that has just received its first captures leaves the funnel's edge:
+// it is no longer uninstrumented, and nobody has judged it yet (ADR 0012).
+//
+// Only that transition is made here. Every other one is driven by a comment,
+// and comments are not part of intake.
+func (q *Queries) EnterReviewOnFirstCaptures(ctx context.Context, dollar_1 []string) ([]string, error) {
+	rows, err := q.db.Query(ctx, enterReviewOnFirstCaptures, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const recordTransition = `-- name: RecordTransition :exec
+INSERT INTO journal (project_id, case_id, from_state, to_state, cause, actor_id, actor_kind, inputs, rule_version)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+`
+
+type RecordTransitionParams struct {
+	ProjectID   string
+	CaseID      *string
+	FromState   *string
+	ToState     *string
+	Cause       string
+	ActorID     string
+	ActorKind   string
+	Inputs      []byte
+	RuleVersion int32
+}
+
+// Every transition is journalled: without the trace, a stored state cannot
+// serve as a regression oracle (ADR 0002).
+func (q *Queries) RecordTransition(ctx context.Context, arg RecordTransitionParams) error {
+	_, err := q.db.Exec(ctx, recordTransition,
+		arg.ProjectID,
+		arg.CaseID,
+		arg.FromState,
+		arg.ToState,
+		arg.Cause,
+		arg.ActorID,
+		arg.ActorKind,
+		arg.Inputs,
+		arg.RuleVersion,
+	)
+	return err
+}
+
 const upsertAxis = `-- name: UpsertAxis :one
 INSERT INTO axes (project_id, name, position)
 VALUES ($1, $2, $3)

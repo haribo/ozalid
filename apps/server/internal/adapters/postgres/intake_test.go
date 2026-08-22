@@ -332,3 +332,193 @@ func TestAnOlderEditionCanStillBeRead(t *testing.T) {
 		t.Error("the default read did not land on the most recent edition")
 	}
 }
+
+func TestACategoryCountsItsWholeDescendanceNotJustItsChildren(t *testing.T) {
+	ctx, repo, project, _ := intakeFixture(t)
+	q := repo.Queries()
+
+	root, err := q.CreateCategory(ctx, sqlcgen.CreateCategoryParams{
+		ProjectID: project.ID, Name: "core", Position: 0,
+	})
+	if err != nil {
+		t.Fatalf("creating the root: %v", err)
+	}
+	child, err := q.CreateCategory(ctx, sqlcgen.CreateCategoryParams{
+		ProjectID: project.ID, ParentID: &root.ID, Name: "account", Position: 0,
+	})
+	if err != nil {
+		t.Fatalf("creating the child: %v", err)
+	}
+	grandchild, err := q.CreateCategory(ctx, sqlcgen.CreateCategoryParams{
+		ProjectID: project.ID, ParentID: &child.ID, Name: "signup", Position: 0,
+	})
+	if err != nil {
+		t.Fatalf("creating the grandchild: %v", err)
+	}
+
+	// One case at each depth.
+	for _, cat := range []string{root.ID, child.ID, grandchild.ID} {
+		id := cat
+		if _, err := q.CreateCase(ctx, sqlcgen.CreateCaseParams{
+			ProjectID: project.ID, CategoryID: &id, Title: "case in " + id,
+		}); err != nil {
+			t.Fatalf("creating a case: %v", err)
+		}
+	}
+
+	nodes, err := repo.CategoryTree(ctx, project.ID)
+	if err != nil {
+		t.Fatalf("reading the tree: %v", err)
+	}
+
+	counts := map[string]int64{}
+	for _, n := range nodes {
+		counts[n.Name] = n.Cases.Total()
+	}
+	// A branch in trouble has to be visible from the root, so the root counts
+	// its grandchildren.
+	if counts["core"] != 3 {
+		t.Errorf("core counts %d cases, want 3 across the whole branch", counts["core"])
+	}
+	if counts["account"] != 2 {
+		t.Errorf("account counts %d, want 2", counts["account"])
+	}
+	if counts["signup"] != 1 {
+		t.Errorf("signup counts %d, want 1", counts["signup"])
+	}
+}
+
+func TestACaseSummaryCountsItsCapturesAndReportsZeroWhenItHasNone(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+
+	// Before any intake: present in the listing, with zeroes rather than absent.
+	before, err := repo.SummariseCases(ctx, project.ID, nil)
+	if err != nil {
+		t.Fatalf("summarising: %v", err)
+	}
+	if len(before) != 1 || before[0].Captures.Total != 0 {
+		t.Fatalf("summary = %+v, want the case present with no capture", before)
+	}
+
+	light := storeBlob(t, ctx, repo, "light")
+	dark := storeBlob(t, ctx, repo, "dark")
+	if _, err := repo.WriteEdition(ctx, project.Slug, contract.Manifest{
+		Cases: []contract.ManifestCase{{
+			ID: kase.ID,
+			Steps: []contract.ManifestStep{{
+				Name: "opens", Captures: []contract.ManifestCapture{
+					{Variant: map[string]string{"theme": "light"}, Hash: light},
+					{Variant: map[string]string{"theme": "dark"}, Hash: dark},
+				},
+			}},
+		}},
+	}); err != nil {
+		t.Fatalf("taking the edition in: %v", err)
+	}
+
+	after, err := repo.SummariseCases(ctx, project.ID, nil)
+	if err != nil {
+		t.Fatalf("summarising after intake: %v", err)
+	}
+	if after[0].Captures.Total != 2 {
+		t.Errorf("counted %d captures, want 2", after[0].Captures.Total)
+	}
+	// No verdict has been written, so both are still waiting for a look.
+	if after[0].Captures.ToJudge != 2 || after[0].Captures.Validated != 0 {
+		t.Errorf("counts = %+v, want both still to judge", after[0].Captures)
+	}
+	if after[0].LastEdition == nil {
+		t.Error("the summary does not carry the date of the edition it points at")
+	}
+}
+
+func TestTheFirstCapturesTakeACaseOutOfTheFunnelsEdgeAndJournalIt(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+
+	if kase.State != "not-instrumented" {
+		t.Fatalf("the fixture starts at %q, want not-instrumented", kase.State)
+	}
+
+	hash := storeBlob(t, ctx, repo, "the first evidence")
+	if _, err := repo.WriteEdition(ctx, project.Slug, contract.Manifest{
+		Revision: "rev-1",
+		Cases: []contract.ManifestCase{{
+			ID: kase.ID,
+			Steps: []contract.ManifestStep{{
+				Name:     "opens",
+				Captures: []contract.ManifestCapture{{Variant: map[string]string{"theme": "light"}, Hash: hash}},
+			}},
+		}},
+	}); err != nil {
+		t.Fatalf("taking the edition in: %v", err)
+	}
+
+	after, err := repo.Queries().GetCase(ctx, kase.ID)
+	if err != nil {
+		t.Fatalf("re-reading the case: %v", err)
+	}
+	// Evidence exists and nobody has judged it: the reviewer holds the ball
+	// (ADR 0012).
+	if after.State != "to-review" {
+		t.Errorf("state = %q, want to-review once captures exist", after.State)
+	}
+
+	// The transition is journalled, with what the computation consumed —
+	// without that, a stored state is no regression oracle (ADR 0002).
+	var from, to, cause, actorKind string
+	var ruleVersion int
+	if err := repo.Pool().QueryRow(ctx,
+		`SELECT from_state, to_state, cause, actor_kind, rule_version
+		 FROM journal WHERE case_id = $1 ORDER BY at DESC LIMIT 1`, kase.ID,
+	).Scan(&from, &to, &cause, &actorKind, &ruleVersion); err != nil {
+		t.Fatalf("reading the journal: %v", err)
+	}
+	if from != "not-instrumented" || to != "to-review" {
+		t.Errorf("journalled %s → %s, want not-instrumented → to-review", from, to)
+	}
+	if cause != "edition-accepted" {
+		t.Errorf("cause = %q, want the fact that caused it", cause)
+	}
+	if actorKind != "machine" {
+		t.Errorf("actor kind = %q: intake is a program, and the journal must say so", actorKind)
+	}
+	if ruleVersion != 1 {
+		t.Errorf("rule version = %d, want it recorded so a replay knows what it compares against", ruleVersion)
+	}
+}
+
+func TestASecondEditionDoesNotReopenAJudgedCase(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	hash := storeBlob(t, ctx, repo, "evidence")
+
+	m := contract.Manifest{Cases: []contract.ManifestCase{{
+		ID: kase.ID,
+		Steps: []contract.ManifestStep{{
+			Name:     "opens",
+			Captures: []contract.ManifestCapture{{Variant: map[string]string{"theme": "light"}, Hash: hash}},
+		}},
+	}}}
+	if _, err := repo.WriteEdition(ctx, project.Slug, m); err != nil {
+		t.Fatalf("first edition: %v", err)
+	}
+
+	// Pretend the reviewer judged it clean.
+	if _, err := repo.Pool().Exec(ctx,
+		"UPDATE cases SET state = 'reviewed' WHERE id = $1", kase.ID); err != nil {
+		t.Fatalf("marking the case reviewed: %v", err)
+	}
+
+	if _, err := repo.WriteEdition(ctx, project.Slug, m); err != nil {
+		t.Fatalf("second edition: %v", err)
+	}
+
+	after, err := repo.Queries().GetCase(ctx, kase.ID)
+	if err != nil {
+		t.Fatalf("re-reading: %v", err)
+	}
+	// An edition never moves the cycle: it only changes freshness. A reviewed
+	// case stays reviewed until the reviewer says otherwise (ADR 0012).
+	if after.State != "reviewed" {
+		t.Errorf("state = %q, want reviewed: an incoming edition must not re-open a judged case", after.State)
+	}
+}

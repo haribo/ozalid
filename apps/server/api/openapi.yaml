@@ -534,6 +534,25 @@ components:
       description: |
         Who holds the ball. Computed by the server from the case's comments; no
         endpoint accepts it as an argument.
+    CaptureCounts:
+      type: object
+      required:
+        - total
+        - validated
+        - commented
+        - toJudge
+      description: |
+        How this case's captures stand at the edition it points at. A capture with
+        no verdict yet counts as still to judge.
+      properties:
+        total:
+          type: integer
+        validated:
+          type: integer
+        commented:
+          type: integer
+        toJudge:
+          type: integer
     Case:
       type: object
       required:
@@ -569,6 +588,12 @@ components:
         updatedAt:
           type: string
           format: date-time
+        captures:
+          $ref: '#/components/schemas/CaptureCounts'
+        lastEdition:
+          type: string
+          format: date-time
+          nullable: true
     NewCase:
       type: object
       required:
@@ -707,12 +732,33 @@ components:
               description: The addresses to upload before pushing again.
               items:
                 type: string
+    StateCounts:
+      type: object
+      required:
+        - notInstrumented
+        - toReview
+        - toFix
+        - reviewed
+      description: |
+        How many cases sit in each state under this node, across its **whole
+        descendance** — not just its direct children. A branch in trouble has to be
+        visible from the root.
+      properties:
+        notInstrumented:
+          type: integer
+        toReview:
+          type: integer
+        toFix:
+          type: integer
+        reviewed:
+          type: integer
     Category:
       type: object
       required:
         - id
         - name
         - position
+        - cases
       properties:
         id:
           type: string
@@ -723,6 +769,12 @@ components:
           type: string
         position:
           type: integer
+        cases:
+          $ref: '#/components/schemas/StateCounts'
+        lastActivity:
+          type: string
+          format: date-time
+          nullable: true
     NewCategory:
       type: object
       required:

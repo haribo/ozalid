@@ -8,6 +8,7 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres/sqlcgen"
 	appintake "github.com/haribo/ozalid/apps/server/internal/app/intake"
 	"github.com/haribo/ozalid/apps/server/internal/domain/catalogue"
+	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"github.com/haribo/ozalid/internal/contract"
 )
 
@@ -117,6 +118,38 @@ func (r *Repository) WriteEdition(ctx context.Context, projectSlug string, m con
 		}
 	}
 
+	// The evidence has arrived, so the cases that had none leave the edge of
+	// the funnel. This is the only transition intake drives: every other one
+	// comes from a comment (ADR 0012).
+	entered, err := q.EnterReviewOnFirstCaptures(ctx, caseIDs(m))
+	if err != nil {
+		return appintake.Result{}, translate("opening the reviews", err)
+	}
+	for _, id := range entered {
+		inputs, err := json.Marshal(map[string]any{
+			"edition":  edition.ID,
+			"revision": m.Revision,
+		})
+		if err != nil {
+			return appintake.Result{}, fmt.Errorf("encoding the transition inputs: %w", err)
+		}
+		if err := q.RecordTransition(ctx, sqlcgen.RecordTransitionParams{
+			ProjectID: project.ID,
+			CaseID:    &id,
+			FromState: ptr(string(review.CaseNotInstrumented)),
+			ToState:   ptr(string(review.CaseToReview)),
+			Cause:     "edition-accepted",
+			ActorID:   "intake",
+			ActorKind: "machine",
+			Inputs:    inputs,
+			// Which version of the computation produced this, so a replay
+			// knows what it is comparing against.
+			RuleVersion: 1,
+		}); err != nil {
+			return appintake.Result{}, translate("journalling the transition", err)
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return appintake.Result{}, fmt.Errorf("committing the intake: %w", err)
 	}
@@ -220,6 +253,17 @@ func (r *Repository) RecordBlob(ctx context.Context, hash string, size int64) er
 	}
 	return nil
 }
+
+// caseIDs lists the cases a manifest names.
+func caseIDs(m contract.Manifest) []string {
+	out := make([]string, 0, len(m.Cases))
+	for _, c := range m.Cases {
+		out = append(out, c.ID)
+	}
+	return out
+}
+
+func ptr(s string) *string { return &s }
 
 func optional(s string) *string {
 	if s == "" {

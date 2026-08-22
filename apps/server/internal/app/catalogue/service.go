@@ -97,6 +97,22 @@ func (s *Service) ListCategories(ctx context.Context, projectID string) ([]catal
 	return s.repo.ListCategories(ctx, projectID)
 }
 
+// CategoryTree returns the whole tree, each node carrying what its entire
+// branch holds — not just its direct children.
+//
+// Aggregating on the descendance is the point: a branch in trouble has to be
+// visible from the root, or one has to descend everywhere to know where to
+// descend.
+func (s *Service) CategoryTree(ctx context.Context, projectID string) ([]catalogue.CategoryNode, error) {
+	return s.repo.CategoryTree(ctx, projectID)
+}
+
+// SummariseCases returns the cases with the state of their captures, so a
+// listing draws its rows without asking a second question per row.
+func (s *Service) SummariseCases(ctx context.Context, projectID string, categoryID *string) ([]catalogue.CaseSummary, error) {
+	return s.repo.SummariseCases(ctx, projectID, categoryID)
+}
+
 // DeleteCategory removes an empty node.
 //
 // Only an empty one: deleting a filing drawer must not silently move what was
