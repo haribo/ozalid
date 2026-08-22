@@ -26,22 +26,61 @@ import (
 
 // Defines values for CaseState.
 const (
-	NotInstrumented CaseState = "not-instrumented"
-	Reviewed        CaseState = "reviewed"
-	ToFix           CaseState = "to-fix"
-	ToReview        CaseState = "to-review"
+	CaseStateNotInstrumented CaseState = "not-instrumented"
+	CaseStateReviewed        CaseState = "reviewed"
+	CaseStateToFix           CaseState = "to-fix"
+	CaseStateToReview        CaseState = "to-review"
 )
 
 // Valid indicates whether the value is a known member of the CaseState enum.
 func (e CaseState) Valid() bool {
 	switch e {
-	case NotInstrumented:
+	case CaseStateNotInstrumented:
 		return true
-	case Reviewed:
+	case CaseStateReviewed:
 		return true
-	case ToFix:
+	case CaseStateToFix:
 		return true
-	case ToReview:
+	case CaseStateToReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CellVerdictStatus.
+const (
+	CellVerdictStatusToFix     CellVerdictStatus = "to-fix"
+	CellVerdictStatusToReview  CellVerdictStatus = "to-review"
+	CellVerdictStatusValidated CellVerdictStatus = "validated"
+)
+
+// Valid indicates whether the value is a known member of the CellVerdictStatus enum.
+func (e CellVerdictStatus) Valid() bool {
+	switch e {
+	case CellVerdictStatusToFix:
+		return true
+	case CellVerdictStatusToReview:
+		return true
+	case CellVerdictStatusValidated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NewCommentKind.
+const (
+	Defect      NewCommentKind = "defect"
+	Improvement NewCommentKind = "improvement"
+)
+
+// Valid indicates whether the value is a known member of the NewCommentKind enum.
+func (e NewCommentKind) Valid() bool {
+	switch e {
+	case Defect:
+		return true
+	case Improvement:
 		return true
 	default:
 		return false
@@ -164,6 +203,22 @@ type Category struct {
 	ParentId     *string     `json:"parentId,omitempty"`
 	Position     int         `json:"position"`
 }
+
+// CellRef defines model for CellRef.
+type CellRef struct {
+	StepId    string `json:"stepId"`
+	VariantId string `json:"variantId"`
+}
+
+// CellVerdict defines model for CellVerdict.
+type CellVerdict struct {
+	Status    CellVerdictStatus `json:"status"`
+	StepId    string            `json:"stepId"`
+	VariantId string            `json:"variantId"`
+}
+
+// CellVerdictStatus defines model for CellVerdict.Status.
+type CellVerdictStatus string
 
 // EditionAccepted defines model for EditionAccepted.
 type EditionAccepted struct {
@@ -316,6 +371,24 @@ type NewCategory struct {
 	Position *int    `json:"position,omitempty"`
 }
 
+// NewComment defines model for NewComment.
+type NewComment struct {
+	Body string `json:"body"`
+
+	// Kind What it is. The kind is written on the comment, where it is exact and
+	// where the issue is written from — it never colours the case's state.
+	Kind   NewCommentKind `json:"kind"`
+	StepId string         `json:"stepId"`
+
+	// VariantIds The variants it applies to. One defect spanning four variants is **one**
+	// comment with four variants checked, never four comments.
+	VariantIds []string `json:"variantIds"`
+}
+
+// NewCommentKind What it is. The kind is written on the comment, where it is exact and
+// where the issue is written from — it never colours the case's state.
+type NewCommentKind string
+
 // NewProject defines model for NewProject.
 type NewProject struct {
 	IntakePolicy *NewProjectIntakePolicy `json:"intakePolicy,omitempty"`
@@ -352,6 +425,28 @@ type Provenance struct {
 
 	// Resolution The effective resolution, recorded as provenance and never as identity.
 	Resolution *string `json:"resolution,omitempty"`
+}
+
+// ReviewOutcome defines model for ReviewOutcome.
+type ReviewOutcome struct {
+	// Comments How many comments the session added.
+	Comments int `json:"comments"`
+
+	// State Who holds the ball. Computed by the server from the case's comments; no
+	// endpoint accepts it as an argument.
+	State CaseState `json:"state"`
+
+	// Verdicts The status of every capture the case has, after the save.
+	Verdicts []CellVerdict `json:"verdicts"`
+}
+
+// ReviewSave defines model for ReviewSave.
+type ReviewSave struct {
+	// Comments What the reviewer wrote during the sitting.
+	Comments *[]NewComment `json:"comments,omitempty"`
+
+	// Validated The squares the reviewer looked at with nothing to say.
+	Validated *[]CellRef `json:"validated,omitempty"`
 }
 
 // StateCounts How many cases sit in each state under this node, across its **whole
@@ -420,6 +515,9 @@ type ListCasesParams struct {
 // UpdateCaseJSONRequestBody defines body for UpdateCase for application/json ContentType.
 type UpdateCaseJSONRequestBody = CaseUpdate
 
+// SaveReviewJSONRequestBody defines body for SaveReview for application/json ContentType.
+type SaveReviewJSONRequestBody = ReviewSave
+
 // CreateProjectJSONRequestBody defines body for CreateProject for application/json ContentType.
 type CreateProjectJSONRequestBody = NewProject
 
@@ -458,6 +556,9 @@ type ServerInterface interface {
 	// GetCaseCaptures Read the evidence a case is judged from
 	// (GET /cases/{caseId}/captures)
 	GetCaseCaptures(w http.ResponseWriter, r *http.Request, caseId string, params GetCaseCapturesParams)
+	// SaveReview Save what one review session decided
+	// (POST /cases/{caseId}/reviews)
+	SaveReview(w http.ResponseWriter, r *http.Request, caseId string)
 	// DeleteCategory Remove an empty node
 	// (DELETE /categories/{categoryId})
 	DeleteCategory(w http.ResponseWriter, r *http.Request, categoryId string)
@@ -691,6 +792,32 @@ func (siw *ServerInterfaceWrapper) GetCaseCaptures(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCaseCaptures(w, r, caseId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SaveReview operation middleware
+func (siw *ServerInterfaceWrapper) SaveReview(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "caseId" -------------
+	var caseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "caseId", r.PathValue("caseId"), &caseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "caseId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SaveReview(w, r, caseId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1127,6 +1254,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cases/{caseId}", wrapper.GetCase)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/cases/{caseId}", wrapper.UpdateCase)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cases/{caseId}/captures", wrapper.GetCaseCaptures)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/cases/{caseId}/reviews", wrapper.SaveReview)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/cases/{caseId}/archive", wrapper.ArchiveCase)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/categories/{categoryId}", wrapper.DeleteCategory)
 
@@ -1459,6 +1587,61 @@ type GetCaseCaptures404ApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetCaseCaptures404ApplicationProblemPlusJSONResponse) VisitGetCaseCapturesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SaveReviewRequestObject struct {
+	CaseId string `json:"caseId"`
+	Body   *SaveReviewJSONRequestBody
+}
+
+type SaveReviewResponseObject interface {
+	VisitSaveReviewResponse(w http.ResponseWriter) error
+}
+
+type SaveReview200JSONResponse ReviewOutcome
+
+func (response SaveReview200JSONResponse) VisitSaveReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SaveReview400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response SaveReview400ApplicationProblemPlusJSONResponse) VisitSaveReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SaveReview404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response SaveReview404ApplicationProblemPlusJSONResponse) VisitSaveReviewResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -2020,6 +2203,9 @@ type StrictServerInterface interface {
 	// GetCaseCaptures Read the evidence a case is judged from
 	// (GET /cases/{caseId}/captures)
 	GetCaseCaptures(ctx context.Context, request GetCaseCapturesRequestObject) (GetCaseCapturesResponseObject, error)
+	// SaveReview Save what one review session decided
+	// (POST /cases/{caseId}/reviews)
+	SaveReview(ctx context.Context, request SaveReviewRequestObject) (SaveReviewResponseObject, error)
 	// DeleteCategory Remove an empty node
 	// (DELETE /categories/{categoryId})
 	DeleteCategory(ctx context.Context, request DeleteCategoryRequestObject) (DeleteCategoryResponseObject, error)
@@ -2279,6 +2465,39 @@ func (sh *strictHandler) GetCaseCaptures(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetCaseCapturesResponseObject); ok {
 		if err := validResponse.VisitGetCaseCapturesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SaveReview operation middleware
+func (sh *strictHandler) SaveReview(w http.ResponseWriter, r *http.Request, caseId string) {
+	var request SaveReviewRequestObject
+
+	request.CaseId = caseId
+
+	var body SaveReviewJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SaveReview(ctx, request.(SaveReviewRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SaveReview")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SaveReviewResponseObject); ok {
+		if err := validResponse.VisitSaveReviewResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -2609,90 +2828,99 @@ func (sh *strictHandler) CreateEdition(w http.ResponseWriter, r *http.Request, s
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"LG4ub/4/AAD//w==",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

@@ -60,3 +60,45 @@ WHERE k.project_id = $1
   AND (sqlc.narg('category_id')::text IS NULL OR k.category_id = sqlc.narg('category_id')::text)
 GROUP BY k.id
 ORDER BY k.title;
+
+-- Everything the state computation reads, for one case at one edition.
+-- name: CaseCaptureCells :many
+SELECT s.id AS step_id, c.variant_id
+FROM steps s
+JOIN captures c ON c.step_id = s.id AND c.edition_id = $2
+WHERE s.case_id = $1;
+
+-- name: CaseValidatedCells :many
+SELECT step_id, variant_id FROM capture_verdicts
+WHERE case_id = $1 AND status = 'validated';
+
+-- name: CaseComments :many
+SELECT c.id, c.step_id, c.kind, c.body, c.state, c.issue_ref, c.issue_url,
+       c.issue_title, c.discard_reason, c.author_id, c.created_at, c.updated_at,
+       array_remove(array_agg(cv.variant_id), NULL)::text[] AS variant_ids
+FROM comments c
+LEFT JOIN comment_variants cv ON cv.comment_id = c.id
+WHERE c.case_id = $1
+GROUP BY c.id
+ORDER BY c.created_at;
+
+-- name: CreateComment :one
+INSERT INTO comments (case_id, step_id, kind, body, author_id)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING *;
+
+-- name: AttachCommentVariant :exec
+INSERT INTO comment_variants (comment_id, variant_id)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING;
+
+-- The verdict of a cell is recomputed, never set by a caller: recording a
+-- comment and recomputing what it covers happen together (ADR 0012).
+-- name: UpsertCaptureVerdict :exec
+INSERT INTO capture_verdicts (case_id, step_id, variant_id, status)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (case_id, step_id, variant_id)
+DO UPDATE SET status = EXCLUDED.status, updated_at = now();
+
+-- name: SetCaseState :exec
+UPDATE cases SET state = $2, updated_at = now() WHERE id = $1;
