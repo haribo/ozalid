@@ -522,3 +522,118 @@ func TestASecondEditionDoesNotReopenAJudgedCase(t *testing.T) {
 		t.Errorf("state = %q, want reviewed: an incoming edition must not re-open a judged case", after.State)
 	}
 }
+
+func TestOrderingTheAxesRelabelsTheVariantsAlreadyStored(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	hash := storeBlob(t, ctx, repo, "a screen")
+
+	if _, err := repo.WriteEdition(ctx, project.Slug, contract.Manifest{
+		Cases: []contract.ManifestCase{{
+			ID: kase.ID,
+			Steps: []contract.ManifestStep{{
+				Name: "opens",
+				Captures: []contract.ManifestCapture{{
+					Variant: map[string]string{"theme": "dark", "viewport": "desktop"},
+					Hash:    hash,
+				}},
+			}},
+		}},
+	}); err != nil {
+		t.Fatalf("taking the edition in: %v", err)
+	}
+
+	before, err := repo.CaseGrid(ctx, kase.ID, nil)
+	if err != nil {
+		t.Fatalf("reading the grid: %v", err)
+	}
+	// Alphabetical by default — theme before viewport — which reads backwards.
+	if before.Variants[0].Label != "dark·desktop" {
+		t.Fatalf("initial label = %q, want the alphabetical default", before.Variants[0].Label)
+	}
+	variantID := before.Variants[0].ID
+
+	if _, err := repo.OrderAxes(ctx, project.ID, []string{"viewport", "theme"}); err != nil {
+		t.Fatalf("ordering the axes: %v", err)
+	}
+
+	after, err := repo.CaseGrid(ctx, kase.ID, nil)
+	if err != nil {
+		t.Fatalf("re-reading the grid: %v", err)
+	}
+	if after.Variants[0].Label != "desktop·dark" {
+		t.Errorf("label = %q, want it to follow the declared order", after.Variants[0].Label)
+	}
+	// A label is a rendering, never an identity: the row must be the same one.
+	if after.Variants[0].ID != variantID {
+		t.Error("relabelling created a new variant instead of renaming the existing one")
+	}
+}
+
+func TestAnAxisTheProjectDidNotNameKeepsItsPlaceAfterThoseItDid(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	hash := storeBlob(t, ctx, repo, "a screen")
+
+	if _, err := repo.WriteEdition(ctx, project.Slug, contract.Manifest{
+		Cases: []contract.ManifestCase{{
+			ID: kase.ID,
+			Steps: []contract.ManifestStep{{
+				Name: "opens",
+				Captures: []contract.ManifestCapture{{
+					Variant: map[string]string{"theme": "dark", "viewport": "mobile", "locale": "fr"},
+					Hash:    hash,
+				}},
+			}},
+		}},
+	}); err != nil {
+		t.Fatalf("taking the edition in: %v", err)
+	}
+
+	// Only two of the three are named; the third must not vanish or jump ahead.
+	axes, err := repo.OrderAxes(ctx, project.ID, []string{"viewport", "theme"})
+	if err != nil {
+		t.Fatalf("ordering the axes: %v", err)
+	}
+	if len(axes) != 3 {
+		t.Fatalf("got %d axes, want the three that exist", len(axes))
+	}
+	if axes[0].Name != "viewport" || axes[1].Name != "theme" || axes[2].Name != "locale" {
+		t.Errorf("order = %v, want the named ones first then the rest", axes)
+	}
+
+	grid, err := repo.CaseGrid(ctx, kase.ID, nil)
+	if err != nil {
+		t.Fatalf("reading the grid: %v", err)
+	}
+	if grid.Variants[0].Label != "mobile·dark·fr" {
+		t.Errorf("label = %q, want %q", grid.Variants[0].Label, "mobile·dark·fr")
+	}
+}
+
+func TestNamingAnAxisNobodyCapturedDoesNotCreateIt(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	hash := storeBlob(t, ctx, repo, "a screen")
+
+	if _, err := repo.WriteEdition(ctx, project.Slug, contract.Manifest{
+		Cases: []contract.ManifestCase{{
+			ID: kase.ID,
+			Steps: []contract.ManifestStep{{
+				Name: "opens",
+				Captures: []contract.ManifestCapture{{
+					Variant: map[string]string{"theme": "dark"}, Hash: hash,
+				}},
+			}},
+		}},
+	}); err != nil {
+		t.Fatalf("taking the edition in: %v", err)
+	}
+
+	// An axis exists because a capture mentioned it (ADR 0001). Inventing one
+	// here would put an empty column in every grid.
+	axes, err := repo.OrderAxes(ctx, project.ID, []string{"density", "theme"})
+	if err != nil {
+		t.Fatalf("ordering the axes: %v", err)
+	}
+	if len(axes) != 1 || axes[0].Name != "theme" {
+		t.Errorf("axes = %v, want only the one that was captured", axes)
+	}
+}

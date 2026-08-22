@@ -77,3 +77,17 @@ RETURNING k.id;
 -- name: RecordTransition :exec
 INSERT INTO journal (project_id, case_id, from_state, to_state, cause, actor_id, actor_kind, inputs, rule_version)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+
+-- name: ListAxes :many
+SELECT * FROM axes WHERE project_id = $1 ORDER BY position, name;
+
+-- name: SetAxisPosition :exec
+UPDATE axes SET position = $3 WHERE project_id = $1 AND name = $2;
+
+-- Labels are a rendering of the values, never an identity, so they can be
+-- rewritten when the order changes.
+-- name: ListVariants :many
+SELECT * FROM variants WHERE project_id = $1;
+
+-- name: RelabelVariant :exec
+UPDATE variants SET label = $2 WHERE id = $1;

@@ -3,6 +3,7 @@ package catalogue
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/haribo/ozalid/apps/server/internal/domain/catalogue"
 )
@@ -105,6 +106,34 @@ func (s *Service) ListCategories(ctx context.Context, projectID string) ([]catal
 // descend.
 func (s *Service) CategoryTree(ctx context.Context, projectID string) ([]catalogue.CategoryNode, error) {
 	return s.repo.CategoryTree(ctx, projectID)
+}
+
+// Axes returns the project's rendering axes, in the order they read in.
+func (s *Service) Axes(ctx context.Context, projectID string) ([]catalogue.Axis, error) {
+	return s.repo.Axes(ctx, projectID)
+}
+
+// OrderAxes declares the order axes read in, and relabels the variants that
+// already exist.
+//
+// Only the order: an axis is created by first use at intake, never here. A
+// name the project does not know is ignored rather than created, because
+// inventing an axis nobody captured would put an empty column in every grid.
+func (s *Service) OrderAxes(ctx context.Context, projectID string, order []string) ([]catalogue.Axis, error) {
+	seen := make(map[string]struct{}, len(order))
+	cleaned := make([]string, 0, len(order))
+	for _, name := range order {
+		trimmed := strings.TrimSpace(name)
+		if trimmed == "" {
+			continue
+		}
+		if _, dup := seen[trimmed]; dup {
+			return nil, fmt.Errorf("catalogue: %q appears twice in the order", trimmed)
+		}
+		seen[trimmed] = struct{}{}
+		cleaned = append(cleaned, trimmed)
+	}
+	return s.repo.OrderAxes(ctx, projectID, cleaned)
 }
 
 // SummariseCases returns the cases with the state of their captures, so a

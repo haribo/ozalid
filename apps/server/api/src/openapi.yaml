@@ -23,6 +23,8 @@ paths:
     $ref: "./paths/projects.yaml"
   /projects/{slug}:
     $ref: "./paths/project.yaml"
+  /projects/{slug}/axes:
+    $ref: "./paths/axes.yaml"
   /projects/{slug}/cases:
     $ref: "./paths/cases.yaml"
   /projects/{slug}/editions:

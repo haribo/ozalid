@@ -211,6 +211,66 @@ func (q *Queries) EnterReviewOnFirstCaptures(ctx context.Context, dollar_1 []str
 	return items, nil
 }
 
+const listAxes = `-- name: ListAxes :many
+SELECT id, project_id, name, position FROM axes WHERE project_id = $1 ORDER BY position, name
+`
+
+func (q *Queries) ListAxes(ctx context.Context, projectID string) ([]Axis, error) {
+	rows, err := q.db.Query(ctx, listAxes, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Axis{}
+	for rows.Next() {
+		var i Axis
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Name,
+			&i.Position,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVariants = `-- name: ListVariants :many
+SELECT id, project_id, values, label FROM variants WHERE project_id = $1
+`
+
+// Labels are a rendering of the values, never an identity, so they can be
+// rewritten when the order changes.
+func (q *Queries) ListVariants(ctx context.Context, projectID string) ([]Variant, error) {
+	rows, err := q.db.Query(ctx, listVariants, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Variant{}
+	for rows.Next() {
+		var i Variant
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Values,
+			&i.Label,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const recordTransition = `-- name: RecordTransition :exec
 INSERT INTO journal (project_id, case_id, from_state, to_state, cause, actor_id, actor_kind, inputs, rule_version)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -242,6 +302,35 @@ func (q *Queries) RecordTransition(ctx context.Context, arg RecordTransitionPara
 		arg.Inputs,
 		arg.RuleVersion,
 	)
+	return err
+}
+
+const relabelVariant = `-- name: RelabelVariant :exec
+UPDATE variants SET label = $2 WHERE id = $1
+`
+
+type RelabelVariantParams struct {
+	ID    string
+	Label string
+}
+
+func (q *Queries) RelabelVariant(ctx context.Context, arg RelabelVariantParams) error {
+	_, err := q.db.Exec(ctx, relabelVariant, arg.ID, arg.Label)
+	return err
+}
+
+const setAxisPosition = `-- name: SetAxisPosition :exec
+UPDATE axes SET position = $3 WHERE project_id = $1 AND name = $2
+`
+
+type SetAxisPositionParams struct {
+	ProjectID string
+	Name      string
+	Position  int32
+}
+
+func (q *Queries) SetAxisPosition(ctx context.Context, arg SetAxisPositionParams) error {
+	_, err := q.db.Exec(ctx, setAxisPosition, arg.ProjectID, arg.Name, arg.Position)
 	return err
 }
 
