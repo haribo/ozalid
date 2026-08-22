@@ -1,0 +1,35 @@
+parameters:
+  - name: caseId
+    in: path
+    required: true
+    schema: { type: string }
+
+post:
+  operationId: saveReview
+  summary: Save what one review session decided
+  description: |
+    One save carries everything the sitting produced: the squares looked at with
+    nothing to say, and the comments written on the rest. Splitting it would
+    leave a case half-judged between two calls.
+
+    The server works out what it means. **No endpoint accepts a case state** —
+    it is computed from the comments and the verdicts, never received
+    (ADR 0002, ADR 0012).
+  tags: [reviews]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "../components/review.yaml#/ReviewSave"
+  responses:
+    "200":
+      description: What the session amounted to.
+      content:
+        application/json:
+          schema:
+            $ref: "../components/review.yaml#/ReviewOutcome"
+    "400":
+      $ref: "../components/responses.yaml#/BadRequest"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"

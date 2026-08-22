@@ -464,6 +464,43 @@ paths:
                 $ref: '#/components/schemas/Grid'
         '404':
           $ref: '#/components/responses/NotFound'
+  /cases/{caseId}/reviews:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: saveReview
+      summary: Save what one review session decided
+      description: |
+        One save carries everything the sitting produced: the squares looked at with
+        nothing to say, and the comments written on the rest. Splitting it would
+        leave a case half-judged between two calls.
+
+        The server works out what it means. **No endpoint accepts a case state** —
+        it is computed from the comments and the verdicts, never received
+        (ADR 0002, ADR 0012).
+      tags:
+        - reviews
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewSave'
+      responses:
+        '200':
+          description: What the session amounted to.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewOutcome'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /cases/{caseId}/archive:
     parameters:
       - name: caseId
@@ -977,6 +1014,88 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/GridRecording'
+    CellRef:
+      type: object
+      required:
+        - stepId
+        - variantId
+      properties:
+        stepId:
+          type: string
+        variantId:
+          type: string
+    NewComment:
+      type: object
+      required:
+        - stepId
+        - kind
+        - body
+        - variantIds
+      properties:
+        stepId:
+          type: string
+        kind:
+          type: string
+          enum:
+            - defect
+            - improvement
+          description: |
+            What it is. The kind is written on the comment, where it is exact and
+            where the issue is written from — it never colours the case's state.
+        body:
+          type: string
+          minLength: 1
+        variantIds:
+          type: array
+          minItems: 1
+          description: |
+            The variants it applies to. One defect spanning four variants is **one**
+            comment with four variants checked, never four comments.
+          items:
+            type: string
+    ReviewSave:
+      type: object
+      properties:
+        validated:
+          type: array
+          description: The squares the reviewer looked at with nothing to say.
+          items:
+            $ref: '#/components/schemas/CellRef'
+        comments:
+          type: array
+          description: What the reviewer wrote during the sitting.
+          items:
+            $ref: '#/components/schemas/NewComment'
+    CellVerdict:
+      allOf:
+        - $ref: '#/components/schemas/CellRef'
+        - type: object
+          required:
+            - status
+          properties:
+            status:
+              type: string
+              enum:
+                - to-review
+                - to-fix
+                - validated
+    ReviewOutcome:
+      type: object
+      required:
+        - state
+        - comments
+        - verdicts
+      properties:
+        state:
+          $ref: '#/components/schemas/CaseState'
+        comments:
+          type: integer
+          description: How many comments the session added.
+        verdicts:
+          type: array
+          description: The status of every capture the case has, after the save.
+          items:
+            $ref: '#/components/schemas/CellVerdict'
   responses:
     BadRequest:
       description: The request is malformed.

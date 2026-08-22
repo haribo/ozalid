@@ -1,0 +1,65 @@
+ReviewSave:
+  type: object
+  properties:
+    validated:
+      type: array
+      description: The squares the reviewer looked at with nothing to say.
+      items:
+        $ref: "#/CellRef"
+    comments:
+      type: array
+      description: What the reviewer wrote during the sitting.
+      items:
+        $ref: "#/NewComment"
+
+CellRef:
+  type: object
+  required: [stepId, variantId]
+  properties:
+    stepId: { type: string }
+    variantId: { type: string }
+
+NewComment:
+  type: object
+  required: [stepId, kind, body, variantIds]
+  properties:
+    stepId: { type: string }
+    kind:
+      type: string
+      enum: [defect, improvement]
+      description: |
+        What it is. The kind is written on the comment, where it is exact and
+        where the issue is written from — it never colours the case's state.
+    body: { type: string, minLength: 1 }
+    variantIds:
+      type: array
+      minItems: 1
+      description: |
+        The variants it applies to. One defect spanning four variants is **one**
+        comment with four variants checked, never four comments.
+      items: { type: string }
+
+ReviewOutcome:
+  type: object
+  required: [state, comments, verdicts]
+  properties:
+    state:
+      $ref: "./schemas.yaml#/CaseState"
+    comments:
+      type: integer
+      description: How many comments the session added.
+    verdicts:
+      type: array
+      description: The status of every capture the case has, after the save.
+      items:
+        $ref: "#/CellVerdict"
+
+CellVerdict:
+  allOf:
+    - $ref: "#/CellRef"
+    - type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [to-review, to-fix, validated]

@@ -11,6 +11,151 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const attachCommentVariant = `-- name: AttachCommentVariant :exec
+INSERT INTO comment_variants (comment_id, variant_id)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING
+`
+
+type AttachCommentVariantParams struct {
+	CommentID string
+	VariantID string
+}
+
+func (q *Queries) AttachCommentVariant(ctx context.Context, arg AttachCommentVariantParams) error {
+	_, err := q.db.Exec(ctx, attachCommentVariant, arg.CommentID, arg.VariantID)
+	return err
+}
+
+const caseCaptureCells = `-- name: CaseCaptureCells :many
+SELECT s.id AS step_id, c.variant_id
+FROM steps s
+JOIN captures c ON c.step_id = s.id AND c.edition_id = $2
+WHERE s.case_id = $1
+`
+
+type CaseCaptureCellsParams struct {
+	CaseID    string
+	EditionID string
+}
+
+type CaseCaptureCellsRow struct {
+	StepID    string
+	VariantID string
+}
+
+// Everything the state computation reads, for one case at one edition.
+func (q *Queries) CaseCaptureCells(ctx context.Context, arg CaseCaptureCellsParams) ([]CaseCaptureCellsRow, error) {
+	rows, err := q.db.Query(ctx, caseCaptureCells, arg.CaseID, arg.EditionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CaseCaptureCellsRow{}
+	for rows.Next() {
+		var i CaseCaptureCellsRow
+		if err := rows.Scan(&i.StepID, &i.VariantID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const caseComments = `-- name: CaseComments :many
+SELECT c.id, c.step_id, c.kind, c.body, c.state, c.issue_ref, c.issue_url,
+       c.issue_title, c.discard_reason, c.author_id, c.created_at, c.updated_at,
+       array_remove(array_agg(cv.variant_id), NULL)::text[] AS variant_ids
+FROM comments c
+LEFT JOIN comment_variants cv ON cv.comment_id = c.id
+WHERE c.case_id = $1
+GROUP BY c.id
+ORDER BY c.created_at
+`
+
+type CaseCommentsRow struct {
+	ID            string
+	StepID        string
+	Kind          string
+	Body          string
+	State         string
+	IssueRef      *string
+	IssueUrl      *string
+	IssueTitle    *string
+	DiscardReason *string
+	AuthorID      string
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+	VariantIds    []string
+}
+
+func (q *Queries) CaseComments(ctx context.Context, caseID string) ([]CaseCommentsRow, error) {
+	rows, err := q.db.Query(ctx, caseComments, caseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CaseCommentsRow{}
+	for rows.Next() {
+		var i CaseCommentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.StepID,
+			&i.Kind,
+			&i.Body,
+			&i.State,
+			&i.IssueRef,
+			&i.IssueUrl,
+			&i.IssueTitle,
+			&i.DiscardReason,
+			&i.AuthorID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.VariantIds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const caseValidatedCells = `-- name: CaseValidatedCells :many
+SELECT step_id, variant_id FROM capture_verdicts
+WHERE case_id = $1 AND status = 'validated'
+`
+
+type CaseValidatedCellsRow struct {
+	StepID    string
+	VariantID string
+}
+
+func (q *Queries) CaseValidatedCells(ctx context.Context, caseID string) ([]CaseValidatedCellsRow, error) {
+	rows, err := q.db.Query(ctx, caseValidatedCells, caseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CaseValidatedCellsRow{}
+	for rows.Next() {
+		var i CaseValidatedCellsRow
+		if err := rows.Scan(&i.StepID, &i.VariantID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const casesWithCaptureCounts = `-- name: CasesWithCaptureCounts :many
 WITH latest AS (
     SELECT id FROM editions
@@ -175,4 +320,85 @@ func (q *Queries) CategoryTreeWithCounts(ctx context.Context, projectID string) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const createComment = `-- name: CreateComment :one
+INSERT INTO comments (case_id, step_id, kind, body, author_id)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, case_id, step_id, kind, body, state, issue_ref, issue_url, issue_title, discard_reason, author_id, created_at, updated_at
+`
+
+type CreateCommentParams struct {
+	CaseID   string
+	StepID   string
+	Kind     string
+	Body     string
+	AuthorID string
+}
+
+func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (Comment, error) {
+	row := q.db.QueryRow(ctx, createComment,
+		arg.CaseID,
+		arg.StepID,
+		arg.Kind,
+		arg.Body,
+		arg.AuthorID,
+	)
+	var i Comment
+	err := row.Scan(
+		&i.ID,
+		&i.CaseID,
+		&i.StepID,
+		&i.Kind,
+		&i.Body,
+		&i.State,
+		&i.IssueRef,
+		&i.IssueUrl,
+		&i.IssueTitle,
+		&i.DiscardReason,
+		&i.AuthorID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const setCaseState = `-- name: SetCaseState :exec
+UPDATE cases SET state = $2, updated_at = now() WHERE id = $1
+`
+
+type SetCaseStateParams struct {
+	ID    string
+	State string
+}
+
+func (q *Queries) SetCaseState(ctx context.Context, arg SetCaseStateParams) error {
+	_, err := q.db.Exec(ctx, setCaseState, arg.ID, arg.State)
+	return err
+}
+
+const upsertCaptureVerdict = `-- name: UpsertCaptureVerdict :exec
+INSERT INTO capture_verdicts (case_id, step_id, variant_id, status)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (case_id, step_id, variant_id)
+DO UPDATE SET status = EXCLUDED.status, updated_at = now()
+`
+
+type UpsertCaptureVerdictParams struct {
+	CaseID    string
+	StepID    string
+	VariantID string
+	Status    string
+}
+
+// The verdict of a cell is recomputed, never set by a caller: recording a
+// comment and recomputing what it covers happen together (ADR 0012).
+func (q *Queries) UpsertCaptureVerdict(ctx context.Context, arg UpsertCaptureVerdictParams) error {
+	_, err := q.db.Exec(ctx, upsertCaptureVerdict,
+		arg.CaseID,
+		arg.StepID,
+		arg.VariantID,
+		arg.Status,
+	)
+	return err
 }

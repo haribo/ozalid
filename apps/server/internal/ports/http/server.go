@@ -13,6 +13,7 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/app/catalogue"
 	"github.com/haribo/ozalid/apps/server/internal/app/evidence"
 	"github.com/haribo/ozalid/apps/server/internal/app/intake"
+	"github.com/haribo/ozalid/apps/server/internal/app/session"
 	"github.com/haribo/ozalid/apps/server/internal/ports/http/openapi"
 )
 
@@ -30,6 +31,7 @@ type Server struct {
 	catalogue    *catalogue.Service
 	intake       *intake.Service
 	evidence     *evidence.Service
+	session      *session.Service
 }
 
 // Compile-time proof that every operation in the contract is implemented.
@@ -44,6 +46,7 @@ type Deps struct {
 	Catalogue    *catalogue.Service
 	Intake       *intake.Service
 	Evidence     *evidence.Service
+	Session      *session.Service
 }
 
 // New returns a Server wired to deps.
@@ -55,6 +58,7 @@ func New(deps Deps) *Server {
 		catalogue:    deps.Catalogue,
 		intake:       deps.Intake,
 		evidence:     deps.Evidence,
+		session:      deps.Session,
 	}
 }
 

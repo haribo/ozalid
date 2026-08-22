@@ -254,6 +254,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/{caseId}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save what one review session decided
+         * @description One save carries everything the sitting produced: the squares looked at with
+         *     nothing to say, and the comments written on the rest. Splitting it would
+         *     leave a case half-judged between two calls.
+         *
+         *     The server works out what it means. **No endpoint accepts a case state** —
+         *     it is computed from the comments and the verdicts, never received
+         *     (ADR 0002, ADR 0012).
+         */
+        post: operations["saveReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{caseId}/archive": {
         parameters: {
             query?: never;
@@ -532,6 +560,42 @@ export interface components {
             variants: components["schemas"]["GridVariant"][];
             steps: components["schemas"]["GridStep"][];
             recordings: components["schemas"]["GridRecording"][];
+        };
+        CellRef: {
+            stepId: string;
+            variantId: string;
+        };
+        NewComment: {
+            stepId: string;
+            /**
+             * @description What it is. The kind is written on the comment, where it is exact and
+             *     where the issue is written from — it never colours the case's state.
+             * @enum {string}
+             */
+            kind: "defect" | "improvement";
+            body: string;
+            /**
+             * @description The variants it applies to. One defect spanning four variants is **one**
+             *     comment with four variants checked, never four comments.
+             */
+            variantIds: string[];
+        };
+        ReviewSave: {
+            /** @description The squares the reviewer looked at with nothing to say. */
+            validated?: components["schemas"]["CellRef"][];
+            /** @description What the reviewer wrote during the sitting. */
+            comments?: components["schemas"]["NewComment"][];
+        };
+        CellVerdict: components["schemas"]["CellRef"] & {
+            /** @enum {string} */
+            status: "to-review" | "to-fix" | "validated";
+        };
+        ReviewOutcome: {
+            state: components["schemas"]["CaseState"];
+            /** @description How many comments the session added. */
+            comments: number;
+            /** @description The status of every capture the case has, after the save. */
+            verdicts: components["schemas"]["CellVerdict"][];
         };
     };
     responses: {
@@ -1030,6 +1094,34 @@ export interface operations {
                     "application/json": components["schemas"]["Grid"];
                 };
             };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    saveReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewSave"];
+            };
+        };
+        responses: {
+            /** @description What the session amounted to. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewOutcome"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
         };
     };

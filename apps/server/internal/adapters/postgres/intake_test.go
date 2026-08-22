@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -12,6 +13,8 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres"
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres/sqlcgen"
 	"github.com/haribo/ozalid/apps/server/internal/app/intake"
+	"github.com/haribo/ozalid/apps/server/internal/app/session"
+	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"github.com/haribo/ozalid/internal/contract"
 )
 
@@ -635,5 +638,161 @@ func TestNamingAnAxisNobodyCapturedDoesNotCreateIt(t *testing.T) {
 	}
 	if len(axes) != 1 || axes[0].Name != "theme" {
 		t.Errorf("axes = %v, want only the one that was captured", axes)
+	}
+}
+
+// seedGrid gives a case two steps in two variants, all captured.
+func seedGrid(t *testing.T, ctx context.Context, repo *postgres.Repository, project sqlcgen.Project, kase sqlcgen.Case) []review.Cell {
+	t.Helper()
+	light := storeBlob(t, ctx, repo, "light "+t.Name())
+	dark := storeBlob(t, ctx, repo, "dark "+t.Name())
+
+	if _, err := repo.WriteEdition(ctx, project.Slug, contract.Manifest{
+		Cases: []contract.ManifestCase{{
+			ID: kase.ID,
+			Steps: []contract.ManifestStep{{
+				Name: "opens",
+				Captures: []contract.ManifestCapture{
+					{Variant: map[string]string{"theme": "light"}, Hash: light},
+					{Variant: map[string]string{"theme": "dark"}, Hash: dark},
+				},
+			}},
+		}},
+	}); err != nil {
+		t.Fatalf("taking the edition in: %v", err)
+	}
+
+	grid, err := repo.CaseGrid(ctx, kase.ID, nil)
+	if err != nil {
+		t.Fatalf("reading the grid: %v", err)
+	}
+	cells := make([]review.Cell, 0, 2)
+	for _, cell := range grid.Steps[0].Cells {
+		cells = append(cells, review.Cell{StepID: grid.Steps[0].ID, VariantID: cell.VariantID})
+	}
+	return cells
+}
+
+func TestValidatingEverySquareWithNothingToSayClosesTheCase(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	cells := seedGrid(t, ctx, repo, project, kase)
+
+	got, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells})
+	if err != nil {
+		t.Fatalf("saving the review: %v", err)
+	}
+	// reviewed is the only clean state (ADR 0012).
+	if got.State != review.CaseReviewed {
+		t.Errorf("state = %q, want reviewed", got.State)
+	}
+
+	after, err := repo.Queries().GetCase(ctx, kase.ID)
+	if err != nil {
+		t.Fatalf("re-reading: %v", err)
+	}
+	if after.State != "reviewed" {
+		t.Errorf("stored state = %q, want it to match what was computed", after.State)
+	}
+}
+
+func TestACommentPutsTheBallInTheDevsCourtAndMarksItsCells(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	cells := seedGrid(t, ctx, repo, project, kase)
+
+	got, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{
+		Validated: cells[:1],
+		Comments: []session.NewComment{{
+			StepID: cells[1].StepID, Kind: "defect",
+			Body:       "the button is cropped in dark",
+			VariantIDs: []string{cells[1].VariantID},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("saving the review: %v", err)
+	}
+	if got.State != review.CaseToFix {
+		t.Errorf("state = %q, want to-fix", got.State)
+	}
+	if got.Verdicts[cells[0]] != review.CaptureValidated {
+		t.Errorf("the validated cell reads %q", got.Verdicts[cells[0]])
+	}
+	if got.Verdicts[cells[1]] != review.CaptureToFix {
+		t.Errorf("the commented cell reads %q, want to-fix", got.Verdicts[cells[1]])
+	}
+}
+
+func TestLeavingOneSquareUnjudgedKeepsTheCaseWaitingOnTheReviewer(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	cells := seedGrid(t, ctx, repo, project, kase)
+
+	got, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells[:1]})
+	if err != nil {
+		t.Fatalf("saving the review: %v", err)
+	}
+	if got.State != review.CaseToReview {
+		t.Errorf("state = %q, want to-review: an unjudged square is unfinished work", got.State)
+	}
+}
+
+func TestTheStateChangeIsJournalledWithWhatTheComputationRead(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	cells := seedGrid(t, ctx, repo, project, kase)
+
+	if _, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells}); err != nil {
+		t.Fatalf("saving the review: %v", err)
+	}
+
+	var from, to, cause, actor, kind string
+	var inputs []byte
+	if err := repo.Pool().QueryRow(ctx,
+		`SELECT from_state, to_state, cause, actor_id, actor_kind, inputs
+		 FROM journal WHERE case_id = $1 ORDER BY at DESC LIMIT 1`, kase.ID,
+	).Scan(&from, &to, &cause, &actor, &kind, &inputs); err != nil {
+		t.Fatalf("reading the journal: %v", err)
+	}
+	if from != "to-review" || to != "reviewed" {
+		t.Errorf("journalled %s → %s", from, to)
+	}
+	if cause != "review-saved" || actor != "nina" || kind != "human" {
+		t.Errorf("journalled cause=%q actor=%q kind=%q", cause, actor, kind)
+	}
+	// Without the inputs a stored state cannot serve as a regression oracle
+	// (ADR 0002).
+	var read map[string]int
+	if err := json.Unmarshal(inputs, &read); err != nil {
+		t.Fatalf("decoding the inputs: %v", err)
+	}
+	if read["captures"] != 2 || read["validated"] != 2 {
+		t.Errorf("inputs = %v, want what the computation actually read", read)
+	}
+}
+
+func TestSavingTwiceLeavesTheCaseWhereTheFactsPutIt(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	cells := seedGrid(t, ctx, repo, project, kase)
+
+	if _, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells}); err != nil {
+		t.Fatalf("first save: %v", err)
+	}
+	// The same session again must not move anything: the state is a function
+	// of the facts, not of how often it was computed.
+	got, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells})
+	if err != nil {
+		t.Fatalf("second save: %v", err)
+	}
+	if got.State != review.CaseReviewed {
+		t.Errorf("state = %q after a repeat save, want reviewed", got.State)
+	}
+
+	var transitions int
+	if err := repo.Pool().QueryRow(ctx,
+		"SELECT count(*) FROM journal WHERE case_id = $1 AND cause = 'review-saved'", kase.ID,
+	).Scan(&transitions); err != nil {
+		t.Fatalf("counting the transitions: %v", err)
+	}
+	// Only the move is journalled, not every save: a journal full of
+	// no-op entries is one nobody reads.
+	if transitions != 1 {
+		t.Errorf("journalled %d transitions, want 1 — the second save moved nothing", transitions)
 	}
 }
