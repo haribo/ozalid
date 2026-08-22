@@ -1,0 +1,5 @@
+# Generated from the OpenAPI document, never edited — and never reformatted:
+# `just gen` rewrites it, so any formatting pass here shows up as a permanent
+# diff in gen-check.
+src/shared/api/schema.gen.ts
+dist
