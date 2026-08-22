@@ -27,6 +27,31 @@ func (q *Queries) AttachCommentVariant(ctx context.Context, arg AttachCommentVar
 	return err
 }
 
+const attachIssue = `-- name: AttachIssue :exec
+UPDATE comments
+SET state = $2, issue_ref = $3, issue_url = $4, issue_title = $5, updated_at = now()
+WHERE id = $1
+`
+
+type AttachIssueParams struct {
+	ID         string
+	State      string
+	IssueRef   *string
+	IssueUrl   *string
+	IssueTitle *string
+}
+
+func (q *Queries) AttachIssue(ctx context.Context, arg AttachIssueParams) error {
+	_, err := q.db.Exec(ctx, attachIssue,
+		arg.ID,
+		arg.State,
+		arg.IssueRef,
+		arg.IssueUrl,
+		arg.IssueTitle,
+	)
+	return err
+}
+
 const caseCaptureCells = `-- name: CaseCaptureCells :many
 SELECT s.id AS step_id, c.variant_id
 FROM steps s
@@ -322,6 +347,37 @@ func (q *Queries) CategoryTreeWithCounts(ctx context.Context, projectID string) 
 	return items, nil
 }
 
+const commentJudgments = `-- name: CommentJudgments :many
+SELECT id, comment_id, verdict, remark, actor_id, created_at FROM comment_judgments WHERE comment_id = $1 ORDER BY created_at
+`
+
+func (q *Queries) CommentJudgments(ctx context.Context, commentID string) ([]CommentJudgment, error) {
+	rows, err := q.db.Query(ctx, commentJudgments, commentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CommentJudgment{}
+	for rows.Next() {
+		var i CommentJudgment
+		if err := rows.Scan(
+			&i.ID,
+			&i.CommentID,
+			&i.Verdict,
+			&i.Remark,
+			&i.ActorID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createComment = `-- name: CreateComment :one
 INSERT INTO comments (case_id, step_id, kind, body, author_id)
 VALUES ($1, $2, $3, $4, $5)
@@ -363,6 +419,70 @@ func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (C
 	return i, err
 }
 
+const discardComment = `-- name: DiscardComment :exec
+UPDATE comments SET state = $2, discard_reason = $3, updated_at = now() WHERE id = $1
+`
+
+type DiscardCommentParams struct {
+	ID            string
+	State         string
+	DiscardReason *string
+}
+
+func (q *Queries) DiscardComment(ctx context.Context, arg DiscardCommentParams) error {
+	_, err := q.db.Exec(ctx, discardComment, arg.ID, arg.State, arg.DiscardReason)
+	return err
+}
+
+const getComment = `-- name: GetComment :one
+SELECT id, case_id, step_id, kind, body, state, issue_ref, issue_url, issue_title, discard_reason, author_id, created_at, updated_at FROM comments WHERE id = $1
+`
+
+func (q *Queries) GetComment(ctx context.Context, id string) (Comment, error) {
+	row := q.db.QueryRow(ctx, getComment, id)
+	var i Comment
+	err := row.Scan(
+		&i.ID,
+		&i.CaseID,
+		&i.StepID,
+		&i.Kind,
+		&i.Body,
+		&i.State,
+		&i.IssueRef,
+		&i.IssueUrl,
+		&i.IssueTitle,
+		&i.DiscardReason,
+		&i.AuthorID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const recordJudgment = `-- name: RecordJudgment :exec
+INSERT INTO comment_judgments (comment_id, verdict, remark, actor_id)
+VALUES ($1, $2, $3, $4)
+`
+
+type RecordJudgmentParams struct {
+	CommentID string
+	Verdict   string
+	Remark    *string
+	ActorID   string
+}
+
+// Every judgment is kept: three round trips on one comment is information
+// (ADR 0012).
+func (q *Queries) RecordJudgment(ctx context.Context, arg RecordJudgmentParams) error {
+	_, err := q.db.Exec(ctx, recordJudgment,
+		arg.CommentID,
+		arg.Verdict,
+		arg.Remark,
+		arg.ActorID,
+	)
+	return err
+}
+
 const setCaseState = `-- name: SetCaseState :exec
 UPDATE cases SET state = $2, updated_at = now() WHERE id = $1
 `
@@ -374,6 +494,22 @@ type SetCaseStateParams struct {
 
 func (q *Queries) SetCaseState(ctx context.Context, arg SetCaseStateParams) error {
 	_, err := q.db.Exec(ctx, setCaseState, arg.ID, arg.State)
+	return err
+}
+
+const setCommentState = `-- name: SetCommentState :exec
+UPDATE comments SET state = $2, updated_at = now() WHERE id = $1
+`
+
+type SetCommentStateParams struct {
+	ID    string
+	State string
+}
+
+// The state is written by the server as a consequence of a recorded move,
+// never received as an argument (ADR 0002).
+func (q *Queries) SetCommentState(ctx context.Context, arg SetCommentStateParams) error {
+	_, err := q.db.Exec(ctx, setCommentState, arg.ID, arg.State)
 	return err
 }
 

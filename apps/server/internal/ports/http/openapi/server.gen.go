@@ -69,18 +69,84 @@ func (e CellVerdictStatus) Valid() bool {
 	}
 }
 
+// Defines values for CommentKind.
+const (
+	CommentKindDefect      CommentKind = "defect"
+	CommentKindImprovement CommentKind = "improvement"
+)
+
+// Valid indicates whether the value is a known member of the CommentKind enum.
+func (e CommentKind) Valid() bool {
+	switch e {
+	case CommentKindDefect:
+		return true
+	case CommentKindImprovement:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CommentState.
+const (
+	CommentStateDiscarded CommentState = "discarded"
+	CommentStateRefused   CommentState = "refused"
+	CommentStateToReview  CommentState = "to-review"
+	CommentStateToTrack   CommentState = "to-track"
+	CommentStateTracked   CommentState = "tracked"
+	CommentStateValidated CommentState = "validated"
+)
+
+// Valid indicates whether the value is a known member of the CommentState enum.
+func (e CommentState) Valid() bool {
+	switch e {
+	case CommentStateDiscarded:
+		return true
+	case CommentStateRefused:
+		return true
+	case CommentStateToReview:
+		return true
+	case CommentStateToTrack:
+		return true
+	case CommentStateTracked:
+		return true
+	case CommentStateValidated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JudgmentVerdict.
+const (
+	JudgmentVerdictAccepted JudgmentVerdict = "accepted"
+	JudgmentVerdictRefused  JudgmentVerdict = "refused"
+)
+
+// Valid indicates whether the value is a known member of the JudgmentVerdict enum.
+func (e JudgmentVerdict) Valid() bool {
+	switch e {
+	case JudgmentVerdictAccepted:
+		return true
+	case JudgmentVerdictRefused:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for NewCommentKind.
 const (
-	Defect      NewCommentKind = "defect"
-	Improvement NewCommentKind = "improvement"
+	NewCommentKindDefect      NewCommentKind = "defect"
+	NewCommentKindImprovement NewCommentKind = "improvement"
 )
 
 // Valid indicates whether the value is a known member of the NewCommentKind enum.
 func (e NewCommentKind) Valid() bool {
 	switch e {
-	case Defect:
+	case NewCommentKindDefect:
 		return true
-	case Improvement:
+	case NewCommentKindImprovement:
 		return true
 	default:
 		return false
@@ -220,6 +286,40 @@ type CellVerdict struct {
 // CellVerdictStatus defines model for CellVerdict.Status.
 type CellVerdictStatus string
 
+// Comment defines model for Comment.
+type Comment struct {
+	AuthorId string `json:"authorId"`
+
+	// Body What the reviewer wrote, in their words. It survives the issue title.
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// DiscardReason Mandatory when discarded, and kept forever with its author.
+	DiscardReason *string `json:"discardReason,omitempty"`
+	Id            string  `json:"id"`
+
+	// Issue An opaque reference to an issue somewhere else. Supplied by the client and
+	// never read back: ozalid holds no tracker credential (ADR 0003).
+	Issue *IssueRef `json:"issue,omitempty"`
+
+	// Judgments Every judgment, not just the last — three round trips is information.
+	Judgments []Judgment  `json:"judgments"`
+	Kind      CommentKind `json:"kind"`
+
+	// State Where the comment stands. `validated` and `discarded` are the only terminal
+	// states; a refusal returns to `to-review` on the next delivery.
+	State      CommentState `json:"state"`
+	StepId     string       `json:"stepId"`
+	VariantIds []string     `json:"variantIds"`
+}
+
+// CommentKind defines model for Comment.Kind.
+type CommentKind string
+
+// CommentState Where the comment stands. `validated` and `discarded` are the only terminal
+// states; a refusal returns to `to-review` on the next delivery.
+type CommentState string
+
 // EditionAccepted defines model for EditionAccepted.
 type EditionAccepted struct {
 	Captures   int    `json:"captures"`
@@ -302,6 +402,30 @@ type IntakeRefused struct {
 	Type string `json:"type"`
 }
 
+// IssueRef An opaque reference to an issue somewhere else. Supplied by the client and
+// never read back: ozalid holds no tracker credential (ADR 0003).
+type IssueRef struct {
+	Id string `json:"id"`
+
+	// Title Shown next to the comment. ozalid never refreshes it, so it is whatever
+	// the client said at the time.
+	Title *string `json:"title,omitempty"`
+	Url   *string `json:"url,omitempty"`
+}
+
+// Judgment defines model for Judgment.
+type Judgment struct {
+	ActorId string    `json:"actorId"`
+	At      time.Time `json:"at"`
+
+	// Remark Mandatory on a refusal. It is what the dev has to read.
+	Remark  *string         `json:"remark,omitempty"`
+	Verdict JudgmentVerdict `json:"verdict"`
+}
+
+// JudgmentVerdict defines model for Judgment.Verdict.
+type JudgmentVerdict string
+
 // Manifest defines model for Manifest.
 type Manifest struct {
 	Cases []ManifestCase `json:"cases"`
@@ -355,6 +479,17 @@ type ManifestRecording struct {
 type ManifestStep struct {
 	Captures []ManifestCapture `json:"captures"`
 	Name     string            `json:"name"`
+}
+
+// MoveOutcome defines model for MoveOutcome.
+type MoveOutcome struct {
+	// CaseState Who holds the ball. Computed by the server from the case's comments; no
+	// endpoint accepts it as an argument.
+	CaseState CaseState `json:"caseState"`
+
+	// CommentState Where the comment stands. `validated` and `discarded` are the only terminal
+	// states; a refusal returns to `to-review` on the next delivery.
+	CommentState CommentState `json:"commentState"`
 }
 
 // NewCase defines model for NewCase.
@@ -484,8 +619,17 @@ type Problem struct {
 	Type string `json:"type"`
 }
 
+// CommentId defines model for CommentId.
+type CommentId = string
+
 // BadRequest defines model for BadRequest.
 type BadRequest = Problem
+
+// MoveApplied defines model for MoveApplied.
+type MoveApplied = MoveOutcome
+
+// MoveRefused defines model for MoveRefused.
+type MoveRefused = Problem
 
 // NotFound defines model for NotFound.
 type NotFound = Problem
@@ -493,6 +637,19 @@ type NotFound = Problem
 // GetCaseCapturesParams defines parameters for GetCaseCaptures.
 type GetCaseCapturesParams struct {
 	EditionId *string `form:"editionId,omitempty" json:"editionId,omitempty"`
+}
+
+// DiscardCommentJSONBody defines parameters for DiscardComment.
+type DiscardCommentJSONBody struct {
+	Reason string `json:"reason"`
+}
+
+// JudgeCommentJSONBody defines parameters for JudgeComment.
+type JudgeCommentJSONBody struct {
+	Accept bool `json:"accept"`
+
+	// Remark Mandatory when refusing. It is what the dev has to read.
+	Remark *string `json:"remark,omitempty"`
 }
 
 // GetHealth200JSONResponseBodyStatus defines parameters for GetHealth.
@@ -517,6 +674,15 @@ type UpdateCaseJSONRequestBody = CaseUpdate
 
 // SaveReviewJSONRequestBody defines body for SaveReview for application/json ContentType.
 type SaveReviewJSONRequestBody = ReviewSave
+
+// DiscardCommentJSONRequestBody defines body for DiscardComment for application/json ContentType.
+type DiscardCommentJSONRequestBody DiscardCommentJSONBody
+
+// JudgeCommentJSONRequestBody defines body for JudgeComment for application/json ContentType.
+type JudgeCommentJSONRequestBody JudgeCommentJSONBody
+
+// TrackCommentJSONRequestBody defines body for TrackComment for application/json ContentType.
+type TrackCommentJSONRequestBody = IssueRef
 
 // CreateProjectJSONRequestBody defines body for CreateProject for application/json ContentType.
 type CreateProjectJSONRequestBody = NewProject
@@ -556,12 +722,27 @@ type ServerInterface interface {
 	// GetCaseCaptures Read the evidence a case is judged from
 	// (GET /cases/{caseId}/captures)
 	GetCaseCaptures(w http.ResponseWriter, r *http.Request, caseId string, params GetCaseCapturesParams)
+	// ListComments Read what has been said about a case
+	// (GET /cases/{caseId}/comments)
+	ListComments(w http.ResponseWriter, r *http.Request, caseId string)
 	// SaveReview Save what one review session decided
 	// (POST /cases/{caseId}/reviews)
 	SaveReview(w http.ResponseWriter, r *http.Request, caseId string)
 	// DeleteCategory Remove an empty node
 	// (DELETE /categories/{categoryId})
 	DeleteCategory(w http.ResponseWriter, r *http.Request, categoryId string)
+	// DeliverComment Ask for a judgment on a delivered fix
+	// (POST /comments/{commentId}/delivery)
+	DeliverComment(w http.ResponseWriter, r *http.Request, commentId CommentId)
+	// DiscardComment Set a comment aside
+	// (POST /comments/{commentId}/discard)
+	DiscardComment(w http.ResponseWriter, r *http.Request, commentId CommentId)
+	// JudgeComment Accept a delivery, or refuse it
+	// (POST /comments/{commentId}/judgment)
+	JudgeComment(w http.ResponseWriter, r *http.Request, commentId CommentId)
+	// TrackComment Attach an external issue to a comment
+	// (POST /comments/{commentId}/reference)
+	TrackComment(w http.ResponseWriter, r *http.Request, commentId CommentId)
 	// GetHealth Report whether the service is able to serve
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -801,6 +982,32 @@ func (siw *ServerInterfaceWrapper) GetCaseCaptures(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// ListComments operation middleware
+func (siw *ServerInterfaceWrapper) ListComments(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "caseId" -------------
+	var caseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "caseId", r.PathValue("caseId"), &caseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "caseId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListComments(w, r, caseId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // SaveReview operation middleware
 func (siw *ServerInterfaceWrapper) SaveReview(w http.ResponseWriter, r *http.Request) {
 
@@ -844,6 +1051,110 @@ func (siw *ServerInterfaceWrapper) DeleteCategory(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteCategory(w, r, categoryId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeliverComment operation middleware
+func (siw *ServerInterfaceWrapper) DeliverComment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "commentId" -------------
+	var commentId CommentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "commentId", r.PathValue("commentId"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "commentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeliverComment(w, r, commentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DiscardComment operation middleware
+func (siw *ServerInterfaceWrapper) DiscardComment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "commentId" -------------
+	var commentId CommentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "commentId", r.PathValue("commentId"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "commentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DiscardComment(w, r, commentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// JudgeComment operation middleware
+func (siw *ServerInterfaceWrapper) JudgeComment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "commentId" -------------
+	var commentId CommentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "commentId", r.PathValue("commentId"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "commentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.JudgeComment(w, r, commentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// TrackComment operation middleware
+func (siw *ServerInterfaceWrapper) TrackComment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "commentId" -------------
+	var commentId CommentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "commentId", r.PathValue("commentId"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "commentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.TrackComment(w, r, commentId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1254,6 +1565,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cases/{caseId}", wrapper.GetCase)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/cases/{caseId}", wrapper.UpdateCase)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cases/{caseId}/captures", wrapper.GetCaseCaptures)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cases/{caseId}/comments", wrapper.ListComments)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/comments/{commentId}/reference", wrapper.TrackComment)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/comments/{commentId}/discard", wrapper.DiscardComment)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/comments/{commentId}/delivery", wrapper.DeliverComment)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/comments/{commentId}/judgment", wrapper.JudgeComment)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/cases/{caseId}/reviews", wrapper.SaveReview)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/cases/{caseId}/archive", wrapper.ArchiveCase)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/categories/{categoryId}", wrapper.DeleteCategory)
@@ -1262,6 +1578,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 }
 
 type BadRequestApplicationProblemPlusJSONResponse Problem
+
+type MoveAppliedJSONResponse MoveOutcome
+
+type MoveRefusedApplicationProblemPlusJSONResponse Problem
 
 type NotFoundApplicationProblemPlusJSONResponse Problem
 
@@ -1598,6 +1918,44 @@ func (response GetCaseCaptures404ApplicationProblemPlusJSONResponse) VisitGetCas
 	return err
 }
 
+type ListCommentsRequestObject struct {
+	CaseId string `json:"caseId"`
+}
+
+type ListCommentsResponseObject interface {
+	VisitListCommentsResponse(w http.ResponseWriter) error
+}
+
+type ListComments200JSONResponse []Comment
+
+func (response ListComments200JSONResponse) VisitListCommentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListComments404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response ListComments404ApplicationProblemPlusJSONResponse) VisitListCommentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SaveReviewRequestObject struct {
 	CaseId string `json:"caseId"`
 	Body   *SaveReviewJSONRequestBody
@@ -1688,6 +2046,273 @@ func (response DeleteCategory404ApplicationProblemPlusJSONResponse) VisitDeleteC
 type DeleteCategory409ApplicationProblemPlusJSONResponse Problem
 
 func (response DeleteCategory409ApplicationProblemPlusJSONResponse) VisitDeleteCategoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeliverCommentRequestObject struct {
+	CommentId CommentId `json:"commentId"`
+}
+
+type DeliverCommentResponseObject interface {
+	VisitDeliverCommentResponse(w http.ResponseWriter) error
+}
+
+type DeliverComment200JSONResponse struct{ MoveAppliedJSONResponse }
+
+func (response DeliverComment200JSONResponse) VisitDeliverCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeliverComment404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response DeliverComment404ApplicationProblemPlusJSONResponse) VisitDeliverCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeliverComment409ApplicationProblemPlusJSONResponse struct {
+	MoveRefusedApplicationProblemPlusJSONResponse
+}
+
+func (response DeliverComment409ApplicationProblemPlusJSONResponse) VisitDeliverCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiscardCommentRequestObject struct {
+	CommentId CommentId `json:"commentId"`
+	Body      *DiscardCommentJSONRequestBody
+}
+
+type DiscardCommentResponseObject interface {
+	VisitDiscardCommentResponse(w http.ResponseWriter) error
+}
+
+type DiscardComment200JSONResponse struct{ MoveAppliedJSONResponse }
+
+func (response DiscardComment200JSONResponse) VisitDiscardCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiscardComment400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response DiscardComment400ApplicationProblemPlusJSONResponse) VisitDiscardCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiscardComment404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response DiscardComment404ApplicationProblemPlusJSONResponse) VisitDiscardCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiscardComment409ApplicationProblemPlusJSONResponse struct {
+	MoveRefusedApplicationProblemPlusJSONResponse
+}
+
+func (response DiscardComment409ApplicationProblemPlusJSONResponse) VisitDiscardCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JudgeCommentRequestObject struct {
+	CommentId CommentId `json:"commentId"`
+	Body      *JudgeCommentJSONRequestBody
+}
+
+type JudgeCommentResponseObject interface {
+	VisitJudgeCommentResponse(w http.ResponseWriter) error
+}
+
+type JudgeComment200JSONResponse struct{ MoveAppliedJSONResponse }
+
+func (response JudgeComment200JSONResponse) VisitJudgeCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JudgeComment400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response JudgeComment400ApplicationProblemPlusJSONResponse) VisitJudgeCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JudgeComment404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response JudgeComment404ApplicationProblemPlusJSONResponse) VisitJudgeCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JudgeComment409ApplicationProblemPlusJSONResponse struct {
+	MoveRefusedApplicationProblemPlusJSONResponse
+}
+
+func (response JudgeComment409ApplicationProblemPlusJSONResponse) VisitJudgeCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TrackCommentRequestObject struct {
+	CommentId CommentId `json:"commentId"`
+	Body      *TrackCommentJSONRequestBody
+}
+
+type TrackCommentResponseObject interface {
+	VisitTrackCommentResponse(w http.ResponseWriter) error
+}
+
+type TrackComment200JSONResponse struct{ MoveAppliedJSONResponse }
+
+func (response TrackComment200JSONResponse) VisitTrackCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TrackComment400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response TrackComment400ApplicationProblemPlusJSONResponse) VisitTrackCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TrackComment404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response TrackComment404ApplicationProblemPlusJSONResponse) VisitTrackCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TrackComment409ApplicationProblemPlusJSONResponse struct {
+	MoveRefusedApplicationProblemPlusJSONResponse
+}
+
+func (response TrackComment409ApplicationProblemPlusJSONResponse) VisitTrackCommentResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -2203,12 +2828,27 @@ type StrictServerInterface interface {
 	// GetCaseCaptures Read the evidence a case is judged from
 	// (GET /cases/{caseId}/captures)
 	GetCaseCaptures(ctx context.Context, request GetCaseCapturesRequestObject) (GetCaseCapturesResponseObject, error)
+	// ListComments Read what has been said about a case
+	// (GET /cases/{caseId}/comments)
+	ListComments(ctx context.Context, request ListCommentsRequestObject) (ListCommentsResponseObject, error)
 	// SaveReview Save what one review session decided
 	// (POST /cases/{caseId}/reviews)
 	SaveReview(ctx context.Context, request SaveReviewRequestObject) (SaveReviewResponseObject, error)
 	// DeleteCategory Remove an empty node
 	// (DELETE /categories/{categoryId})
 	DeleteCategory(ctx context.Context, request DeleteCategoryRequestObject) (DeleteCategoryResponseObject, error)
+	// DeliverComment Ask for a judgment on a delivered fix
+	// (POST /comments/{commentId}/delivery)
+	DeliverComment(ctx context.Context, request DeliverCommentRequestObject) (DeliverCommentResponseObject, error)
+	// DiscardComment Set a comment aside
+	// (POST /comments/{commentId}/discard)
+	DiscardComment(ctx context.Context, request DiscardCommentRequestObject) (DiscardCommentResponseObject, error)
+	// JudgeComment Accept a delivery, or refuse it
+	// (POST /comments/{commentId}/judgment)
+	JudgeComment(ctx context.Context, request JudgeCommentRequestObject) (JudgeCommentResponseObject, error)
+	// TrackComment Attach an external issue to a comment
+	// (POST /comments/{commentId}/reference)
+	TrackComment(ctx context.Context, request TrackCommentRequestObject) (TrackCommentResponseObject, error)
 	// GetHealth Report whether the service is able to serve
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
@@ -2472,6 +3112,32 @@ func (sh *strictHandler) GetCaseCaptures(w http.ResponseWriter, r *http.Request,
 	}
 }
 
+// ListComments operation middleware
+func (sh *strictHandler) ListComments(w http.ResponseWriter, r *http.Request, caseId string) {
+	var request ListCommentsRequestObject
+
+	request.CaseId = caseId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListComments(ctx, request.(ListCommentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListComments")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListCommentsResponseObject); ok {
+		if err := validResponse.VisitListCommentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // SaveReview operation middleware
 func (sh *strictHandler) SaveReview(w http.ResponseWriter, r *http.Request, caseId string) {
 	var request SaveReviewRequestObject
@@ -2524,6 +3190,131 @@ func (sh *strictHandler) DeleteCategory(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteCategoryResponseObject); ok {
 		if err := validResponse.VisitDeleteCategoryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeliverComment operation middleware
+func (sh *strictHandler) DeliverComment(w http.ResponseWriter, r *http.Request, commentId CommentId) {
+	var request DeliverCommentRequestObject
+
+	request.CommentId = commentId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeliverComment(ctx, request.(DeliverCommentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeliverComment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeliverCommentResponseObject); ok {
+		if err := validResponse.VisitDeliverCommentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DiscardComment operation middleware
+func (sh *strictHandler) DiscardComment(w http.ResponseWriter, r *http.Request, commentId CommentId) {
+	var request DiscardCommentRequestObject
+
+	request.CommentId = commentId
+
+	var body DiscardCommentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DiscardComment(ctx, request.(DiscardCommentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DiscardComment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DiscardCommentResponseObject); ok {
+		if err := validResponse.VisitDiscardCommentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// JudgeComment operation middleware
+func (sh *strictHandler) JudgeComment(w http.ResponseWriter, r *http.Request, commentId CommentId) {
+	var request JudgeCommentRequestObject
+
+	request.CommentId = commentId
+
+	var body JudgeCommentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.JudgeComment(ctx, request.(JudgeCommentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "JudgeComment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(JudgeCommentResponseObject); ok {
+		if err := validResponse.VisitJudgeCommentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// TrackComment operation middleware
+func (sh *strictHandler) TrackComment(w http.ResponseWriter, r *http.Request, commentId CommentId) {
+	var request TrackCommentRequestObject
+
+	request.CommentId = commentId
+
+	var body TrackCommentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.TrackComment(ctx, request.(TrackCommentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TrackComment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(TrackCommentResponseObject); ok {
+		if err := validResponse.VisitTrackCommentResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -2828,99 +3619,121 @@ func (sh *strictHandler) CreateEdition(w http.ResponseWriter, r *http.Request, s
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

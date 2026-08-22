@@ -464,6 +464,152 @@ paths:
                 $ref: '#/components/schemas/Grid'
         '404':
           $ref: '#/components/responses/NotFound'
+  /cases/{caseId}/comments:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: listComments
+      summary: Read what has been said about a case
+      description: |
+        Settled comments included. Nothing is deleted, and a discarded one stays
+        visible with its reason and its author — "I reported this three months ago,
+        who removed it?" must always have an answer (ADR 0006).
+      tags:
+        - comments
+      responses:
+        '200':
+          description: The comments.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Comment'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /comments/{commentId}/reference:
+    parameters:
+      - $ref: '#/components/parameters/CommentId'
+    post:
+      operationId: trackComment
+      summary: Attach an external issue to a comment
+      description: |
+        The identifier, the URL and the title are **supplied by the client**.
+        ozalid never fetches them, never refreshes them, and will never know the
+        issue was closed — it holds no tracker credential and wants none
+        (ADR 0003).
+      tags:
+        - comments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueRef'
+      responses:
+        '200':
+          $ref: '#/components/responses/MoveApplied'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MoveRefused'
+  /comments/{commentId}/discard:
+    parameters:
+      - $ref: '#/components/parameters/CommentId'
+    post:
+      operationId: discardComment
+      summary: Set a comment aside
+      description: |
+        The reason is mandatory, and kept forever with its author. The friction is
+        intended: a defect dismissed without a reason is exactly what comes back
+        in six months. Nothing is deleted — a discarded comment stays visible on
+        its case (ADR 0006).
+      tags:
+        - comments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+      responses:
+        '200':
+          $ref: '#/components/responses/MoveApplied'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MoveRefused'
+  /comments/{commentId}/delivery:
+    parameters:
+      - $ref: '#/components/parameters/CommentId'
+    post:
+      operationId: deliverComment
+      summary: Ask for a judgment on a delivered fix
+      description: |
+        The dev saying "I finished this, look". Only they know it — captures also
+        move for a refactor or a dependency bump, and summoning the reviewer for
+        that is noise.
+
+        They may ask without having implemented everything else on the case: one
+        issue can depend on the verdict given on another.
+      tags:
+        - comments
+      responses:
+        '200':
+          $ref: '#/components/responses/MoveApplied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MoveRefused'
+  /comments/{commentId}/judgment:
+    parameters:
+      - $ref: '#/components/parameters/CommentId'
+    post:
+      operationId: judgeComment
+      summary: Accept a delivery, or refuse it
+      description: |
+        A refusal carries a mandatory remark and is **not** a way to die: the dev
+        reworks and delivers again, as many rounds as it takes. Every judgment is
+        kept, so three round trips on one comment stay visible.
+      tags:
+        - comments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - accept
+              properties:
+                accept:
+                  type: boolean
+                remark:
+                  type: string
+                  description: Mandatory when refusing. It is what the dev has to read.
+      responses:
+        '200':
+          $ref: '#/components/responses/MoveApplied'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MoveRefused'
   /cases/{caseId}/reviews:
     parameters:
       - name: caseId
@@ -1014,6 +1160,113 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/GridRecording'
+    CommentState:
+      type: string
+      enum:
+        - to-track
+        - tracked
+        - to-review
+        - refused
+        - validated
+        - discarded
+      description: |
+        Where the comment stands. `validated` and `discarded` are the only terminal
+        states; a refusal returns to `to-review` on the next delivery.
+    IssueRef:
+      type: object
+      required:
+        - id
+      description: |
+        An opaque reference to an issue somewhere else. Supplied by the client and
+        never read back: ozalid holds no tracker credential (ADR 0003).
+      properties:
+        id:
+          type: string
+          minLength: 1
+        url:
+          type: string
+          format: uri
+        title:
+          type: string
+          description: |
+            Shown next to the comment. ozalid never refreshes it, so it is whatever
+            the client said at the time.
+    Judgment:
+      type: object
+      required:
+        - verdict
+        - actorId
+        - at
+      properties:
+        verdict:
+          type: string
+          enum:
+            - accepted
+            - refused
+        remark:
+          type: string
+          description: Mandatory on a refusal. It is what the dev has to read.
+        actorId:
+          type: string
+        at:
+          type: string
+          format: date-time
+    Comment:
+      type: object
+      required:
+        - id
+        - stepId
+        - kind
+        - body
+        - state
+        - variantIds
+        - authorId
+        - createdAt
+        - judgments
+      properties:
+        id:
+          type: string
+        stepId:
+          type: string
+        kind:
+          type: string
+          enum:
+            - defect
+            - improvement
+        body:
+          type: string
+          description: What the reviewer wrote, in their words. It survives the issue title.
+        state:
+          $ref: '#/components/schemas/CommentState'
+        variantIds:
+          type: array
+          items:
+            type: string
+        issue:
+          $ref: '#/components/schemas/IssueRef'
+        discardReason:
+          type: string
+          description: Mandatory when discarded, and kept forever with its author.
+        authorId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        judgments:
+          type: array
+          description: Every judgment, not just the last — three round trips is information.
+          items:
+            $ref: '#/components/schemas/Judgment'
+    MoveOutcome:
+      type: object
+      required:
+        - commentState
+        - caseState
+      properties:
+        commentState:
+          $ref: '#/components/schemas/CommentState'
+        caseState:
+          $ref: '#/components/schemas/CaseState'
     CellRef:
       type: object
       required:
@@ -1109,3 +1362,24 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/problem'
+    MoveApplied:
+      description: Where the comment and its case now stand.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MoveOutcome'
+    MoveRefused:
+      description: |
+        The move does not exist from where the comment stands, or it is already
+        settled.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/problem'
+  parameters:
+    CommentId:
+      name: commentId
+      in: path
+      required: true
+      schema:
+        type: string

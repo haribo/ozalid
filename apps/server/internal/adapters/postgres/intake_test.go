@@ -12,6 +12,7 @@ import (
 
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres"
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres/sqlcgen"
+	"github.com/haribo/ozalid/apps/server/internal/app/comment"
 	"github.com/haribo/ozalid/apps/server/internal/app/intake"
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
 	"github.com/haribo/ozalid/apps/server/internal/domain/review"
@@ -794,5 +795,177 @@ func TestSavingTwiceLeavesTheCaseWhereTheFactsPutIt(t *testing.T) {
 	// no-op entries is one nobody reads.
 	if transitions != 1 {
 		t.Errorf("journalled %d transitions, want 1 — the second save moved nothing", transitions)
+	}
+}
+
+// commentOn puts one comment on a case and returns its id.
+func commentOn(t *testing.T, ctx context.Context, repo *postgres.Repository, caseID string, cell review.Cell) string {
+	t.Helper()
+	if _, err := repo.SaveReview(ctx, caseID, "nina", session.Save{
+		Comments: []session.NewComment{{
+			StepID: cell.StepID, Kind: "defect",
+			Body: "the button is cropped", VariantIDs: []string{cell.VariantID},
+		}},
+	}); err != nil {
+		t.Fatalf("writing the comment: %v", err)
+	}
+	comments, err := repo.OfCase(ctx, caseID)
+	if err != nil {
+		t.Fatalf("reading the comments: %v", err)
+	}
+	return comments[len(comments)-1].ID
+}
+
+func TestACommentTravelsFromReportToClosureAndTakesTheCaseWithIt(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	cells := seedGrid(t, ctx, repo, project, kase)
+
+	if _, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells[:1]}); err != nil {
+		t.Fatalf("validating the first cell: %v", err)
+	}
+	id := commentOn(t, ctx, repo, kase.ID, cells[1])
+
+	// Reported, nothing tracked: the dev has to triage it.
+	assertCaseState(t, ctx, repo, kase.ID, review.CaseToFix)
+
+	out, err := repo.Track(ctx, id, "dev", comment.IssueRef{ID: "142", URL: "https://example.test/142", Title: "Fix the cropped button"})
+	if err != nil {
+		t.Fatalf("tracking: %v", err)
+	}
+	if out.CommentState != review.CommentTracked || out.CaseState != review.CaseToFix {
+		t.Errorf("after tracking: %+v, want tracked and the case still with the dev", out)
+	}
+
+	out, err = repo.Deliver(ctx, id, "ci")
+	if err != nil {
+		t.Fatalf("delivering: %v", err)
+	}
+	// The evidence is in: the ball goes back to the reviewer.
+	if out.CommentState != review.CommentToReview || out.CaseState != review.CaseToReview {
+		t.Errorf("after delivery: %+v, want the reviewer to hold the ball", out)
+	}
+
+	out, err = repo.Judge(ctx, id, "nina", true, "")
+	if err != nil {
+		t.Fatalf("accepting: %v", err)
+	}
+	if out.CommentState != review.CommentValidated {
+		t.Errorf("after accepting: %+v", out)
+	}
+	// The last open comment closed, and every square was judged: nothing left.
+	if out.CaseState != review.CaseReviewed {
+		t.Errorf("case = %q, want reviewed once the last comment closed", out.CaseState)
+	}
+}
+
+func TestARefusalSendsItBackAndIsKeptForever(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	cells := seedGrid(t, ctx, repo, project, kase)
+	if _, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells[:1]}); err != nil {
+		t.Fatalf("validating: %v", err)
+	}
+	id := commentOn(t, ctx, repo, kase.ID, cells[1])
+
+	if _, err := repo.Track(ctx, id, "dev", comment.IssueRef{ID: "142"}); err != nil {
+		t.Fatalf("tracking: %v", err)
+	}
+	if _, err := repo.Deliver(ctx, id, "ci"); err != nil {
+		t.Fatalf("delivering: %v", err)
+	}
+
+	out, err := repo.Judge(ctx, id, "nina", false, "still cropped on iPhone SE")
+	if err != nil {
+		t.Fatalf("refusing: %v", err)
+	}
+	// A refusal is not a way to die: the ball returns to the dev.
+	if out.CommentState != review.CommentRefused || out.CaseState != review.CaseToFix {
+		t.Errorf("after refusing: %+v, want the dev to hold the ball", out)
+	}
+
+	if _, err := repo.Deliver(ctx, id, "ci"); err != nil {
+		t.Fatalf("delivering again: %v", err)
+	}
+	if _, err := repo.Judge(ctx, id, "nina", true, ""); err != nil {
+		t.Fatalf("accepting the second try: %v", err)
+	}
+
+	comments, err := repo.OfCase(ctx, kase.ID)
+	if err != nil {
+		t.Fatalf("reading the comments: %v", err)
+	}
+	// Both judgments are kept: three round trips on one comment is
+	// information, and only the trail shows it (ADR 0012).
+	if len(comments[0].Judgments) != 2 {
+		t.Fatalf("kept %d judgments, want both", len(comments[0].Judgments))
+	}
+	if comments[0].Judgments[0].Verdict != "refused" || comments[0].Judgments[0].Remark != "still cropped on iPhone SE" {
+		t.Errorf("the refusal's remark did not survive: %+v", comments[0].Judgments[0])
+	}
+}
+
+func TestADiscardedCommentStopsBlockingAndStaysVisible(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	cells := seedGrid(t, ctx, repo, project, kase)
+	if _, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells}); err != nil {
+		t.Fatalf("validating: %v", err)
+	}
+	id := commentOn(t, ctx, repo, kase.ID, cells[1])
+
+	out, err := repo.Discard(ctx, id, "nina", "agreed it is intentional")
+	if err != nil {
+		t.Fatalf("discarding: %v", err)
+	}
+	if out.CaseState != review.CaseReviewed {
+		t.Errorf("case = %q, want reviewed once nothing is open", out.CaseState)
+	}
+
+	comments, err := repo.OfCase(ctx, kase.ID)
+	if err != nil {
+		t.Fatalf("reading the comments: %v", err)
+	}
+	// Nothing is deleted: "who removed this, and why?" must have an answer
+	// (ADR 0006).
+	if len(comments) != 1 {
+		t.Fatalf("got %d comments, want the discarded one still there", len(comments))
+	}
+	if comments[0].DiscardReason != "agreed it is intentional" || comments[0].AuthorID == "" {
+		t.Errorf("the reason or its author was lost: %+v", comments[0])
+	}
+}
+
+func TestAMoveTheStateDoesNotAllowIsRefusedWithoutTouchingAnything(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	cells := seedGrid(t, ctx, repo, project, kase)
+	if _, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells[:1]}); err != nil {
+		t.Fatalf("validating: %v", err)
+	}
+	id := commentOn(t, ctx, repo, kase.ID, cells[1])
+
+	// Nothing can be delivered before it is tracked.
+	if _, err := repo.Deliver(ctx, id, "ci"); !errors.Is(err, review.ErrMoveNotAllowed) {
+		t.Errorf("err = %v, want ErrMoveNotAllowed", err)
+	}
+	// Nor judged before it is delivered.
+	if _, err := repo.Judge(ctx, id, "nina", true, ""); !errors.Is(err, review.ErrMoveNotAllowed) {
+		t.Errorf("err = %v, want ErrMoveNotAllowed", err)
+	}
+
+	comments, err := repo.OfCase(ctx, kase.ID)
+	if err != nil {
+		t.Fatalf("reading the comments: %v", err)
+	}
+	if comments[0].State != review.CommentToTrack {
+		t.Errorf("state = %q after two refused moves, want it untouched", comments[0].State)
+	}
+}
+
+func assertCaseState(t *testing.T, ctx context.Context, repo *postgres.Repository, caseID string, want review.CaseState) {
+	t.Helper()
+	got, err := repo.Queries().GetCase(ctx, caseID)
+	if err != nil {
+		t.Fatalf("reading the case: %v", err)
+	}
+	if review.CaseState(got.State) != want {
+		t.Errorf("case state = %q, want %q", got.State, want)
 	}
 }

@@ -1,0 +1,25 @@
+parameters:
+  - name: caseId
+    in: path
+    required: true
+    schema: { type: string }
+
+get:
+  operationId: listComments
+  summary: Read what has been said about a case
+  description: |
+    Settled comments included. Nothing is deleted, and a discarded one stays
+    visible with its reason and its author — "I reported this three months ago,
+    who removed it?" must always have an answer (ADR 0006).
+  tags: [comments]
+  responses:
+    "200":
+      description: The comments.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: "../components/review.yaml#/Comment"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"

@@ -35,6 +35,16 @@ paths:
     $ref: "./paths/case.yaml"
   /cases/{caseId}/captures:
     $ref: "./paths/case-captures.yaml"
+  /cases/{caseId}/comments:
+    $ref: "./paths/case-comments.yaml"
+  /comments/{commentId}/reference:
+    $ref: "./paths/comment-moves.yaml#/Reference"
+  /comments/{commentId}/discard:
+    $ref: "./paths/comment-moves.yaml#/Discard"
+  /comments/{commentId}/delivery:
+    $ref: "./paths/comment-moves.yaml#/Delivery"
+  /comments/{commentId}/judgment:
+    $ref: "./paths/comment-moves.yaml#/Judgment"
   /cases/{caseId}/reviews:
     $ref: "./paths/case-reviews.yaml"
   /cases/{caseId}/archive:

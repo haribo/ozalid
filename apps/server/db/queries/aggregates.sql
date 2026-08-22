@@ -102,3 +102,28 @@ DO UPDATE SET status = EXCLUDED.status, updated_at = now();
 
 -- name: SetCaseState :exec
 UPDATE cases SET state = $2, updated_at = now() WHERE id = $1;
+
+-- name: GetComment :one
+SELECT * FROM comments WHERE id = $1;
+
+-- The state is written by the server as a consequence of a recorded move,
+-- never received as an argument (ADR 0002).
+-- name: SetCommentState :exec
+UPDATE comments SET state = $2, updated_at = now() WHERE id = $1;
+
+-- name: AttachIssue :exec
+UPDATE comments
+SET state = $2, issue_ref = $3, issue_url = $4, issue_title = $5, updated_at = now()
+WHERE id = $1;
+
+-- name: DiscardComment :exec
+UPDATE comments SET state = $2, discard_reason = $3, updated_at = now() WHERE id = $1;
+
+-- Every judgment is kept: three round trips on one comment is information
+-- (ADR 0012).
+-- name: RecordJudgment :exec
+INSERT INTO comment_judgments (comment_id, verdict, remark, actor_id)
+VALUES ($1, $2, $3, $4);
+
+-- name: CommentJudgments :many
+SELECT * FROM comment_judgments WHERE comment_id = $1 ORDER BY created_at;
