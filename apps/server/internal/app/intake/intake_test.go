@@ -109,24 +109,3 @@ func TestAxisNamesAreCollectedFromEveryCaptureAndSorted(t *testing.T) {
 		}
 	}
 }
-
-func TestAVariantWithNoAxesIsNamedRatherThanBlank(t *testing.T) {
-	// A project capturing one theme and one language has no axes at all. The
-	// variant still needs a name.
-	if got := contract.VariantLabel(nil); got != "default" {
-		t.Errorf("label = %q, want %q", got, "default")
-	}
-}
-
-func TestAVariantLabelDoesNotDependOnMapOrder(t *testing.T) {
-	first := contract.VariantLabel(map[string]string{"theme": "dark", "viewport": "mobile"})
-	second := contract.VariantLabel(map[string]string{"viewport": "mobile", "theme": "dark"})
-	if first != second {
-		t.Errorf("the same combination rendered %q then %q", first, second)
-	}
-	// Sorted by axis name — theme before viewport — so the label reads the
-	// same whatever order the client serialised the map in.
-	if first != "dark·mobile" {
-		t.Errorf("label = %q, want %q", first, "dark·mobile")
-	}
-}

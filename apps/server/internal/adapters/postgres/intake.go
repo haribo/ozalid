@@ -46,14 +46,31 @@ func (r *Repository) WriteEdition(ctx context.Context, projectSlug string, m con
 		return appintake.Result{}, err
 	}
 
-	// Axes are declared by first use, in a stable order so the same run always
-	// numbers them the same way (ADR 0001).
-	for i, axis := range appintake.AxisNames(m) {
+	// Axes are declared by first use (ADR 0001). A new one lands after those
+	// the project already knows, so declaring one never renumbers the rest —
+	// which would silently relabel every variant already stored.
+	existing, err := q.ListAxes(ctx, project.ID)
+	if err != nil {
+		return appintake.Result{}, translate("reading the declared axes", err)
+	}
+	declared := make(map[string]struct{}, len(existing))
+	order := make([]string, 0, len(existing))
+	for _, axis := range existing {
+		declared[axis.Name] = struct{}{}
+		order = append(order, axis.Name)
+	}
+	next := int32(len(existing))
+	for _, axis := range appintake.AxisNames(m) {
+		if _, seen := declared[axis]; seen {
+			continue
+		}
 		if _, err := q.UpsertAxis(ctx, sqlcgen.UpsertAxisParams{
-			ProjectID: project.ID, Name: axis, Position: int32(i),
+			ProjectID: project.ID, Name: axis, Position: next,
 		}); err != nil {
 			return appintake.Result{}, translate("declaring an axis", err)
 		}
+		order = append(order, axis)
+		next++
 	}
 
 	edition, err := q.CreateEdition(ctx, sqlcgen.CreateEditionParams{
@@ -63,7 +80,7 @@ func (r *Repository) WriteEdition(ctx context.Context, projectSlug string, m con
 		return appintake.Result{}, translate("creating the edition", err)
 	}
 
-	variants := newVariantCache(project.ID)
+	variants := newVariantCache(project.ID, order)
 	result := appintake.Result{EditionID: edition.ID, Cases: len(m.Cases)}
 
 	for _, mc := range m.Cases {
@@ -219,15 +236,18 @@ func checkContentIsHeld(ctx context.Context, q *sqlcgen.Queries, m contract.Mani
 // it the first time it is seen and remembering it for the rest of the intake.
 type variantCache struct {
 	projectID string
-	seen      map[string]string
+	// The project's declared axis order, so a label reads the way the project
+	// says rather than alphabetically.
+	order []string
+	seen  map[string]string
 }
 
-func newVariantCache(projectID string) *variantCache {
-	return &variantCache{projectID: projectID, seen: map[string]string{}}
+func newVariantCache(projectID string, order []string) *variantCache {
+	return &variantCache{projectID: projectID, order: order, seen: map[string]string{}}
 }
 
 func (c *variantCache) resolve(ctx context.Context, q *sqlcgen.Queries, values map[string]string) (string, error) {
-	label := contract.VariantLabel(values)
+	label := contract.VariantLabel(values, c.order)
 	if id, ok := c.seen[label]; ok {
 		return id, nil
 	}

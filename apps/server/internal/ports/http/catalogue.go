@@ -291,3 +291,53 @@ func toAPISummary(s catalogue.CaseSummary) openapi.Case {
 	out.LastEdition = s.LastEdition
 	return out
 }
+
+// ListAxes returns the project's rendering axes, in the order they read in.
+func (s *Server) ListAxes(ctx context.Context, request openapi.ListAxesRequestObject) (openapi.ListAxesResponseObject, error) {
+	project, err := s.catalogue.ProjectBySlug(ctx, request.Slug)
+	if errors.Is(err, app.ErrNotFound) {
+		return openapi.ListAxes404ApplicationProblemPlusJSONResponse{
+			NotFoundApplicationProblemPlusJSONResponse: notFound("project"),
+		}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	axes, err := s.catalogue.Axes(ctx, project.ID)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.ListAxes200JSONResponse(toAPIAxes(axes)), nil
+}
+
+// OrderAxes declares the order axes read in, and relabels what already exists.
+func (s *Server) OrderAxes(ctx context.Context, request openapi.OrderAxesRequestObject) (openapi.OrderAxesResponseObject, error) {
+	project, err := s.catalogue.ProjectBySlug(ctx, request.Slug)
+	if errors.Is(err, app.ErrNotFound) {
+		return openapi.OrderAxes404ApplicationProblemPlusJSONResponse{
+			NotFoundApplicationProblemPlusJSONResponse: notFound("project"),
+		}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	axes, err := s.catalogue.OrderAxes(ctx, project.ID, request.Body.Order)
+	if err != nil {
+		return openapi.OrderAxes400ApplicationProblemPlusJSONResponse{
+			BadRequestApplicationProblemPlusJSONResponse: openapi.BadRequestApplicationProblemPlusJSONResponse(
+				problem("invalid-axis-order", "That order cannot be applied", http.StatusBadRequest, err.Error()),
+			),
+		}, nil
+	}
+	return openapi.OrderAxes200JSONResponse(toAPIAxes(axes)), nil
+}
+
+func toAPIAxes(axes []catalogue.Axis) []openapi.Axis {
+	out := make([]openapi.Axis, 0, len(axes))
+	for _, a := range axes {
+		out = append(out, openapi.Axis{Name: a.Name, Position: int(a.Position)})
+	}
+	return out
+}

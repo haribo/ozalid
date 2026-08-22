@@ -78,6 +78,13 @@ type Case struct {
 // stays readable with its captures, comments and journal (ADR 0014).
 func (c Case) Archived() bool { return c.ArchivedAt != nil }
 
+// Axis is a rendering dimension the project declares. ozalid ships no list:
+// an axis exists because a capture mentioned it (ADR 0001).
+type Axis struct {
+	Name     string
+	Position int32
+}
+
 // StateCounts is how many cases sit in each state under something — a
 // category's whole descendance, or a project.
 type StateCounts struct {

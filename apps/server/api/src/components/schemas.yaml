@@ -121,3 +121,15 @@ NewCategory:
     name: { type: string, minLength: 1 }
     parentId: { type: string }
     position: { type: integer, default: 0 }
+
+Axis:
+  type: object
+  required: [name, position]
+  description: |
+    A rendering dimension the project declares. ozalid ships no built-in list:
+    an axis exists because a capture mentioned it.
+  properties:
+    name: { type: string }
+    position:
+      type: integer
+      description: Where it reads in a variant's label. Lower comes first.

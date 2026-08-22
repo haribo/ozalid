@@ -95,6 +95,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{slug}/axes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        /** Read the project's rendering axes, in their declared order */
+        get: operations["listAxes"];
+        /**
+         * Declare the order the axes read in
+         * @description Only the order. Axes themselves are created by first use at intake —
+         *     ozalid ships no list of them and never invents one.
+         *
+         *     The order is what a variant's label reads from: placing `viewport` before
+         *     `theme` turns `dark·desktop` into `desktop·dark`. Existing variants are
+         *     relabelled, since a label is a rendering of the values and never an
+         *     identity.
+         *
+         *     An axis the project omits keeps its place after those it named.
+         */
+        put: operations["orderAxes"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{slug}/cases": {
         parameters: {
             query?: never;
@@ -315,6 +346,15 @@ export interface components {
             intakePolicy: "strict" | "per-case";
             /** Format: date-time */
             createdAt: string;
+        };
+        /**
+         * @description A rendering dimension the project declares. ozalid ships no built-in list:
+         *     an axis exists because a capture mentioned it.
+         */
+        Axis: {
+            name: string;
+            /** @description Where it reads in a variant's label. Lower comes first. */
+            position: number;
         };
         /**
          * @description Who holds the ball. Computed by the server from the case's comments; no
@@ -699,6 +739,67 @@ export interface operations {
                     "application/json": components["schemas"]["Project"];
                 };
             };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listAxes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The axes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Axis"][];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    orderAxes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description Axis names, most significant first.
+                     * @example [
+                     *       "viewport",
+                     *       "theme",
+                     *       "locale"
+                     *     ]
+                     */
+                    order: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description The axes in their new order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Axis"][];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
         };
     };

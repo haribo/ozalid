@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -12,6 +13,7 @@ import (
 	app "github.com/haribo/ozalid/apps/server/internal/app/catalogue"
 	"github.com/haribo/ozalid/apps/server/internal/domain/catalogue"
 	"github.com/haribo/ozalid/apps/server/internal/domain/review"
+	"github.com/haribo/ozalid/internal/contract"
 )
 
 // translate turns a driver error into the vocabulary the layers above match
@@ -231,4 +233,108 @@ func (r *Repository) SummariseCases(ctx context.Context, projectID string, categ
 		out = append(out, summary)
 	}
 	return out, nil
+}
+
+func (r *Repository) Axes(ctx context.Context, projectID string) ([]catalogue.Axis, error) {
+	rows, err := r.q.ListAxes(ctx, projectID)
+	if err != nil {
+		return nil, translate("reading the axes", err)
+	}
+	out := make([]catalogue.Axis, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, catalogue.Axis{Name: row.Name, Position: row.Position})
+	}
+	return out, nil
+}
+
+// OrderAxes places the named axes first, in the order given, and relabels every
+// variant so the change is visible immediately.
+//
+// One transaction: an order applied without its relabelling would leave the
+// grid reading one way and the project claiming another.
+func (r *Repository) OrderAxes(ctx context.Context, projectID string, order []string) ([]catalogue.Axis, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("beginning the reorder: %w", err)
+	}
+	defer func() {
+		// best-effort: rolling back a committed transaction fails, and that
+		// means the write went through.
+		_ = tx.Rollback(ctx)
+	}()
+	q := r.q.WithTx(tx)
+
+	existing, err := q.ListAxes(ctx, projectID)
+	if err != nil {
+		return nil, translate("reading the axes", err)
+	}
+	known := make(map[string]struct{}, len(existing))
+	for _, axis := range existing {
+		known[axis.Name] = struct{}{}
+	}
+
+	// The named axes come first, in the order given. Anything the project did
+	// not name keeps its relative order after them, so omitting an axis never
+	// shuffles it about.
+	placed := make(map[string]struct{}, len(order))
+	position := int32(0)
+	final := make([]string, 0, len(existing))
+	for _, name := range order {
+		if _, ok := known[name]; !ok {
+			// An axis nobody captured is not created here: it would put an
+			// empty column in every grid.
+			continue
+		}
+		if err := q.SetAxisPosition(ctx, sqlcgen.SetAxisPositionParams{
+			ProjectID: projectID, Name: name, Position: position,
+		}); err != nil {
+			return nil, translate("placing an axis", err)
+		}
+		placed[name] = struct{}{}
+		final = append(final, name)
+		position++
+	}
+	for _, axis := range existing {
+		if _, done := placed[axis.Name]; done {
+			continue
+		}
+		if err := q.SetAxisPosition(ctx, sqlcgen.SetAxisPositionParams{
+			ProjectID: projectID, Name: axis.Name, Position: position,
+		}); err != nil {
+			return nil, translate("placing an axis", err)
+		}
+		final = append(final, axis.Name)
+		position++
+	}
+
+	if err := relabelVariants(ctx, q, projectID, final); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("committing the reorder: %w", err)
+	}
+	return r.Axes(ctx, projectID)
+}
+
+// relabelVariants rewrites every label to the new order. A label is a
+// rendering of the values, never an identity, so rewriting one changes nothing
+// about what it points at.
+func relabelVariants(ctx context.Context, q *sqlcgen.Queries, projectID string, order []string) error {
+	variants, err := q.ListVariants(ctx, projectID)
+	if err != nil {
+		return translate("reading the variants", err)
+	}
+	for _, variant := range variants {
+		values := map[string]string{}
+		if err := json.Unmarshal(variant.Values, &values); err != nil {
+			return fmt.Errorf("decoding a variant: %w", err)
+		}
+		if err := q.RelabelVariant(ctx, sqlcgen.RelabelVariantParams{
+			ID: variant.ID, Label: contract.VariantLabel(values, order),
+		}); err != nil {
+			return translate("relabelling a variant", err)
+		}
+	}
+	return nil
 }
