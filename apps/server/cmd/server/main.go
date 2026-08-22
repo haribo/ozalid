@@ -29,9 +29,15 @@ type config struct {
 	dsn      string
 }
 
+// defaultAddr is off :8080 on purpose. That port is the first thing anything
+// else on a developer machine grabs, and a collision here does not fail
+// loudly — the server exits and every manual check quietly hits whatever else
+// is listening.
+const defaultAddr = ":8090"
+
 func load() config {
 	return config{
-		addr:     env("OZALID_ADDR", ":8080"),
+		addr:     env("OZALID_ADDR", defaultAddr),
 		blobRoot: env("OZALID_BLOB_ROOT", "var/blobs"),
 		dsn:      env("OZALID_DSN", "postgres://ozalid:ozalid@localhost:5442/ozalid?sslmode=disable"),
 	}
