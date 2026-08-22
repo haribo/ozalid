@@ -78,6 +78,43 @@ type Case struct {
 // stays readable with its captures, comments and journal (ADR 0014).
 func (c Case) Archived() bool { return c.ArchivedAt != nil }
 
+// StateCounts is how many cases sit in each state under something — a
+// category's whole descendance, or a project.
+type StateCounts struct {
+	NotInstrumented int64
+	ToReview        int64
+	ToFix           int64
+	Reviewed        int64
+}
+
+// Total is how many cases the counts cover.
+func (c StateCounts) Total() int64 {
+	return c.NotInstrumented + c.ToReview + c.ToFix + c.Reviewed
+}
+
+// CategoryNode is a category with what its whole branch holds.
+type CategoryNode struct {
+	Category
+	Cases        StateCounts
+	LastActivity *time.Time
+}
+
+// CaptureCounts is how a case's captures stand at the edition it points at.
+type CaptureCounts struct {
+	Total     int64
+	Validated int64
+	Commented int64
+	ToJudge   int64
+}
+
+// CaseSummary is a case plus what a listing needs to draw its row without
+// asking a second question.
+type CaseSummary struct {
+	Case
+	Captures    CaptureCounts
+	LastEdition *time.Time
+}
+
 // CleanTitle trims a title and reports whether anything is left. A title of
 // spaces is a missing title.
 func CleanTitle(s string) (string, error) {

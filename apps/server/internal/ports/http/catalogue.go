@@ -88,14 +88,19 @@ func (s *Server) ListCases(ctx context.Context, request openapi.ListCasesRequest
 		state = &v
 	}
 
-	cases, err := s.catalogue.ListCases(ctx, project.ID, state, request.Params.CategoryId)
+	// One query carrying the capture counts too: a listing must not ask a
+	// second question per row to draw its gauge.
+	cases, err := s.catalogue.SummariseCases(ctx, project.ID, request.Params.CategoryId)
 	if err != nil {
 		return nil, err
 	}
 
 	out := make([]openapi.Case, 0, len(cases))
 	for _, c := range cases {
-		out = append(out, toAPICase(c))
+		if state != nil && string(c.State) != *state {
+			continue
+		}
+		out = append(out, toAPISummary(c))
 	}
 	return openapi.ListCases200JSONResponse(out), nil
 }
@@ -160,13 +165,13 @@ func (s *Server) ListCategories(ctx context.Context, request openapi.ListCategor
 		return nil, err
 	}
 
-	found, err := s.catalogue.ListCategories(ctx, project.ID)
+	found, err := s.catalogue.CategoryTree(ctx, project.ID)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]openapi.Category, 0, len(found))
 	for _, c := range found {
-		out = append(out, toAPICategory(c))
+		out = append(out, toAPINode(c))
 	}
 	return openapi.ListCategories200JSONResponse(out), nil
 }
@@ -259,4 +264,30 @@ func toAPICategory(c catalogue.Category) openapi.Category {
 		Name:     c.Name,
 		Position: int(c.Position),
 	}
+}
+
+// toAPINode carries what the whole branch holds, which is what a landing page
+// draws its gauge from.
+func toAPINode(n catalogue.CategoryNode) openapi.Category {
+	out := toAPICategory(n.Category)
+	out.Cases = openapi.StateCounts{
+		NotInstrumented: int(n.Cases.NotInstrumented),
+		ToReview:        int(n.Cases.ToReview),
+		ToFix:           int(n.Cases.ToFix),
+		Reviewed:        int(n.Cases.Reviewed),
+	}
+	out.LastActivity = n.LastActivity
+	return out
+}
+
+func toAPISummary(s catalogue.CaseSummary) openapi.Case {
+	out := toAPICase(s.Case)
+	out.Captures = &openapi.CaptureCounts{
+		Total:     int(s.Captures.Total),
+		Validated: int(s.Captures.Validated),
+		Commented: int(s.Captures.Commented),
+		ToJudge:   int(s.Captures.ToJudge),
+	}
+	out.LastEdition = s.LastEdition
+	return out
 }

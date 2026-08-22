@@ -171,3 +171,64 @@ func toCategory(row sqlcgen.Category) catalogue.Category {
 		Position: row.Position,
 	}
 }
+
+func (r *Repository) CategoryTree(ctx context.Context, projectID string) ([]catalogue.CategoryNode, error) {
+	rows, err := r.q.CategoryTreeWithCounts(ctx, projectID)
+	if err != nil {
+		return nil, translate("reading the category tree", err)
+	}
+	out := make([]catalogue.CategoryNode, 0, len(rows))
+	for _, row := range rows {
+		node := catalogue.CategoryNode{
+			Category: catalogue.Category{
+				ID: row.ID, ParentID: row.ParentID, Name: row.Name, Position: row.Position,
+			},
+			Cases: catalogue.StateCounts{
+				NotInstrumented: row.NotInstrumented,
+				ToReview:        row.ToReview,
+				ToFix:           row.ToFix,
+				Reviewed:        row.Reviewed,
+			},
+		}
+		if row.LastActivity.Valid {
+			at := row.LastActivity.Time
+			node.LastActivity = &at
+		}
+		out = append(out, node)
+	}
+	return out, nil
+}
+
+func (r *Repository) SummariseCases(ctx context.Context, projectID string, categoryID *string) ([]catalogue.CaseSummary, error) {
+	rows, err := r.q.CasesWithCaptureCounts(ctx, sqlcgen.CasesWithCaptureCountsParams{
+		ProjectID: projectID, CategoryID: categoryID,
+	})
+	if err != nil {
+		return nil, translate("summarising the cases", err)
+	}
+	out := make([]catalogue.CaseSummary, 0, len(rows))
+	for _, row := range rows {
+		summary := catalogue.CaseSummary{
+			Case: catalogue.Case{
+				ID: row.ID, ProjectID: row.ProjectID, CategoryID: row.CategoryID,
+				Title: row.Title, Description: row.Description,
+				State:     review.CaseState(row.State),
+				CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
+			},
+			Captures: catalogue.CaptureCounts{
+				Total: row.Captures, Validated: row.Validated,
+				Commented: row.Commented, ToJudge: row.ToJudge,
+			},
+		}
+		if row.ArchivedAt.Valid {
+			at := row.ArchivedAt.Time
+			summary.ArchivedAt = &at
+		}
+		if row.LastEdition.Valid {
+			at := row.LastEdition.Time
+			summary.LastEdition = &at
+		}
+		out = append(out, summary)
+	}
+	return out, nil
+}

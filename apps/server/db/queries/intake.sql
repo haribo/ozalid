@@ -54,3 +54,26 @@ SELECT * FROM cases WHERE project_id = $1 AND id = ANY($2::text[]);
 -- name: CountCasesToReview :one
 SELECT count(*) FROM cases
 WHERE project_id = $1 AND archived_at IS NULL AND state = 'to-review';
+
+-- A case that has just received its first captures leaves the funnel's edge:
+-- it is no longer uninstrumented, and nobody has judged it yet (ADR 0012).
+--
+-- Only that transition is made here. Every other one is driven by a comment,
+-- and comments are not part of intake.
+-- name: EnterReviewOnFirstCaptures :many
+UPDATE cases k
+SET state = 'to-review', updated_at = now()
+WHERE k.id = ANY($1::text[])
+  AND k.state = 'not-instrumented'
+  AND EXISTS (
+      SELECT 1 FROM steps s
+      JOIN captures c ON c.step_id = s.id
+      WHERE s.case_id = k.id
+  )
+RETURNING k.id;
+
+-- Every transition is journalled: without the trace, a stored state cannot
+-- serve as a regression oracle (ADR 0002).
+-- name: RecordTransition :exec
+INSERT INTO journal (project_id, case_id, from_state, to_state, cause, actor_id, actor_kind, inputs, rule_version)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);

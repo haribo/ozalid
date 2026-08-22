@@ -25,6 +25,8 @@ type Repository interface {
 
 	CreateCategory(ctx context.Context, projectID string, parentID *string, name string, position int32) (catalogue.Category, error)
 	ListCategories(ctx context.Context, projectID string) ([]catalogue.Category, error)
+	CategoryTree(ctx context.Context, projectID string) ([]catalogue.CategoryNode, error)
+	SummariseCases(ctx context.Context, projectID string, categoryID *string) ([]catalogue.CaseSummary, error)
 	DeleteEmptyCategory(ctx context.Context, id string) (bool, error)
 }
 
