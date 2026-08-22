@@ -254,6 +254,131 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/{caseId}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Read what has been said about a case
+         * @description Settled comments included. Nothing is deleted, and a discarded one stays
+         *     visible with its reason and its author — "I reported this three months ago,
+         *     who removed it?" must always have an answer (ADR 0006).
+         */
+        get: operations["listComments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/comments/{commentId}/reference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                commentId: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Attach an external issue to a comment
+         * @description The identifier, the URL and the title are **supplied by the client**.
+         *     ozalid never fetches them, never refreshes them, and will never know the
+         *     issue was closed — it holds no tracker credential and wants none
+         *     (ADR 0003).
+         */
+        post: operations["trackComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/comments/{commentId}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                commentId: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set a comment aside
+         * @description The reason is mandatory, and kept forever with its author. The friction is
+         *     intended: a defect dismissed without a reason is exactly what comes back
+         *     in six months. Nothing is deleted — a discarded comment stays visible on
+         *     its case (ADR 0006).
+         */
+        post: operations["discardComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/comments/{commentId}/delivery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                commentId: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask for a judgment on a delivered fix
+         * @description The dev saying "I finished this, look". Only they know it — captures also
+         *     move for a refactor or a dependency bump, and summoning the reviewer for
+         *     that is noise.
+         *
+         *     They may ask without having implemented everything else on the case: one
+         *     issue can depend on the verdict given on another.
+         */
+        post: operations["deliverComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/comments/{commentId}/judgment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                commentId: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept a delivery, or refuse it
+         * @description A refusal carries a mandatory remark and is **not** a way to die: the dev
+         *     reworks and delivers again, as many rounds as it takes. Every judgment is
+         *     kept, so three round trips on one comment stay visible.
+         */
+        post: operations["judgeComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{caseId}/reviews": {
         parameters: {
             query?: never;
@@ -561,6 +686,57 @@ export interface components {
             steps: components["schemas"]["GridStep"][];
             recordings: components["schemas"]["GridRecording"][];
         };
+        /**
+         * @description Where the comment stands. `validated` and `discarded` are the only terminal
+         *     states; a refusal returns to `to-review` on the next delivery.
+         * @enum {string}
+         */
+        CommentState: "to-track" | "tracked" | "to-review" | "refused" | "validated" | "discarded";
+        /**
+         * @description An opaque reference to an issue somewhere else. Supplied by the client and
+         *     never read back: ozalid holds no tracker credential (ADR 0003).
+         */
+        IssueRef: {
+            id: string;
+            /** Format: uri */
+            url?: string;
+            /**
+             * @description Shown next to the comment. ozalid never refreshes it, so it is whatever
+             *     the client said at the time.
+             */
+            title?: string;
+        };
+        Judgment: {
+            /** @enum {string} */
+            verdict: "accepted" | "refused";
+            /** @description Mandatory on a refusal. It is what the dev has to read. */
+            remark?: string;
+            actorId: string;
+            /** Format: date-time */
+            at: string;
+        };
+        Comment: {
+            id: string;
+            stepId: string;
+            /** @enum {string} */
+            kind: "defect" | "improvement";
+            /** @description What the reviewer wrote, in their words. It survives the issue title. */
+            body: string;
+            state: components["schemas"]["CommentState"];
+            variantIds: string[];
+            issue?: components["schemas"]["IssueRef"];
+            /** @description Mandatory when discarded, and kept forever with its author. */
+            discardReason?: string;
+            authorId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Every judgment, not just the last — three round trips is information. */
+            judgments: components["schemas"]["Judgment"][];
+        };
+        MoveOutcome: {
+            commentState: components["schemas"]["CommentState"];
+            caseState: components["schemas"]["CaseState"];
+        };
         CellRef: {
             stepId: string;
             variantId: string;
@@ -617,8 +793,31 @@ export interface components {
                 "application/problem+json": components["schemas"]["problem"];
             };
         };
+        /** @description Where the comment and its case now stand. */
+        MoveApplied: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["MoveOutcome"];
+            };
+        };
+        /**
+         * @description The move does not exist from where the comment stands, or it is already
+         *     settled.
+         */
+        MoveRefused: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["problem"];
+            };
+        };
     };
-    parameters: never;
+    parameters: {
+        CommentId: string;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
@@ -1095,6 +1294,114 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    listComments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The comments. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Comment"][];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    trackComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                commentId: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IssueRef"];
+            };
+        };
+        responses: {
+            200: components["responses"]["MoveApplied"];
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["MoveRefused"];
+        };
+    };
+    discardComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                commentId: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["MoveApplied"];
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["MoveRefused"];
+        };
+    };
+    deliverComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                commentId: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["MoveApplied"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["MoveRefused"];
+        };
+    };
+    judgeComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                commentId: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    accept: boolean;
+                    /** @description Mandatory when refusing. It is what the dev has to read. */
+                    remark?: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["MoveApplied"];
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["MoveRefused"];
         };
     };
     saveReview: {

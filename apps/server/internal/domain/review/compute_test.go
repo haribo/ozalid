@@ -149,3 +149,41 @@ func TestTheSameFactsAlwaysProduceTheSameOutcome(t *testing.T) {
 		}
 	}
 }
+
+func TestSettlingACommentCountsAsJudgingItsSquares(t *testing.T) {
+	// Accepting a fix, or setting a comment aside, *is* the judgment. Asking
+	// the reviewer to then validate the square they just ruled on would be
+	// asking twice for the same answer.
+	for _, settled := range []review.CommentState{review.CommentValidated, review.CommentDiscarded} {
+		got := review.Compute(review.Facts{
+			Captures: cells("v1", "v2"),
+			// v2 was never validated by hand: only its comment was settled.
+			Validated: cells("v1"),
+			Comments:  []review.Comment{{State: settled, Cells: cells("v2")}},
+		})
+		if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v2"}] != review.CaptureValidated {
+			t.Errorf("%s: the square reads %q, want validated", settled, got.Verdicts[review.Cell{StepID: "s1", VariantID: "v2"}])
+		}
+		if got.State != review.CaseReviewed {
+			t.Errorf("%s: state = %q, want reviewed", settled, got.State)
+		}
+	}
+}
+
+func TestASquareWithOneSettledAndOneOpenCommentStillNeedsFixing(t *testing.T) {
+	// Settling one comment does not clear a square another still holds.
+	got := review.Compute(review.Facts{
+		Captures:  cells("v1"),
+		Validated: nil,
+		Comments: []review.Comment{
+			{State: review.CommentValidated, Cells: cells("v1")},
+			{State: review.CommentToTrack, Cells: cells("v1")},
+		},
+	})
+	if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v1"}] != review.CaptureToFix {
+		t.Error("a settled comment silenced an open one on the same square")
+	}
+	if got.State != review.CaseToFix {
+		t.Errorf("state = %q, want to-fix", got.State)
+	}
+}

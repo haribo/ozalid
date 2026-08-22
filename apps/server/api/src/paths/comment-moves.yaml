@@ -1,0 +1,135 @@
+Reference:
+  parameters:
+    - $ref: "#/CommentId"
+  post:
+    operationId: trackComment
+    summary: Attach an external issue to a comment
+    description: |
+      The identifier, the URL and the title are **supplied by the client**.
+      ozalid never fetches them, never refreshes them, and will never know the
+      issue was closed — it holds no tracker credential and wants none
+      (ADR 0003).
+    tags: [comments]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/review.yaml#/IssueRef"
+    responses:
+      "200":
+        $ref: "#/MoveApplied"
+      "400":
+        $ref: "../components/responses.yaml#/BadRequest"
+      "404":
+        $ref: "../components/responses.yaml#/NotFound"
+      "409":
+        $ref: "#/MoveRefused"
+
+Discard:
+  parameters:
+    - $ref: "#/CommentId"
+  post:
+    operationId: discardComment
+    summary: Set a comment aside
+    description: |
+      The reason is mandatory, and kept forever with its author. The friction is
+      intended: a defect dismissed without a reason is exactly what comes back
+      in six months. Nothing is deleted — a discarded comment stays visible on
+      its case (ADR 0006).
+    tags: [comments]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [reason]
+            properties:
+              reason: { type: string, minLength: 1 }
+    responses:
+      "200":
+        $ref: "#/MoveApplied"
+      "400":
+        $ref: "../components/responses.yaml#/BadRequest"
+      "404":
+        $ref: "../components/responses.yaml#/NotFound"
+      "409":
+        $ref: "#/MoveRefused"
+
+Delivery:
+  parameters:
+    - $ref: "#/CommentId"
+  post:
+    operationId: deliverComment
+    summary: Ask for a judgment on a delivered fix
+    description: |
+      The dev saying "I finished this, look". Only they know it — captures also
+      move for a refactor or a dependency bump, and summoning the reviewer for
+      that is noise.
+
+      They may ask without having implemented everything else on the case: one
+      issue can depend on the verdict given on another.
+    tags: [comments]
+    responses:
+      "200":
+        $ref: "#/MoveApplied"
+      "404":
+        $ref: "../components/responses.yaml#/NotFound"
+      "409":
+        $ref: "#/MoveRefused"
+
+Judgment:
+  parameters:
+    - $ref: "#/CommentId"
+  post:
+    operationId: judgeComment
+    summary: Accept a delivery, or refuse it
+    description: |
+      A refusal carries a mandatory remark and is **not** a way to die: the dev
+      reworks and delivers again, as many rounds as it takes. Every judgment is
+      kept, so three round trips on one comment stay visible.
+    tags: [comments]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [accept]
+            properties:
+              accept: { type: boolean }
+              remark:
+                type: string
+                description: Mandatory when refusing. It is what the dev has to read.
+    responses:
+      "200":
+        $ref: "#/MoveApplied"
+      "400":
+        $ref: "../components/responses.yaml#/BadRequest"
+      "404":
+        $ref: "../components/responses.yaml#/NotFound"
+      "409":
+        $ref: "#/MoveRefused"
+
+CommentId:
+  name: commentId
+  in: path
+  required: true
+  schema: { type: string }
+
+MoveApplied:
+  description: Where the comment and its case now stand.
+  content:
+    application/json:
+      schema:
+        $ref: "../components/review.yaml#/MoveOutcome"
+
+MoveRefused:
+  description: |
+    The move does not exist from where the comment stands, or it is already
+    settled.
+  content:
+    application/problem+json:
+      schema:
+        $ref: "../components/problem.yaml"

@@ -63,3 +63,77 @@ CellVerdict:
         status:
           type: string
           enum: [to-review, to-fix, validated]
+
+IssueRef:
+  type: object
+  required: [id]
+  description: |
+    An opaque reference to an issue somewhere else. Supplied by the client and
+    never read back: ozalid holds no tracker credential (ADR 0003).
+  properties:
+    id: { type: string, minLength: 1 }
+    url: { type: string, format: uri }
+    title:
+      type: string
+      description: |
+        Shown next to the comment. ozalid never refreshes it, so it is whatever
+        the client said at the time.
+
+CommentState:
+  type: string
+  enum: [to-track, tracked, to-review, refused, validated, discarded]
+  description: |
+    Where the comment stands. `validated` and `discarded` are the only terminal
+    states; a refusal returns to `to-review` on the next delivery.
+
+Comment:
+  type: object
+  required: [id, stepId, kind, body, state, variantIds, authorId, createdAt, judgments]
+  properties:
+    id: { type: string }
+    stepId: { type: string }
+    kind:
+      type: string
+      enum: [defect, improvement]
+    body:
+      type: string
+      description: What the reviewer wrote, in their words. It survives the issue title.
+    state:
+      $ref: "#/CommentState"
+    variantIds:
+      type: array
+      items: { type: string }
+    issue:
+      $ref: "#/IssueRef"
+    discardReason:
+      type: string
+      description: Mandatory when discarded, and kept forever with its author.
+    authorId: { type: string }
+    createdAt: { type: string, format: date-time }
+    judgments:
+      type: array
+      description: Every judgment, not just the last — three round trips is information.
+      items:
+        $ref: "#/Judgment"
+
+Judgment:
+  type: object
+  required: [verdict, actorId, at]
+  properties:
+    verdict:
+      type: string
+      enum: [accepted, refused]
+    remark:
+      type: string
+      description: Mandatory on a refusal. It is what the dev has to read.
+    actorId: { type: string }
+    at: { type: string, format: date-time }
+
+MoveOutcome:
+  type: object
+  required: [commentState, caseState]
+  properties:
+    commentState:
+      $ref: "#/CommentState"
+    caseState:
+      $ref: "./schemas.yaml#/CaseState"

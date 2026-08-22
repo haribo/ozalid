@@ -102,8 +102,15 @@ func Compute(f Facts) Outcome {
 
 // verdictsOf gives every capture its status.
 //
-// A comment wins over a validation: a square someone reported a problem on is
-// not a square that is fine, whatever was ticked before.
+// The order of the passes is the rule:
+//
+//  1. everything starts unjudged;
+//  2. what the reviewer explicitly validated is validated;
+//  3. a square whose comment has been settled counts as judged — settling it
+//     *was* the judgment, and asking the reviewer to then validate what they
+//     just accepted or set aside would be asking twice;
+//  4. an open comment wins over all of it: a square someone reported a problem
+//     on is not a square that is fine, whatever was ticked before.
 func verdictsOf(f Facts) map[Cell]CaptureStatus {
 	verdicts := make(map[Cell]CaptureStatus, len(f.Captures))
 	for _, cell := range f.Captures {
@@ -113,6 +120,17 @@ func verdictsOf(f Facts) map[Cell]CaptureStatus {
 	for _, cell := range f.Validated {
 		if _, exists := verdicts[cell]; exists {
 			verdicts[cell] = CaptureValidated
+		}
+	}
+
+	for _, c := range f.Comments {
+		if c.State.Open() {
+			continue
+		}
+		for _, cell := range c.Cells {
+			if _, exists := verdicts[cell]; exists {
+				verdicts[cell] = CaptureValidated
+			}
 		}
 	}
 
