@@ -128,6 +128,26 @@ VALUES ($1, $2, $3, $4);
 -- name: CommentJudgments :many
 SELECT * FROM comment_judgments WHERE comment_id = $1 ORDER BY created_at;
 
+-- The bytes a reviewer approved, taken from the edition they were judging.
+--
+-- Nothing is stamped when that edition holds no capture for the square: a
+-- validated hole approves nothing. The environment comes from the capture's own
+-- provenance, so a reference never crosses environments (ADR 0004, ADR 0017).
+-- name: StampCaptureReference :exec
+INSERT INTO capture_references (case_id, step_id, variant_id, environment_id, blob_hash, approved_by)
+SELECT
+    @case_id, c.step_id, c.variant_id,
+    coalesce(c.provenance->>'environmentId', ''),
+    c.blob_hash, @approved_by
+FROM captures c
+WHERE c.edition_id = @edition_id
+  AND c.step_id = @step_id
+  AND c.variant_id = @variant_id
+ON CONFLICT (case_id, step_id, variant_id, environment_id) DO UPDATE
+SET blob_hash   = EXCLUDED.blob_hash,
+    approved_by = EXCLUDED.approved_by,
+    approved_at = now();
+
 -- A review that ends releases the case onto the project's most recent edition:
 -- it was only held back so the reviewer judged one fixed set of bytes.
 -- name: ReleaseToLatestEdition :exec
@@ -140,3 +160,10 @@ SET current_edition_id = (
     ),
     updated_at = now()
 WHERE k.id = @case_id;
+
+-- What a case is judged against right now, and who wrote the reference.
+-- name: CaseReferences :many
+SELECT step_id, variant_id, environment_id, blob_hash, approved_by, approved_at
+FROM capture_references
+WHERE case_id = $1
+ORDER BY step_id, variant_id, environment_id;

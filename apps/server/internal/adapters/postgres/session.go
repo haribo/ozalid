@@ -62,6 +62,22 @@ func (r *Repository) SaveReview(ctx context.Context, caseID, actorID string, sav
 			return session.Result{}, translate("recording a verdict", err)
 		}
 
+		// And the bytes behind it are remembered, so a later run can say
+		// whether this exact image moved. Only what the reviewer validated in
+		// this sitting is stamped: a square that turned `validated` because its
+		// last comment was settled was never looked at, and claiming otherwise
+		// would make "who approved this" a lie.
+		//
+		// A case pointing at no edition has nothing to remember yet.
+		if kase.CurrentEditionID == nil {
+			continue
+		}
+		if err := q.StampCaptureReference(ctx, sqlcgen.StampCaptureReferenceParams{
+			CaseID: caseID, StepID: cell.StepID, VariantID: cell.VariantID,
+			EditionID: *kase.CurrentEditionID, ApprovedBy: actorID,
+		}); err != nil {
+			return session.Result{}, translate("stamping the reference", err)
+		}
 	}
 
 	facts, err := gatherFacts(ctx, q, kase)

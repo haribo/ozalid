@@ -151,6 +151,50 @@ func (q *Queries) CaseComments(ctx context.Context, caseID string) ([]CaseCommen
 	return items, nil
 }
 
+const caseReferences = `-- name: CaseReferences :many
+SELECT step_id, variant_id, environment_id, blob_hash, approved_by, approved_at
+FROM capture_references
+WHERE case_id = $1
+ORDER BY step_id, variant_id, environment_id
+`
+
+type CaseReferencesRow struct {
+	StepID        string
+	VariantID     string
+	EnvironmentID string
+	BlobHash      string
+	ApprovedBy    string
+	ApprovedAt    pgtype.Timestamptz
+}
+
+// What a case is judged against right now, and who wrote the reference.
+func (q *Queries) CaseReferences(ctx context.Context, caseID string) ([]CaseReferencesRow, error) {
+	rows, err := q.db.Query(ctx, caseReferences, caseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CaseReferencesRow{}
+	for rows.Next() {
+		var i CaseReferencesRow
+		if err := rows.Scan(
+			&i.StepID,
+			&i.VariantID,
+			&i.EnvironmentID,
+			&i.BlobHash,
+			&i.ApprovedBy,
+			&i.ApprovedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const caseValidatedCells = `-- name: CaseValidatedCells :many
 SELECT step_id, variant_id FROM capture_verdicts
 WHERE case_id = $1 AND status = 'validated'
@@ -531,6 +575,46 @@ type SetCommentStateParams struct {
 // never received as an argument (ADR 0002).
 func (q *Queries) SetCommentState(ctx context.Context, arg SetCommentStateParams) error {
 	_, err := q.db.Exec(ctx, setCommentState, arg.ID, arg.State)
+	return err
+}
+
+const stampCaptureReference = `-- name: StampCaptureReference :exec
+INSERT INTO capture_references (case_id, step_id, variant_id, environment_id, blob_hash, approved_by)
+SELECT
+    $1, c.step_id, c.variant_id,
+    coalesce(c.provenance->>'environmentId', ''),
+    c.blob_hash, $2
+FROM captures c
+WHERE c.edition_id = $3
+  AND c.step_id = $4
+  AND c.variant_id = $5
+ON CONFLICT (case_id, step_id, variant_id, environment_id) DO UPDATE
+SET blob_hash   = EXCLUDED.blob_hash,
+    approved_by = EXCLUDED.approved_by,
+    approved_at = now()
+`
+
+type StampCaptureReferenceParams struct {
+	CaseID     string
+	ApprovedBy string
+	EditionID  string
+	StepID     string
+	VariantID  string
+}
+
+// The bytes a reviewer approved, taken from the edition they were judging.
+//
+// Nothing is stamped when that edition holds no capture for the square: a
+// validated hole approves nothing. The environment comes from the capture's own
+// provenance, so a reference never crosses environments (ADR 0004, ADR 0017).
+func (q *Queries) StampCaptureReference(ctx context.Context, arg StampCaptureReferenceParams) error {
+	_, err := q.db.Exec(ctx, stampCaptureReference,
+		arg.CaseID,
+		arg.ApprovedBy,
+		arg.EditionID,
+		arg.StepID,
+		arg.VariantID,
+	)
 	return err
 }
 

@@ -31,12 +31,13 @@ type Capture struct {
 }
 
 type CaptureReference struct {
-	CaseID     string
-	StepID     string
-	VariantID  string
-	BlobHash   string
-	ApprovedBy string
-	ApprovedAt pgtype.Timestamptz
+	CaseID        string
+	StepID        string
+	VariantID     string
+	BlobHash      string
+	ApprovedBy    string
+	ApprovedAt    pgtype.Timestamptz
+	EnvironmentID string
 }
 
 type CaptureVerdict struct {
