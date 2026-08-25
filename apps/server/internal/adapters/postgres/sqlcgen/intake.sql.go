@@ -9,6 +9,43 @@ import (
 	"context"
 )
 
+const advanceCurrentEdition = `-- name: AdvanceCurrentEdition :many
+UPDATE cases
+SET current_edition_id = $1, updated_at = now()
+WHERE id = ANY($2::text[])
+  AND (current_edition_id IS NULL OR state <> 'to-review')
+RETURNING id
+`
+
+type AdvanceCurrentEditionParams struct {
+	EditionID *string
+	CaseIds   []string
+}
+
+// A new edition does not yank the ground from under a reviewer: a case sitting
+// at `to-review` keeps pointing at what its reviewer is judging, and advances
+// once that review ends (product.md §7). A case that points nowhere always
+// advances -- there was nothing to protect.
+func (q *Queries) AdvanceCurrentEdition(ctx context.Context, arg AdvanceCurrentEditionParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, advanceCurrentEdition, arg.EditionID, arg.CaseIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const blobExists = `-- name: BlobExists :one
 SELECT EXISTS (SELECT 1 FROM blobs WHERE hash = $1)
 `
@@ -21,7 +58,7 @@ func (q *Queries) BlobExists(ctx context.Context, hash string) (bool, error) {
 }
 
 const casesByIDs = `-- name: CasesByIDs :many
-SELECT id, project_id, category_id, title, description, state, archived_at, created_at, updated_at FROM cases WHERE project_id = $1 AND id = ANY($2::text[])
+SELECT id, project_id, category_id, title, description, state, archived_at, created_at, updated_at, current_edition_id FROM cases WHERE project_id = $1 AND id = ANY($2::text[])
 `
 
 type CasesByIDsParams struct {
@@ -48,6 +85,7 @@ func (q *Queries) CasesByIDs(ctx context.Context, arg CasesByIDsParams) ([]Case,
 			&i.ArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CurrentEditionID,
 		); err != nil {
 			return nil, err
 		}

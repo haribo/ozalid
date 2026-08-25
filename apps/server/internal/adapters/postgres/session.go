@@ -61,6 +61,23 @@ func (r *Repository) SaveReview(ctx context.Context, caseID, actorID string, sav
 		}); err != nil {
 			return session.Result{}, translate("recording a verdict", err)
 		}
+
+		// And the bytes behind it are remembered, so a later run can say
+		// whether this exact image moved. Only what the reviewer validated in
+		// this sitting is stamped: a square that turned `validated` because its
+		// last comment was settled was never looked at, and claiming otherwise
+		// would make "who approved this" a lie.
+		//
+		// A case pointing at no edition has nothing to remember yet.
+		if kase.CurrentEditionID == nil {
+			continue
+		}
+		if err := q.StampCaptureReference(ctx, sqlcgen.StampCaptureReferenceParams{
+			CaseID: caseID, StepID: cell.StepID, VariantID: cell.VariantID,
+			EditionID: *kase.CurrentEditionID, ApprovedBy: actorID,
+		}); err != nil {
+			return session.Result{}, translate("stamping the reference", err)
+		}
 	}
 
 	facts, err := gatherFacts(ctx, q, kase)
@@ -83,6 +100,15 @@ func (r *Repository) SaveReview(ctx context.Context, caseID, actorID string, sav
 			ID: caseID, State: string(outcome.State),
 		}); err != nil {
 			return session.Result{}, translate("moving the case", err)
+		}
+
+		// The reviewer has let go, so the case catches up with whatever landed
+		// while they were looking. It was only held back to keep one fixed set
+		// of bytes under them (product.md §7).
+		if before == review.CaseToReview {
+			if err := q.ReleaseToLatestEdition(ctx, caseID); err != nil {
+				return session.Result{}, translate("releasing the case onto the latest edition", err)
+			}
 		}
 		// The fingerprint of what the computation consumed. Without it a
 		// stored state is no regression oracle (ADR 0002).

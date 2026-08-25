@@ -96,6 +96,12 @@ Computed at intake, per capture, against that capture's reference:
 - `to-re-review` — the capture moved. The changed cells are marked
   individually; the reviewer re-passes those, not the whole case.
 
+A reference belongs to an environment
+([ADR 0017](../adr/0017-a-reference-belongs-to-an-environment.md)). A capture is
+compared only against a reference produced by the same environment; where there
+is none, the square is unjudged there rather than moved — nobody has approved
+those bytes on that machine.
+
 A capture counts as moved when its hash differs **and** a bounded pixel
 comparison exceeds a per-project threshold — below it, the difference is
 rasterisation noise. The number of differing pixels is recorded so the

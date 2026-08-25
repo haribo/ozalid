@@ -21,7 +21,7 @@ func (r *Repository) CaseGrid(ctx context.Context, caseID string, editionID *str
 		return evidence.Grid{}, translate("reading the case", err)
 	}
 
-	edition, err := r.resolveEdition(ctx, kase.ProjectID, editionID)
+	edition, err := r.resolveEdition(ctx, kase, editionID)
 	if errors.Is(err, evidence.ErrNoEdition) {
 		// Nothing has been taken in yet. An empty grid is the honest answer.
 		return evidence.Grid{CaseID: caseID}, nil
@@ -109,12 +109,19 @@ func (r *Repository) CaseGrid(ctx context.Context, caseID string, editionID *str
 	return grid, nil
 }
 
-// resolveEdition picks the edition to read against: the one asked for, or the
-// project's most recent.
-func (r *Repository) resolveEdition(ctx context.Context, projectID string, editionID *string) (sqlcgen.Edition, error) {
+// resolveEdition picks the edition to read against: the one asked for, then the
+// one the case is being judged against, then the project's most recent.
+//
+// The case's own pointer comes before the latest edition on purpose. A run
+// landing mid-review must not change what the reviewer is looking at, or they
+// would judge one set of bytes and approve another (product.md §7).
+func (r *Repository) resolveEdition(ctx context.Context, kase sqlcgen.Case, editionID *string) (sqlcgen.Edition, error) {
+	if editionID == nil {
+		editionID = kase.CurrentEditionID
+	}
 	if editionID != nil {
 		edition, err := r.q.EditionByID(ctx, sqlcgen.EditionByIDParams{
-			ID: *editionID, ProjectID: projectID,
+			ID: *editionID, ProjectID: kase.ProjectID,
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return sqlcgen.Edition{}, appcat.ErrNotFound
@@ -125,7 +132,7 @@ func (r *Repository) resolveEdition(ctx context.Context, projectID string, editi
 		return edition, nil
 	}
 
-	edition, err := r.q.LatestEdition(ctx, projectID)
+	edition, err := r.q.LatestEdition(ctx, kase.ProjectID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return sqlcgen.Edition{}, evidence.ErrNoEdition
 	}

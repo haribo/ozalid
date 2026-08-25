@@ -26,7 +26,7 @@ func (q *Queries) ArchiveCase(ctx context.Context, id string) (int64, error) {
 const createCase = `-- name: CreateCase :one
 INSERT INTO cases (project_id, category_id, title, description)
 VALUES ($1, $2, $3, $4)
-RETURNING id, project_id, category_id, title, description, state, archived_at, created_at, updated_at
+RETURNING id, project_id, category_id, title, description, state, archived_at, created_at, updated_at, current_edition_id
 `
 
 type CreateCaseParams struct {
@@ -56,6 +56,7 @@ func (q *Queries) CreateCase(ctx context.Context, arg CreateCaseParams) (Case, e
 		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CurrentEditionID,
 	)
 	return i, err
 }
@@ -85,7 +86,7 @@ func (q *Queries) CreateStep(ctx context.Context, arg CreateStepParams) (Step, e
 }
 
 const getCase = `-- name: GetCase :one
-SELECT id, project_id, category_id, title, description, state, archived_at, created_at, updated_at FROM cases WHERE id = $1
+SELECT id, project_id, category_id, title, description, state, archived_at, created_at, updated_at, current_edition_id FROM cases WHERE id = $1
 `
 
 func (q *Queries) GetCase(ctx context.Context, id string) (Case, error) {
@@ -101,12 +102,13 @@ func (q *Queries) GetCase(ctx context.Context, id string) (Case, error) {
 		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CurrentEditionID,
 	)
 	return i, err
 }
 
 const listCases = `-- name: ListCases :many
-SELECT id, project_id, category_id, title, description, state, archived_at, created_at, updated_at FROM cases
+SELECT id, project_id, category_id, title, description, state, archived_at, created_at, updated_at, current_edition_id FROM cases
 WHERE project_id = $1
   AND archived_at IS NULL
   AND ($2::text IS NULL OR state = $2::text)
@@ -141,6 +143,7 @@ func (q *Queries) ListCases(ctx context.Context, arg ListCasesParams) ([]Case, e
 			&i.ArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CurrentEditionID,
 		); err != nil {
 			return nil, err
 		}
@@ -185,7 +188,7 @@ const updateCaseDetails = `-- name: UpdateCaseDetails :one
 UPDATE cases
 SET title = $2, description = $3, category_id = $4, updated_at = now()
 WHERE id = $1
-RETURNING id, project_id, category_id, title, description, state, archived_at, created_at, updated_at
+RETURNING id, project_id, category_id, title, description, state, archived_at, created_at, updated_at, current_edition_id
 `
 
 type UpdateCaseDetailsParams struct {
@@ -213,6 +216,7 @@ func (q *Queries) UpdateCaseDetails(ctx context.Context, arg UpdateCaseDetailsPa
 		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CurrentEditionID,
 	)
 	return i, err
 }

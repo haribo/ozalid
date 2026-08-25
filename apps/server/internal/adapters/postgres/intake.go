@@ -135,6 +135,16 @@ func (r *Repository) WriteEdition(ctx context.Context, projectSlug string, m con
 		}
 	}
 
+	// A case advances onto the edition that just landed -- unless a reviewer is
+	// sitting on it. `to-review` means somebody is looking, and moving the
+	// bytes under them would have them judge one image and approve another
+	// (product.md §7).
+	if _, err := q.AdvanceCurrentEdition(ctx, sqlcgen.AdvanceCurrentEditionParams{
+		EditionID: &edition.ID, CaseIds: caseIDs(m),
+	}); err != nil {
+		return appintake.Result{}, translate("pointing the cases at the edition", err)
+	}
+
 	// The evidence has arrived, so the cases that had none leave the edge of
 	// the funnel. This is the only transition intake drives: every other one
 	// comes from a comment (ADR 0012).
