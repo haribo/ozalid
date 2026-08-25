@@ -31,7 +31,7 @@ func pushEdition(
 				}},
 			}},
 		}},
-	}); err != nil {
+	}, nil); err != nil {
 		t.Fatalf("taking the edition in: %v", err)
 	}
 	return hash

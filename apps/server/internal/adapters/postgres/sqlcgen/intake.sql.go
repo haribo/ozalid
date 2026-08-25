@@ -110,19 +110,23 @@ func (q *Queries) CountCasesToReview(ctx context.Context, projectID string) (int
 }
 
 const createCapture = `-- name: CreateCapture :one
-INSERT INTO captures (edition_id, step_id, variant_id, blob_hash, provenance)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, edition_id, step_id, variant_id, blob_hash, provenance
+INSERT INTO captures (edition_id, step_id, variant_id, blob_hash, provenance, freshness, moved_pixels)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, edition_id, step_id, variant_id, blob_hash, provenance, freshness, moved_pixels
 `
 
 type CreateCaptureParams struct {
-	EditionID  string
-	StepID     string
-	VariantID  string
-	BlobHash   string
-	Provenance []byte
+	EditionID   string
+	StepID      string
+	VariantID   string
+	BlobHash    string
+	Provenance  []byte
+	Freshness   *string
+	MovedPixels *int32
 }
 
+// A capture is born with its freshness: it is computed once, against what was
+// approved, and the row never changes again.
 func (q *Queries) CreateCapture(ctx context.Context, arg CreateCaptureParams) (Capture, error) {
 	row := q.db.QueryRow(ctx, createCapture,
 		arg.EditionID,
@@ -130,6 +134,8 @@ func (q *Queries) CreateCapture(ctx context.Context, arg CreateCaptureParams) (C
 		arg.VariantID,
 		arg.BlobHash,
 		arg.Provenance,
+		arg.Freshness,
+		arg.MovedPixels,
 	)
 	var i Capture
 	err := row.Scan(
@@ -139,6 +145,8 @@ func (q *Queries) CreateCapture(ctx context.Context, arg CreateCaptureParams) (C
 		&i.VariantID,
 		&i.BlobHash,
 		&i.Provenance,
+		&i.Freshness,
+		&i.MovedPixels,
 	)
 	return i, err
 }
@@ -309,6 +317,17 @@ func (q *Queries) ListVariants(ctx context.Context, projectID string) ([]Variant
 	return items, nil
 }
 
+const projectThreshold = `-- name: ProjectThreshold :one
+SELECT pixel_threshold FROM projects WHERE slug = $1
+`
+
+func (q *Queries) ProjectThreshold(ctx context.Context, slug string) (int32, error) {
+	row := q.db.QueryRow(ctx, projectThreshold, slug)
+	var pixel_threshold int32
+	err := row.Scan(&pixel_threshold)
+	return pixel_threshold, err
+}
+
 const recordTransition = `-- name: RecordTransition :exec
 INSERT INTO journal (project_id, case_id, from_state, to_state, cause, actor_id, actor_kind, inputs, rule_version)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -341,6 +360,52 @@ func (q *Queries) RecordTransition(ctx context.Context, arg RecordTransitionPara
 		arg.RuleVersion,
 	)
 	return err
+}
+
+const referencesForCases = `-- name: ReferencesForCases :many
+SELECT s.case_id, s.position AS step_position, v.label AS variant_label,
+       r.environment_id, r.blob_hash
+FROM capture_references r
+JOIN steps s ON s.id = r.step_id
+JOIN variants v ON v.id = r.variant_id
+WHERE r.case_id = ANY($1::text[])
+`
+
+type ReferencesForCasesRow struct {
+	CaseID        string
+	StepPosition  int32
+	VariantLabel  string
+	EnvironmentID string
+	BlobHash      string
+}
+
+// Every reference a case holds, with the step position and variant label the
+// manifest names them by. Keyed on what the manifest can say, not on ids it
+// does not know.
+func (q *Queries) ReferencesForCases(ctx context.Context, dollar_1 []string) ([]ReferencesForCasesRow, error) {
+	rows, err := q.db.Query(ctx, referencesForCases, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReferencesForCasesRow{}
+	for rows.Next() {
+		var i ReferencesForCasesRow
+		if err := rows.Scan(
+			&i.CaseID,
+			&i.StepPosition,
+			&i.VariantLabel,
+			&i.EnvironmentID,
+			&i.BlobHash,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const relabelVariant = `-- name: RelabelVariant :exec

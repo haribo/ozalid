@@ -613,6 +613,12 @@ export interface components {
         IntakeRefused: components["schemas"]["problem"] & {
             /** @description The addresses to upload before pushing again. */
             missingContent?: string[];
+            /**
+             * @description The addresses of captures that are not PNG. A separate field from
+             *     `missingContent` on purpose: the store holds these bytes, so
+             *     uploading them again would fix nothing. They have to be re-captured.
+             */
+            notAPng?: string[];
         };
         /**
          * @description How many cases sit in each state under this node, across its **whole
@@ -663,6 +669,25 @@ export interface components {
              * @enum {string}
              */
             status: "to-review" | "to-fix" | "validated";
+            /**
+             * @description Whether this capture still shows what a reviewer approved, computed once
+             *     when it arrived. **Absent means nothing to compare against** — nobody has
+             *     approved this square in this capture's environment — which is not the
+             *     same as unchanged (ADR 0017).
+             *
+             *     Freshness is an overlay, never a state: a `reviewed` case whose captures
+             *     move stays `reviewed` until its reviewer says otherwise.
+             * @enum {string}
+             */
+            freshness?: "current" | "to-re-review";
+            /**
+             * @description How many pixels differed by more than the fixed per-channel tolerance.
+             *     Recorded so a project can judge its threshold rather than guess it.
+             *
+             *     Absent when no pixel reading happened: identical addresses need none, and
+             *     images of different dimensions admit none.
+             */
+            movedPixels?: number;
             provenance?: components["schemas"]["Provenance"];
         };
         GridStep: {

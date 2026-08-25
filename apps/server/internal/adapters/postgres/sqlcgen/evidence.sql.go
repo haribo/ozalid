@@ -19,6 +19,8 @@ SELECT
     v.values   AS variant_values,
     c.blob_hash,
     c.provenance,
+    c.freshness,
+    c.moved_pixels,
     -- A square with no verdict row has not been judged yet: the reviewer holds
     -- the ball on it (ADR 0012).
     coalesce(cv.status, 'to-review') AS status
@@ -45,6 +47,8 @@ type CaseEvidenceRow struct {
 	VariantValues []byte
 	BlobHash      *string
 	Provenance    []byte
+	Freshness     *string
+	MovedPixels   *int32
 	Status        string
 }
 
@@ -69,6 +73,8 @@ func (q *Queries) CaseEvidence(ctx context.Context, arg CaseEvidenceParams) ([]C
 			&i.VariantValues,
 			&i.BlobHash,
 			&i.Provenance,
+			&i.Freshness,
+			&i.MovedPixels,
 			&i.Status,
 		); err != nil {
 			return nil, err

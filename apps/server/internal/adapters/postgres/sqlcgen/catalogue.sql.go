@@ -71,7 +71,7 @@ func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) 
 const createProject = `-- name: CreateProject :one
 INSERT INTO projects (slug, name, intake_policy)
 VALUES ($1, $2, $3)
-RETURNING id, slug, name, intake_policy, created_at
+RETURNING id, slug, name, intake_policy, created_at, pixel_threshold
 `
 
 type CreateProjectParams struct {
@@ -89,6 +89,7 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.Name,
 		&i.IntakePolicy,
 		&i.CreatedAt,
+		&i.PixelThreshold,
 	)
 	return i, err
 }
@@ -109,7 +110,7 @@ func (q *Queries) DeleteEmptyCategory(ctx context.Context, id string) (int64, er
 }
 
 const getProjectBySlug = `-- name: GetProjectBySlug :one
-SELECT id, slug, name, intake_policy, created_at FROM projects WHERE slug = $1
+SELECT id, slug, name, intake_policy, created_at, pixel_threshold FROM projects WHERE slug = $1
 `
 
 func (q *Queries) GetProjectBySlug(ctx context.Context, slug string) (Project, error) {
@@ -121,6 +122,7 @@ func (q *Queries) GetProjectBySlug(ctx context.Context, slug string) (Project, e
 		&i.Name,
 		&i.IntakePolicy,
 		&i.CreatedAt,
+		&i.PixelThreshold,
 	)
 	return i, err
 }
