@@ -1,3 +1,5 @@
+export { default as KindIcon } from './KindIcon.vue'
 export { default as StateIcon } from './StateIcon.vue'
 export { default as StatePill } from './StatePill.vue'
 export { default as StateGauge } from './StateGauge.vue'
+export { default as VariantHead } from './VariantHead.vue'

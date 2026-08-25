@@ -10,7 +10,17 @@
  */
 import { computed } from 'vue'
 
-const props = defineProps<{ label: string; values: Record<string, string> }>()
+const props = withDefaults(
+  defineProps<{
+    label: string
+    values: Record<string, string>
+    /** Drop the word and keep the shapes. For a column too narrow to carry the
+     * label — the recap's one-tick columns — where the grid above has already
+     * taught what each shape means. */
+    compact?: boolean
+  }>(),
+  { compact: false },
+)
 
 const KNOWN = ['desktop', 'mobile', 'light', 'dark'] as const
 type Known = (typeof KNOWN)[number]
@@ -54,6 +64,6 @@ const icons = computed(() =>
         <path d="M13.5 9.6A5.8 5.8 0 0 1 6.4 2.5a5.8 5.8 0 1 0 7.1 7.1z" />
       </template>
     </svg>
-    {{ label }}
+    <template v-if="!compact">{{ label }}</template>
   </span>
 </template>

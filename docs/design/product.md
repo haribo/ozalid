@@ -51,7 +51,7 @@ finished.
 
 ## 3. Case state
 
-A case carries **three independent axes**. Collapsing them loses information —
+A case carries **four independent axes**. Collapsing them loses information —
 this is a hard rule, not a preference.
 
 ### 3.1 Cycle state (who holds the ball)
@@ -108,7 +108,32 @@ never prove anything about its own freshness
 Freshness is an **overlay**, not a state. A `reviewed` case whose captures move
 is still `reviewed` until the reviewer says otherwise.
 
-### 3.4 Transitions
+### 3.4 Completeness (is all the evidence there)
+
+A case is **complete at an edition** when every step carries a capture for
+every variant that edition declares for that case
+([ADR 0016](../adr/0016-a-case-is-complete-or-it-says-so.md)).
+
+The variant set of a case at an edition is the union of the variants across its
+steps. A step missing one of those variants has a **hole**. A variant the case
+never exercises — a desktop-only flow — produces no column and no hole:
+completeness is measured against what the run declared, never against the
+project's full axis catalogue.
+
+A hole is not a capture. It carries no verdict, cannot be judged, and is shown
+as an anomaly rather than as an absence — a run failed, and saying "no capture"
+where a capture was expected hides that.
+
+Like freshness, completeness is an **overlay**, not a state. A case whose
+reviewer approved every capture that exists is `reviewed` *and* incomplete: two
+true facts, neither hiding the other. Forcing the hole into the cycle state
+would hand the ball to a reviewer who can do nothing about it.
+
+Recordings are outside this: they are optional by construction
+([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md)), so a case without
+one is complete.
+
+### 3.5 Transitions
 
 Every transition is journalled: `{case, from, to, at, actor, cause, inputs}`.
 
@@ -212,6 +237,13 @@ ozalid generated for it; a manifest naming the same case twice is refused
 ([ADR 0014](../adr/0014-server-generated-case-identity-and-catalogue-tree.md)).
 
 An archived case is not part of intake and never blocks it.
+
+An edition with **holes** — a step missing a variant its siblings carry — is
+accepted and stored. The holes are recorded and surfaced
+([§3.4](#34-completeness-is-all-the-evidence-there)); intake does not refuse
+them. Refusing would discard the evidence the run *did* produce because of one
+flaky step, and pressure on suite quality is the policy's job, not the
+parser's.
 
 Intake is governed by a **per-project policy** ([ADR 0007](../adr/0007-run-intake-policy.md)):
 

@@ -86,7 +86,8 @@ func (r *Repository) CaseGrid(ctx context.Context, caseID string, editionID *str
 		}
 
 		steps[idx].Cells = append(steps[idx].Cells, evidence.Cell{
-			VariantID: *row.VariantID, Hash: *row.BlobHash, Provenance: provenance,
+			VariantID: *row.VariantID, Hash: *row.BlobHash,
+			Status: row.Status, Provenance: provenance,
 		})
 	}
 
