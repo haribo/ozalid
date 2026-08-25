@@ -25,7 +25,12 @@ function grid(over: Partial<Grid> = {}): Grid {
         ],
       },
       // Not every variant exists at every step.
-      { id: 's2', name: 'submits', position: 1, cells: [{ variantId: 'v1', hash: 'sha256:ccc', status: 'to-review' }] },
+      {
+        id: 's2',
+        name: 'submits',
+        position: 1,
+        cells: [{ variantId: 'v1', hash: 'sha256:ccc', status: 'to-review' }],
+      },
     ],
     recordings: [],
     ...over,
@@ -46,16 +51,35 @@ describe('CaseGrid', () => {
     expect(w.findAll('tbody tr')).toHaveLength(2)
   })
 
-  it('leaves a cell with no capture empty instead of drawing a placeholder image', () => {
-    const w = mount(CaseGrid, { props: { grid: grid() } })
-    const second = w.findAll('tbody tr')[1]
-    expect(second.findAll('img')).toHaveLength(1)
-    expect(second.text()).toContain('pas de capture')
-  })
-
   it('fetches an image through the API, never from a guessed origin', () => {
     const w = mount(CaseGrid, { props: { grid: grid() } })
     expect(w.find('img').attributes('src')).toBe('/api/blobs/sha256:aaa')
+  })
+
+  it('says where the review stands on each square', () => {
+    const w = mount(CaseGrid, { props: { grid: grid() } })
+    const text = w.text()
+    expect(text).toContain('validée')
+    expect(text).toContain('commentée')
+    expect(text).toContain('à juger')
+  })
+
+  it('asks to open the carousel rather than editing anything', () => {
+    // The grid shows and navigates; judging happens in front of the capture.
+    const w = mount(CaseGrid, { props: { grid: grid() } })
+    expect(w.find('input').exists()).toBe(false)
+
+    w.findAll('button')[0].trigger('click')
+    expect(w.emitted('open')?.[0]).toEqual(['s1', 'v1'])
+  })
+
+  it('marks the capture currently open, so returning to the grid finds it', () => {
+    const w = mount(CaseGrid, {
+      props: { grid: grid(), openCell: { stepId: 's1', variantId: 'v2' } },
+    })
+    const marked = w.findAll('button').filter((b) => b.classes().includes('ring-2'))
+    expect(marked).toHaveLength(1)
+    expect(marked[0].attributes('aria-label')).toContain('mobile·dark')
   })
 
   it('gives every capture an alt naming its step and variant', () => {
@@ -64,10 +88,55 @@ describe('CaseGrid', () => {
   })
 
   it('keeps a portrait variant portrait', () => {
+    // The size now lives on the button that frames the image, since the button
+    // is what the reviewer aims at.
     const w = mount(CaseGrid, { props: { grid: grid() } })
-    const imgs = w.findAll('img')
-    expect(imgs[0].classes().join(' ')).toContain('w-[116px]')
-    expect(imgs[1].classes().join(' ')).toContain('w-[60px]')
+    const frames = w.findAll('button')
+    expect(frames[0].classes().join(' ')).toContain('w-[116px]')
+    expect(frames[1].classes().join(' ')).toContain('w-[60px]')
+  })
+
+  it('marks a missing capture as an anomaly, never as a neutral blank', () => {
+    // A case is meant to be complete: a step missing a variant its siblings
+    // carry is a failed run, and saying "no capture" there hides it (ADR 0016).
+    const w = mount(CaseGrid, { props: { grid: grid() } })
+    const second = w.findAll('tbody tr')[1]
+    expect(second.findAll('img')).toHaveLength(1)
+    expect(second.text()).toContain('manquante')
+    expect(second.find('[aria-label="capture manquante"]').exists()).toBe(true)
+  })
+
+  it('rings each capture with its own verdict, and tints no cell behind it', () => {
+    // The colour belongs to the capture, not to the ground around it: this
+    // interface frames someone else's product.
+    const w = mount(CaseGrid, { props: { grid: grid() } })
+    const frames = w.findAll('button')
+    expect(frames[0].classes().join(' ')).toContain('border-emerald-600')
+    expect(frames[1].classes().join(' ')).toContain('border-amber-600')
+    expect(frames[2].classes().join(' ')).toContain('border-slate-300')
+
+    const cells = w.findAll('tbody td')
+    expect(cells.some((c) => c.classes().join(' ').includes('bg-emerald'))).toBe(false)
+    expect(cells.some((c) => c.classes().join(' ').includes('bg-amber'))).toBe(false)
+  })
+
+  it('steps a judged capture back, and leaves what needs eyes at full strength', () => {
+    const w = mount(CaseGrid, { props: { grid: grid() } })
+    const images = w.findAll('img')
+    expect(images[0].classes()).toContain('opacity-40') // validated
+    expect(images[1].classes()).toContain('opacity-40') // commented
+    expect(images[2].classes()).not.toContain('opacity-40') // still to judge
+  })
+
+  it('leaves the recording without a verdict ring, since nothing judges it', () => {
+    // A recording is not comparable, so it carries no state (ADR 0013).
+    const w = mount(CaseGrid, {
+      props: { grid: grid({ recordings: [{ variantId: 'v1', hash: 'sha256:vid' }] }) },
+    })
+    const link = w.find('a[href="/api/blobs/sha256:vid"]')
+    const classes = link.classes().join(' ')
+    expect(classes).not.toContain('emerald')
+    expect(classes).not.toContain('amber')
   })
 
   it('only shows the recording row when a recording exists', () => {
