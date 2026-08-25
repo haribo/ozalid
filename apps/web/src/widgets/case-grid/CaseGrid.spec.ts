@@ -20,12 +20,12 @@ function grid(over: Partial<Grid> = {}): Grid {
         name: 'opens the form',
         position: 0,
         cells: [
-          { variantId: 'v1', hash: 'sha256:aaa' },
-          { variantId: 'v2', hash: 'sha256:bbb' },
+          { variantId: 'v1', hash: 'sha256:aaa', status: 'validated' },
+          { variantId: 'v2', hash: 'sha256:bbb', status: 'to-fix' },
         ],
       },
       // Not every variant exists at every step.
-      { id: 's2', name: 'submits', position: 1, cells: [{ variantId: 'v1', hash: 'sha256:ccc' }] },
+      { id: 's2', name: 'submits', position: 1, cells: [{ variantId: 'v1', hash: 'sha256:ccc', status: 'to-review' }] },
     ],
     recordings: [],
     ...over,

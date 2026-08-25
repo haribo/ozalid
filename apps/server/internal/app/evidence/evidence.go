@@ -23,10 +23,12 @@ type Variant struct {
 	Values map[string]string
 }
 
-// Cell is one capture: a variant, and the address of its bytes.
+// Cell is one capture: a variant, the address of its bytes, and where the
+// review stands on it.
 type Cell struct {
 	VariantID  string
 	Hash       string
+	Status     string
 	Provenance contract.Provenance
 }
 

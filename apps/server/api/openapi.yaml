@@ -1089,12 +1089,22 @@ components:
       required:
         - variantId
         - hash
+        - status
       properties:
         variantId:
           type: string
         hash:
           type: string
           description: Fetch the image at `/blobs/{hash}`.
+        status:
+          type: string
+          enum:
+            - to-review
+            - to-fix
+            - validated
+          description: |
+            Where this square stands. Computed by the server from the comments
+            covering it — never set by a caller (ADR 0012).
         provenance:
           $ref: '#/components/schemas/Provenance'
     GridStep:

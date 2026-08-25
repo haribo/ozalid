@@ -18,10 +18,15 @@ SELECT
     v.label    AS variant_label,
     v.values   AS variant_values,
     c.blob_hash,
-    c.provenance
+    c.provenance,
+    -- A square with no verdict row has not been judged yet: the reviewer holds
+    -- the ball on it (ADR 0012).
+    coalesce(cv.status, 'to-review') AS status
 FROM steps s
 LEFT JOIN captures c ON c.step_id = s.id AND c.edition_id = $2
 LEFT JOIN variants v ON v.id = c.variant_id
+LEFT JOIN capture_verdicts cv
+       ON cv.case_id = s.case_id AND cv.step_id = s.id AND cv.variant_id = c.variant_id
 WHERE s.case_id = $1
 ORDER BY s.position, v.label
 `
@@ -40,6 +45,7 @@ type CaseEvidenceRow struct {
 	VariantValues []byte
 	BlobHash      *string
 	Provenance    []byte
+	Status        string
 }
 
 // Every capture of one case at one edition, joined with its step and variant.
@@ -63,6 +69,7 @@ func (q *Queries) CaseEvidence(ctx context.Context, arg CaseEvidenceParams) ([]C
 			&i.VariantValues,
 			&i.BlobHash,
 			&i.Provenance,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}

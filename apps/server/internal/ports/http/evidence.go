@@ -54,6 +54,7 @@ func toAPIGrid(g evidence.Grid) openapi.Grid {
 			step.Cells = append(step.Cells, openapi.GridCell{
 				VariantId:  c.VariantID,
 				Hash:       c.Hash,
+				Status:     openapi.GridCellStatus(c.Status),
 				Provenance: toAPIProvenance(c.Provenance),
 			})
 		}

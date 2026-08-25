@@ -657,6 +657,12 @@ export interface components {
             variantId: string;
             /** @description Fetch the image at `/blobs/{hash}`. */
             hash: string;
+            /**
+             * @description Where this square stands. Computed by the server from the comments
+             *     covering it — never set by a caller (ADR 0012).
+             * @enum {string}
+             */
+            status: "to-review" | "to-fix" | "validated";
             provenance?: components["schemas"]["Provenance"];
         };
         GridStep: {
