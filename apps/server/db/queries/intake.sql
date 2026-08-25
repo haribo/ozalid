@@ -91,3 +91,14 @@ SELECT * FROM variants WHERE project_id = $1;
 
 -- name: RelabelVariant :exec
 UPDATE variants SET label = $2 WHERE id = $1;
+
+-- A new edition does not yank the ground from under a reviewer: a case sitting
+-- at `to-review` keeps pointing at what its reviewer is judging, and advances
+-- once that review ends (product.md §7). A case that points nowhere always
+-- advances -- there was nothing to protect.
+-- name: AdvanceCurrentEdition :many
+UPDATE cases
+SET current_edition_id = @edition_id, updated_at = now()
+WHERE id = ANY(@case_ids::text[])
+  AND (current_edition_id IS NULL OR state <> 'to-review')
+RETURNING id;

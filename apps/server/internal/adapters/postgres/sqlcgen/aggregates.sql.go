@@ -189,7 +189,7 @@ WITH latest AS (
     LIMIT 1
 )
 SELECT
-    k.id, k.project_id, k.category_id, k.title, k.description, k.state, k.archived_at, k.created_at, k.updated_at,
+    k.id, k.project_id, k.category_id, k.title, k.description, k.state, k.archived_at, k.created_at, k.updated_at, k.current_edition_id,
     count(c.id)                                                        AS captures,
     count(*) FILTER (WHERE v.status = 'validated')                     AS validated,
     count(*) FILTER (WHERE v.status = 'to-fix')                        AS commented,
@@ -214,20 +214,21 @@ type CasesWithCaptureCountsParams struct {
 }
 
 type CasesWithCaptureCountsRow struct {
-	ID          string
-	ProjectID   string
-	CategoryID  *string
-	Title       string
-	Description *string
-	State       string
-	ArchivedAt  pgtype.Timestamptz
-	CreatedAt   pgtype.Timestamptz
-	UpdatedAt   pgtype.Timestamptz
-	Captures    int64
-	Validated   int64
-	Commented   int64
-	ToJudge     int64
-	LastEdition pgtype.Timestamptz
+	ID               string
+	ProjectID        string
+	CategoryID       *string
+	Title            string
+	Description      *string
+	State            string
+	ArchivedAt       pgtype.Timestamptz
+	CreatedAt        pgtype.Timestamptz
+	UpdatedAt        pgtype.Timestamptz
+	CurrentEditionID *string
+	Captures         int64
+	Validated        int64
+	Commented        int64
+	ToJudge          int64
+	LastEdition      pgtype.Timestamptz
 }
 
 // Every case with the state of its captures at the edition it points at.
@@ -253,6 +254,7 @@ func (q *Queries) CasesWithCaptureCounts(ctx context.Context, arg CasesWithCaptu
 			&i.ArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CurrentEditionID,
 			&i.Captures,
 			&i.Validated,
 			&i.Commented,
@@ -480,6 +482,25 @@ func (q *Queries) RecordJudgment(ctx context.Context, arg RecordJudgmentParams) 
 		arg.Remark,
 		arg.ActorID,
 	)
+	return err
+}
+
+const releaseToLatestEdition = `-- name: ReleaseToLatestEdition :exec
+UPDATE cases k
+SET current_edition_id = (
+        SELECT e.id FROM editions e
+        WHERE e.project_id = k.project_id
+        ORDER BY e.created_at DESC, e.id DESC
+        LIMIT 1
+    ),
+    updated_at = now()
+WHERE k.id = $1
+`
+
+// A review that ends releases the case onto the project's most recent edition:
+// it was only held back so the reviewer judged one fixed set of bytes.
+func (q *Queries) ReleaseToLatestEdition(ctx context.Context, caseID string) error {
+	_, err := q.db.Exec(ctx, releaseToLatestEdition, caseID)
 	return err
 }
 

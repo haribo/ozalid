@@ -48,15 +48,16 @@ type CaptureVerdict struct {
 }
 
 type Case struct {
-	ID          string
-	ProjectID   string
-	CategoryID  *string
-	Title       string
-	Description *string
-	State       string
-	ArchivedAt  pgtype.Timestamptz
-	CreatedAt   pgtype.Timestamptz
-	UpdatedAt   pgtype.Timestamptz
+	ID               string
+	ProjectID        string
+	CategoryID       *string
+	Title            string
+	Description      *string
+	State            string
+	ArchivedAt       pgtype.Timestamptz
+	CreatedAt        pgtype.Timestamptz
+	UpdatedAt        pgtype.Timestamptz
+	CurrentEditionID *string
 }
 
 type Category struct {

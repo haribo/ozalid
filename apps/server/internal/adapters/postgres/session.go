@@ -61,6 +61,7 @@ func (r *Repository) SaveReview(ctx context.Context, caseID, actorID string, sav
 		}); err != nil {
 			return session.Result{}, translate("recording a verdict", err)
 		}
+
 	}
 
 	facts, err := gatherFacts(ctx, q, kase)
@@ -83,6 +84,15 @@ func (r *Repository) SaveReview(ctx context.Context, caseID, actorID string, sav
 			ID: caseID, State: string(outcome.State),
 		}); err != nil {
 			return session.Result{}, translate("moving the case", err)
+		}
+
+		// The reviewer has let go, so the case catches up with whatever landed
+		// while they were looking. It was only held back to keep one fixed set
+		// of bytes under them (product.md §7).
+		if before == review.CaseToReview {
+			if err := q.ReleaseToLatestEdition(ctx, caseID); err != nil {
+				return session.Result{}, translate("releasing the case onto the latest edition", err)
+			}
 		}
 		// The fingerprint of what the computation consumed. Without it a
 		// stored state is no regression oracle (ADR 0002).

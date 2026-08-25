@@ -127,3 +127,16 @@ VALUES ($1, $2, $3, $4);
 
 -- name: CommentJudgments :many
 SELECT * FROM comment_judgments WHERE comment_id = $1 ORDER BY created_at;
+
+-- A review that ends releases the case onto the project's most recent edition:
+-- it was only held back so the reviewer judged one fixed set of bytes.
+-- name: ReleaseToLatestEdition :exec
+UPDATE cases k
+SET current_edition_id = (
+        SELECT e.id FROM editions e
+        WHERE e.project_id = k.project_id
+        ORDER BY e.created_at DESC, e.id DESC
+        LIMIT 1
+    ),
+    updated_at = now()
+WHERE k.id = @case_id;
