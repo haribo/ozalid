@@ -3,6 +3,7 @@ package intake_test
 import (
 	"context"
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/haribo/ozalid/apps/server/internal/app/intake"
@@ -13,9 +14,37 @@ import (
 // be refused before anything is written.
 type refusingRepo struct{ t *testing.T }
 
-func (r refusingRepo) WriteEdition(context.Context, string, contract.Manifest) (intake.Result, error) {
+func (r refusingRepo) WriteEdition(
+	context.Context, string, contract.Manifest, map[intake.Square]intake.Verdict,
+) (intake.Result, error) {
 	r.t.Error("the manifest reached the repository, want it refused first")
 	return intake.Result{}, nil
+}
+
+func (r refusingRepo) AxisOrder(context.Context, string) ([]string, error) {
+	r.t.Error("the manifest reached the repository, want it refused first")
+	return nil, nil
+}
+
+func (r refusingRepo) ApprovedBytes(
+	context.Context, string, contract.Manifest,
+) (map[intake.Square]string, error) {
+	r.t.Error("the manifest reached the repository, want it refused first")
+	return nil, nil
+}
+
+func (r refusingRepo) PixelThreshold(context.Context, string) (int, error) {
+	r.t.Error("the manifest reached the repository, want it refused first")
+	return 0, nil
+}
+
+// refusingBlobs fails the test if intake ever reads bytes: these manifests are
+// refused on their shape, before any content is touched.
+type refusingBlobs struct{ t *testing.T }
+
+func (b refusingBlobs) Get(context.Context, string) (io.ReadCloser, error) {
+	b.t.Error("intake read a blob, want the manifest refused first")
+	return nil, nil
 }
 
 func validHash(b byte) string {
@@ -28,7 +57,7 @@ func validHash(b byte) string {
 }
 
 func TestAnEmptyManifestIsRefusedBeforeAnythingIsWritten(t *testing.T) {
-	svc := intake.New(refusingRepo{t})
+	svc := intake.New(refusingRepo{t}, refusingBlobs{t})
 
 	_, err := svc.Take(context.Background(), "demo", contract.Manifest{})
 	if !errors.Is(err, intake.ErrEmptyManifest) {
@@ -37,7 +66,7 @@ func TestAnEmptyManifestIsRefusedBeforeAnythingIsWritten(t *testing.T) {
 }
 
 func TestTheSameCaseTwiceIsRefusedBeforeAnythingIsWritten(t *testing.T) {
-	svc := intake.New(refusingRepo{t})
+	svc := intake.New(refusingRepo{t}, refusingBlobs{t})
 
 	// Two sources writing to one case would corrupt it with no error to notice
 	// (ADR 0014).
@@ -49,7 +78,7 @@ func TestTheSameCaseTwiceIsRefusedBeforeAnythingIsWritten(t *testing.T) {
 }
 
 func TestAnAddressThatIsNotAHashIsRefusedBeforeAnythingIsWritten(t *testing.T) {
-	svc := intake.New(refusingRepo{t})
+	svc := intake.New(refusingRepo{t}, refusingBlobs{t})
 
 	m := contract.Manifest{Cases: []contract.ManifestCase{{
 		ID: "abc",

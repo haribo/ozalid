@@ -16,7 +16,16 @@ func (s *Server) CreateEdition(ctx context.Context, request openapi.CreateEditio
 	result, err := s.intake.Take(ctx, request.Slug, toManifest(*request.Body))
 
 	var missing *intake.MissingContent
+	var notPNG *intake.NotPNG
 	switch {
+	case errors.As(err, &notPNG):
+		// Naming the addresses lets the client fix the captures rather than
+		// hunt for them. A lossy format cannot be compared, so a capture in one
+		// could never answer "has it changed?" (product.md §2).
+		return openapi.CreateEdition409ApplicationProblemPlusJSONResponse(
+			notAPNG("Captures are compared byte for byte and pixel by pixel; a lossy format re-encodes the same screen differently every run. Re-capture the listed addresses as PNG.",
+				notPNG.Hashes),
+		), nil
 	case errors.As(err, &missing):
 		// Naming the addresses is the point: the client uploads exactly those
 		// and pushes again, rather than re-sending an entire run.
@@ -73,6 +82,20 @@ func refusal(kind, title, detail string, missing []string) openapi.IntakeRefused
 		out.MissingContent = &missing
 	}
 	return out
+}
+
+// notAPNG names the captures that have to be re-taken.
+//
+// A field of its own rather than `missingContent`: the store holds these bytes.
+// A client told they are "missing" would upload them again and be refused
+// again, which is the worst kind of error message — one that suggests a cure
+// for the wrong disease.
+func notAPNG(detail string, hashes []string) openapi.IntakeRefused {
+	p := problem("not-a-png", "A capture is not a PNG", http.StatusConflict, detail)
+	return openapi.IntakeRefused{
+		Type: p.Type, Title: p.Title, Status: p.Status, Detail: p.Detail,
+		NotAPng: &hashes,
+	}
 }
 
 // toManifest turns the generated request body into the shape the CLI and the

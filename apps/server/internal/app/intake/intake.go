@@ -56,11 +56,14 @@ type Result struct {
 
 // Service takes editions in.
 type Service struct {
-	repo Repository
+	repo  Repository
+	blobs Blobs
 }
 
-// New returns a Service backed by repo.
-func New(repo Repository) *Service { return &Service{repo: repo} }
+// New returns a Service backed by repo and blobs.
+func New(repo Repository, blobs Blobs) *Service {
+	return &Service{repo: repo, blobs: blobs}
+}
 
 // Take validates a manifest and, if it holds, writes the whole edition.
 //
@@ -84,7 +87,22 @@ func (s *Service) Take(ctx context.Context, projectSlug string, m contract.Manif
 		return Result{}, err
 	}
 
-	return s.repo.WriteEdition(ctx, projectSlug, m)
+	// A capture that cannot be compared is not a capture (product.md §2). This
+	// runs before anything is written, like every other refusal.
+	if err := s.checkCapturesArePNG(ctx, m); err != nil {
+		return Result{}, err
+	}
+
+	threshold, err := s.repo.PixelThreshold(ctx, projectSlug)
+	if err != nil {
+		return Result{}, err
+	}
+	fresh, err := s.compareAgainstApproved(ctx, projectSlug, m, threshold)
+	if err != nil {
+		return Result{}, err
+	}
+
+	return s.repo.WriteEdition(ctx, projectSlug, m, fresh)
 }
 
 // validateAddresses rejects anything that is not a content address before it

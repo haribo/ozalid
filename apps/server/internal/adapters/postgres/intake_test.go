@@ -97,7 +97,7 @@ func TestAnEditionIsWrittenWholeWithItsAxesAndVariants(t *testing.T) {
 		}},
 	}
 
-	got, err := repo.WriteEdition(ctx, project.Slug, m)
+	got, err := repo.WriteEdition(ctx, project.Slug, m, nil)
 	if err != nil {
 		t.Fatalf("taking the edition in: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestTheSameImageAcrossTwoEditionsPointsAtOneBlob(t *testing.T) {
 	}}}
 
 	for i := range 2 {
-		if _, err := repo.WriteEdition(ctx, project.Slug, m); err != nil {
+		if _, err := repo.WriteEdition(ctx, project.Slug, m, nil); err != nil {
 			t.Fatalf("edition %d: %v", i+1, err)
 		}
 	}
@@ -168,7 +168,7 @@ func TestAManifestNamingAnUnknownCaseIsRefusedAndLeavesNoEdition(t *testing.T) {
 		}},
 	}}}
 
-	if _, err := repo.WriteEdition(ctx, project.Slug, m); !errors.Is(err, intake.ErrUnknownCase) {
+	if _, err := repo.WriteEdition(ctx, project.Slug, m, nil); !errors.Is(err, intake.ErrUnknownCase) {
 		t.Fatalf("err = %v, want ErrUnknownCase", err)
 	}
 
@@ -187,7 +187,7 @@ func TestAManifestReferencingAbsentContentIsRefusedAndNamesIt(t *testing.T) {
 		}},
 	}}}
 
-	_, err := repo.WriteEdition(ctx, project.Slug, m)
+	_, err := repo.WriteEdition(ctx, project.Slug, m, nil)
 	var missing *intake.MissingContent
 	if !errors.As(err, &missing) {
 		t.Fatalf("err = %v, want MissingContent", err)
@@ -236,7 +236,7 @@ func TestTheGridComesBackInStepOrderWithOnlyTheVariantsThatExist(t *testing.T) {
 			},
 		}},
 	}
-	if _, err := repo.WriteEdition(ctx, project.Slug, m); err != nil {
+	if _, err := repo.WriteEdition(ctx, project.Slug, m, nil); err != nil {
 		t.Fatalf("taking the edition in: %v", err)
 	}
 
@@ -308,7 +308,7 @@ func TestAnOlderEditionCanStillBeRead(t *testing.T) {
 					Captures: []contract.ManifestCapture{{Variant: map[string]string{"theme": "light"}, Hash: hash}},
 				}},
 			}},
-		})
+		}, nil)
 		if err != nil {
 			t.Fatalf("taking an edition in: %v", err)
 		}
@@ -421,7 +421,7 @@ func TestACaseSummaryCountsItsCapturesAndReportsZeroWhenItHasNone(t *testing.T) 
 				},
 			}},
 		}},
-	}); err != nil {
+	}, nil); err != nil {
 		t.Fatalf("taking the edition in: %v", err)
 	}
 
@@ -458,7 +458,7 @@ func TestTheFirstCapturesTakeACaseOutOfTheFunnelsEdgeAndJournalIt(t *testing.T) 
 				Captures: []contract.ManifestCapture{{Variant: map[string]string{"theme": "light"}, Hash: hash}},
 			}},
 		}},
-	}); err != nil {
+	}, nil); err != nil {
 		t.Fatalf("taking the edition in: %v", err)
 	}
 
@@ -507,7 +507,7 @@ func TestASecondEditionDoesNotReopenAJudgedCase(t *testing.T) {
 			Captures: []contract.ManifestCapture{{Variant: map[string]string{"theme": "light"}, Hash: hash}},
 		}},
 	}}}
-	if _, err := repo.WriteEdition(ctx, project.Slug, m); err != nil {
+	if _, err := repo.WriteEdition(ctx, project.Slug, m, nil); err != nil {
 		t.Fatalf("first edition: %v", err)
 	}
 
@@ -517,7 +517,7 @@ func TestASecondEditionDoesNotReopenAJudgedCase(t *testing.T) {
 		t.Fatalf("marking the case reviewed: %v", err)
 	}
 
-	if _, err := repo.WriteEdition(ctx, project.Slug, m); err != nil {
+	if _, err := repo.WriteEdition(ctx, project.Slug, m, nil); err != nil {
 		t.Fatalf("second edition: %v", err)
 	}
 
@@ -547,7 +547,7 @@ func TestOrderingTheAxesRelabelsTheVariantsAlreadyStored(t *testing.T) {
 				}},
 			}},
 		}},
-	}); err != nil {
+	}, nil); err != nil {
 		t.Fatalf("taking the edition in: %v", err)
 	}
 
@@ -593,7 +593,7 @@ func TestAnAxisTheProjectDidNotNameKeepsItsPlaceAfterThoseItDid(t *testing.T) {
 				}},
 			}},
 		}},
-	}); err != nil {
+	}, nil); err != nil {
 		t.Fatalf("taking the edition in: %v", err)
 	}
 
@@ -632,7 +632,7 @@ func TestNamingAnAxisNobodyCapturedDoesNotCreateIt(t *testing.T) {
 				}},
 			}},
 		}},
-	}); err != nil {
+	}, nil); err != nil {
 		t.Fatalf("taking the edition in: %v", err)
 	}
 
@@ -664,7 +664,7 @@ func seedGrid(t *testing.T, ctx context.Context, repo *postgres.Repository, proj
 				},
 			}},
 		}},
-	}); err != nil {
+	}, nil); err != nil {
 		t.Fatalf("taking the edition in: %v", err)
 	}
 

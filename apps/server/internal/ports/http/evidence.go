@@ -51,12 +51,20 @@ func toAPIGrid(g evidence.Grid) openapi.Grid {
 			Cells: make([]openapi.GridCell, 0, len(st.Cells)),
 		}
 		for _, c := range st.Cells {
-			step.Cells = append(step.Cells, openapi.GridCell{
+			cell := openapi.GridCell{
 				VariantId:  c.VariantID,
 				Hash:       c.Hash,
 				Status:     openapi.GridCellStatus(c.Status),
 				Provenance: toAPIProvenance(c.Provenance),
-			})
+			}
+			// Absent rather than empty: "nothing to compare against" is a
+			// different answer from "unchanged" (ADR 0017).
+			if c.Freshness != "" {
+				fresh := openapi.GridCellFreshness(c.Freshness)
+				cell.Freshness = &fresh
+			}
+			cell.MovedPixels = c.MovedPixels
+			step.Cells = append(step.Cells, cell)
 		}
 		out.Steps = append(out.Steps, step)
 	}

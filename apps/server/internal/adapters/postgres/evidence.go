@@ -85,10 +85,18 @@ func (r *Repository) CaseGrid(ctx context.Context, caseID string, editionID *str
 			}
 		}
 
-		steps[idx].Cells = append(steps[idx].Cells, evidence.Cell{
+		cell := evidence.Cell{
 			VariantID: *row.VariantID, Hash: *row.BlobHash,
 			Status: row.Status, Provenance: provenance,
-		})
+		}
+		if row.Freshness != nil {
+			cell.Freshness = *row.Freshness
+		}
+		if row.MovedPixels != nil {
+			moved := int(*row.MovedPixels)
+			cell.MovedPixels = &moved
+		}
+		steps[idx].Cells = append(steps[idx].Cells, cell)
 	}
 
 	grid.Steps = steps

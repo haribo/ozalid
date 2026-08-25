@@ -106,3 +106,10 @@ IntakeRefused:
           type: array
           description: The addresses to upload before pushing again.
           items: { type: string }
+        notAPng:
+          type: array
+          description: |
+            The addresses of captures that are not PNG. A separate field from
+            `missingContent` on purpose: the store holds these bytes, so
+            uploading them again would fix nothing. They have to be re-captured.
+          items: { type: string }

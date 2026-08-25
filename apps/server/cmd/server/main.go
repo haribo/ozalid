@@ -80,7 +80,7 @@ func run() error {
 		Blobs:        blobs,
 		BlobRecorder: store,
 		Catalogue:    catalogue.New(store),
-		Intake:       intake.New(store),
+		Intake:       intake.New(store, blobs),
 		Evidence:     evidence.New(store),
 		Session:      session.New(store),
 		Comment:      comment.New(store),

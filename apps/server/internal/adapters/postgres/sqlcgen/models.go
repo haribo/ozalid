@@ -22,12 +22,14 @@ type Blob struct {
 }
 
 type Capture struct {
-	ID         string
-	EditionID  string
-	StepID     string
-	VariantID  string
-	BlobHash   string
-	Provenance []byte
+	ID          string
+	EditionID   string
+	StepID      string
+	VariantID   string
+	BlobHash    string
+	Provenance  []byte
+	Freshness   *string
+	MovedPixels *int32
 }
 
 type CaptureReference struct {
@@ -122,11 +124,12 @@ type Journal struct {
 }
 
 type Project struct {
-	ID           string
-	Slug         string
-	Name         string
-	IntakePolicy string
-	CreatedAt    pgtype.Timestamptz
+	ID             string
+	Slug           string
+	Name           string
+	IntakePolicy   string
+	CreatedAt      pgtype.Timestamptz
+	PixelThreshold int32
 }
 
 type Recording struct {

@@ -17,7 +17,9 @@ import (
 // Everything the manifest asserts is checked first — the project, the cases,
 // the content addresses — and only then is anything written. A failure at any
 // point rolls the lot back, so a half-written edition never exists.
-func (r *Repository) WriteEdition(ctx context.Context, projectSlug string, m contract.Manifest) (appintake.Result, error) {
+func (r *Repository) WriteEdition(
+	ctx context.Context, projectSlug string, m contract.Manifest, fresh map[appintake.Square]appintake.Verdict,
+) (appintake.Result, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return appintake.Result{}, fmt.Errorf("beginning the intake: %w", err)
@@ -101,9 +103,28 @@ func (r *Repository) WriteEdition(ctx context.Context, projectSlug string, m con
 				if err != nil {
 					return appintake.Result{}, fmt.Errorf("encoding the provenance: %w", err)
 				}
+				// The comparison already ran, keyed on what the manifest says
+				// rather than on ids it never sees. A square nobody has
+				// approved is absent from the map, and stays silent.
+				verdict := fresh[appintake.Square{
+					CaseID:        mc.ID,
+					StepPosition:  position,
+					VariantLabel:  contract.VariantLabel(mcap.Variant, variants.order),
+					EnvironmentID: mcap.Provenance.EnvironmentID,
+				}]
+				var freshness *string
+				var moved *int32
+				if verdict.State != "" {
+					freshness = ptr(verdict.State)
+					if verdict.Pixels != nil {
+						n := int32(*verdict.Pixels)
+						moved = &n
+					}
+				}
 				if _, err := q.CreateCapture(ctx, sqlcgen.CreateCaptureParams{
 					EditionID: edition.ID, StepID: step.ID, VariantID: variantID,
 					BlobHash: mcap.Hash, Provenance: provenance,
+					Freshness: freshness, MovedPixels: moved,
 				}); err != nil {
 					return appintake.Result{}, translate("recording a capture", err)
 				}

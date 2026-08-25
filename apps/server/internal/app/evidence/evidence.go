@@ -26,10 +26,17 @@ type Variant struct {
 // Cell is one capture: a variant, the address of its bytes, and where the
 // review stands on it.
 type Cell struct {
-	VariantID  string
-	Hash       string
-	Status     string
-	Provenance contract.Provenance
+	VariantID string
+	Hash      string
+	Status    string
+	// Freshness is empty when there is nothing to compare against: nobody has
+	// approved this square in this capture's environment. That is not the same
+	// as unchanged (ADR 0017).
+	Freshness string
+	// MovedPixels is nil when no pixel reading happened — identical addresses
+	// need none, mismatched dimensions admit none.
+	MovedPixels *int
+	Provenance  contract.Provenance
 }
 
 // Step is a named business moment and the captures taken at it.

@@ -38,9 +38,11 @@ ON CONFLICT (hash) DO NOTHING;
 -- name: BlobExists :one
 SELECT EXISTS (SELECT 1 FROM blobs WHERE hash = $1);
 
+-- A capture is born with its freshness: it is computed once, against what was
+-- approved, and the row never changes again.
 -- name: CreateCapture :one
-INSERT INTO captures (edition_id, step_id, variant_id, blob_hash, provenance)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO captures (edition_id, step_id, variant_id, blob_hash, provenance, freshness, moved_pixels)
+VALUES ($1, $2, $3, $4, $5, @freshness, @moved_pixels)
 RETURNING *;
 
 -- name: CreateRecording :one
@@ -102,3 +104,18 @@ SET current_edition_id = @edition_id, updated_at = now()
 WHERE id = ANY(@case_ids::text[])
   AND (current_edition_id IS NULL OR state <> 'to-review')
 RETURNING id;
+
+-- name: ProjectThreshold :one
+SELECT pixel_threshold FROM projects WHERE slug = $1;
+
+-- Every reference a case holds, with the step position and variant label the
+-- manifest names them by. Keyed on what the manifest can say, not on ids it
+-- does not know.
+-- name: ReferencesForCases :many
+SELECT s.case_id, s.position AS step_position, v.label AS variant_label,
+       r.environment_id, r.blob_hash
+FROM capture_references r
+JOIN steps s ON s.id = r.step_id
+JOIN variants v ON v.id = r.variant_id
+WHERE r.case_id = ANY($1::text[]);
+
