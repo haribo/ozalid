@@ -50,6 +50,37 @@ describe('CaptureCarousel', () => {
     expect(pending.find('[aria-label="validée"]').exists()).toBe(false)
   })
 
+  it('says on the image that it moved, and by how much', () => {
+    // The reviewer may have walked here with the keyboard and never seen the
+    // grid's mark. The pixel count is what makes the project's threshold
+    // judgeable rather than guessed.
+    const moved: Grid = {
+      ...grid,
+      steps: [
+        {
+          ...grid.steps[0],
+          cells: [
+            {
+              variantId: 'v1',
+              hash: 'sha256:a',
+              status: 'validated',
+              freshness: 'to-re-review',
+              movedPixels: 143,
+            },
+            { variantId: 'v2', hash: 'sha256:b', status: 'validated', freshness: 'current' },
+          ],
+        },
+      ],
+    }
+    const w = mount(CaptureCarousel, {
+      props: { grid: moved, comments: [], stepId: 's1', variantId: 'v1' },
+    })
+    expect(w.text()).toContain('a bougé')
+    expect(w.text()).toContain('143 px')
+    // Back to full strength: it needs eyes again, whatever its verdict says.
+    expect(w.find('img').classes()).not.toContain('opacity-40')
+  })
+
   it('validates on space, and asks the server rather than deciding alone', () => {
     const w = mountAt('v1')
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }))

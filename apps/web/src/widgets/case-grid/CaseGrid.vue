@@ -2,19 +2,20 @@
 /**
  * The grid a case is judged from: steps down, variants across.
  *
- * Nothing here is edited. Each capture wears its own verdict — a coloured ring
- * and a mark — and the thumbnail is the way in: clicking one opens the carousel
- * on that exact capture.
+ * It answers one question — what have I validated, and what have I not? — and
+ * carries no other detail (frontend ADR 0003). A square that has been judged and
+ * has not moved steps back and wears its mark; a square that still needs eyes
+ * stays bare and at full strength. Nothing is edited here: the thumbnail is the
+ * way in, and clicking one opens the carousel on that exact capture.
  *
  * A capture sits on an inert ground: no shadow, no gradient, no tinted cell
  * behind the image. This interface frames someone else's product, and nothing
- * of ozalid's may be mistaken for part of it. The verdict rings the capture
- * rather than colouring what surrounds it.
+ * of ozalid's may be mistaken for part of it.
  */
 import { computed } from 'vue'
 import type { components } from '@/shared/api'
-import { StateIcon, VariantHead } from '@/shared/ui'
-import type { Tone } from '@/shared/lib'
+import { MissingIcon, MovedIcon, StateIcon, VariantHead } from '@/shared/ui'
+import { hasMoved, type Tone } from '@/shared/lib'
 
 type Grid = components['schemas']['Grid']
 type Cell = Grid['steps'][number]['cells'][number]
@@ -41,33 +42,40 @@ function isPortrait(values: Record<string, string>) {
 
 const SIZE = { wide: 'h-[72px] w-[116px]', tall: 'h-[94px] w-[60px]' }
 
-/** The ring around a capture, and the mark under it. */
+const NEUTRAL = 'border-slate-300 dark:border-slate-600'
 const RING: Record<string, string> = {
   validated: 'border-emerald-600 dark:border-emerald-500',
   'to-fix': 'border-amber-600 dark:border-amber-500',
-  'to-review': 'border-slate-300 dark:border-slate-600',
+  'to-review': NEUTRAL,
 }
-const MARK: Record<string, string> = {
+const INK: Record<string, string> = {
   validated: 'text-emerald-700 dark:text-emerald-400',
   'to-fix': 'text-amber-700 dark:text-amber-400',
-  'to-review': 'text-slate-500 dark:text-slate-400',
 }
-const LABEL: Record<string, string> = {
-  validated: 'validée',
-  'to-fix': 'commentée',
-  'to-review': 'à juger',
-}
-const TONE: Record<string, Tone> = {
-  validated: 'done',
-  'to-fix': 'dev',
-  'to-review': 'reviewer',
+const TONE: Record<string, Tone> = { validated: 'done', 'to-fix': 'dev' }
+const LABEL: Record<string, string> = { validated: 'validée', 'to-fix': 'commentée' }
+
+/**
+ * The six readings a cell can have, and no others.
+ *
+ * A capture that has moved is one of them: for the only question the grid asks,
+ * it has not been validated — not the bytes on display. It renders as a square
+ * to judge, and the mark saying why it came back takes the place of the verdict
+ * badge it used to wear. Validated-and-moved and commented-and-moved are one
+ * cell: what separated them is exactly what the grid no longer reports
+ * (frontend ADR 0003).
+ */
+function reading(cell: Cell): 'moved' | 'judged' | 'pending' {
+  if (hasMoved(cell.freshness)) return 'moved'
+  if (cell.status === 'validated' || cell.status === 'to-fix') return 'judged'
+  return 'pending'
 }
 
-/** A verdict, once given, is stamped straight onto the capture — no disc, no
- * plate behind it — and the capture steps back. Full intensity is what the eye
- * should be left with: the squares still to look at. */
-function judged(cell: Cell) {
-  return cell.status === 'validated' || cell.status === 'to-fix'
+/** Judged and settled: it steps back, because full intensity is reserved for
+ * what still needs eyes. That is what makes the answer readable at a glance
+ * rather than by counting. */
+function settled(cell: Cell) {
+  return reading(cell) === 'judged'
 }
 
 function isOpen(step: Grid['steps'][number], cell: Cell) {
@@ -85,158 +93,166 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
     aucune capture pour ce cas
   </p>
 
-  <div v-else class="overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700">
-    <table class="w-full border-separate border-spacing-0 text-[13.5px]">
-      <thead>
-        <tr
-          class="bg-slate-50 font-mono text-[10.5px] text-slate-500 dark:bg-slate-800/60 dark:text-slate-400"
-        >
-          <th
-            class="border-r border-b border-slate-200 px-3 py-2 text-left font-medium dark:border-slate-700"
+  <template v-else>
+    <div class="overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700">
+      <table class="w-full border-separate border-spacing-0 text-[13.5px]">
+        <thead>
+          <tr
+            class="bg-slate-50 font-mono text-[10.5px] text-slate-500 dark:bg-slate-800/60 dark:text-slate-400"
           >
-            étape
-          </th>
-          <th
-            v-for="v in variants"
-            :key="v.id"
-            class="border-r border-b border-slate-200 px-3 py-2 text-center font-medium whitespace-nowrap last:border-r-0 dark:border-slate-700"
-          >
-            <VariantHead :label="v.label" :values="v.values" class="justify-center" />
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-if="hasRecordings" class="bg-slate-50/60 dark:bg-slate-800/30">
-          <th
-            class="border-r border-b border-slate-200 px-3 py-2.5 text-left align-middle text-[12.5px] font-semibold dark:border-slate-700"
-          >
-            enregistrement
-            <i
-              class="mt-0.5 block font-mono text-[10px] font-normal text-slate-500 not-italic dark:text-slate-400"
+            <th
+              class="border-r border-b border-slate-200 px-3 py-2 text-left font-medium dark:border-slate-700"
             >
-              le flux complet
-            </i>
-          </th>
-          <td
-            v-for="v in variants"
-            :key="v.id"
-            class="border-r border-b border-slate-200 p-2.5 text-center align-middle last:border-r-0 dark:border-slate-700"
-          >
-            <!-- No verdict ring here, ever: a recording is not comparable, so
-                 nothing about it can be judged (ADR 0013). Giving it a colour
-                 would invent a state the server does not compute. -->
-            <a
-              v-if="recordingOf(v.id)"
-              :href="`/api/blobs/${recordingOf(v.id)!.hash}`"
-              class="inline-grid place-items-center border-2 border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
-              :class="isPortrait(v.values) ? SIZE.tall : SIZE.wide"
+              étape
+            </th>
+            <th
+              v-for="v in variants"
+              :key="v.id"
+              class="border-r border-b border-slate-200 px-3 py-2 text-center font-medium whitespace-nowrap last:border-r-0 dark:border-slate-700"
             >
-              <!-- A plain triangle, not the emoji: a coloured glyph next to a
-                   capture is exactly the decoration this interface must not
-                   put there. -->
-              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M5 3.5v9l7-4.5z" fill="currentColor" />
-              </svg>
-            </a>
-          </td>
-        </tr>
-
-        <tr v-for="step in grid.steps" :key="step.id">
-          <th
-            class="border-r border-b border-slate-200 px-3 py-2.5 text-left align-middle text-[12.5px] font-semibold last:border-b-0 dark:border-slate-700"
-          >
-            {{ step.name }}
-            <i
-              class="mt-0.5 block font-mono text-[10px] font-normal text-slate-500 not-italic dark:text-slate-400"
+              <VariantHead :label="v.label" :values="v.values" class="justify-center" />
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="hasRecordings" class="bg-slate-50/60 dark:bg-slate-800/30">
+            <th
+              class="border-r border-b border-slate-200 px-3 py-2.5 text-left align-middle text-[12.5px] font-semibold dark:border-slate-700"
             >
-              étape {{ step.position + 1 }}
-            </i>
-          </th>
-          <td
-            v-for="v in variants"
-            :key="v.id"
-            class="border-r border-b border-slate-200 p-2.5 text-center align-middle last:border-r-0 dark:border-slate-700"
-          >
-            <template v-if="cellOf(step, v.id)">
-              <span class="relative inline-block leading-none">
-                <button
-                  type="button"
-                  class="block cursor-zoom-in border-2 p-0 hover:border-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
-                  :class="[
-                    isPortrait(v.values) ? SIZE.tall : SIZE.wide,
-                    RING[cellOf(step, v.id)!.status],
-                    isOpen(step, cellOf(step, v.id)!)
-                      ? 'ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-900'
-                      : '',
-                  ]"
-                  :aria-label="`ouvrir ${step.name} — ${v.label} dans le carrousel`"
-                  @click="emit('open', step.id, v.id)"
-                >
-                  <img
-                    :src="`/api/blobs/${cellOf(step, v.id)!.hash}`"
-                    :alt="`${step.name} — ${v.label}`"
-                    loading="lazy"
-                    class="block h-full w-full bg-slate-100 object-cover dark:bg-slate-900"
-                    :class="judged(cellOf(step, v.id)!) ? 'opacity-40' : ''"
-                  />
-                </button>
-                <span
-                  v-if="judged(cellOf(step, v.id)!)"
-                  class="pointer-events-none absolute inset-0 grid place-items-center"
-                  :class="MARK[cellOf(step, v.id)!.status]"
-                >
-                  <StateIcon
-                    :tone="TONE[cellOf(step, v.id)!.status]"
-                    :size="26"
-                    :label="LABEL[cellOf(step, v.id)!.status]"
-                  />
-                </span>
-              </span>
-              <span
-                class="mt-1.5 flex items-center justify-center gap-1.5 font-mono text-[10px]"
-                :class="MARK[cellOf(step, v.id)!.status]"
+              enregistrement
+              <i
+                class="mt-0.5 block font-mono text-[10px] font-normal text-slate-500 not-italic dark:text-slate-400"
               >
-                <StateIcon
-                  :tone="TONE[cellOf(step, v.id)!.status]"
-                  :size="12"
-                  :label="LABEL[cellOf(step, v.id)!.status]"
-                />
-                {{ LABEL[cellOf(step, v.id)!.status] }}
-              </span>
-            </template>
-
-            <!-- A hole: every other variant of this step was captured, this one
-                 was not. That is a failed run, not a deliberate absence. -->
-            <template v-else>
-              <span
-                class="inline-grid place-items-center border-2 border-dashed border-red-600 bg-red-50 text-red-700 dark:border-red-500 dark:bg-red-950/50 dark:text-red-400"
+                le flux complet
+              </i>
+            </th>
+            <td
+              v-for="v in variants"
+              :key="v.id"
+              class="border-r border-b border-slate-200 p-2.5 text-center align-middle last:border-r-0 dark:border-slate-700"
+            >
+              <!-- No verdict ring, ever: a recording is not comparable, so
+                   nothing about it can be judged (ADR 0013). Giving it a colour
+                   would invent a state the server does not compute. -->
+              <a
+                v-if="recordingOf(v.id)"
+                :href="`/api/blobs/${recordingOf(v.id)!.hash}`"
+                class="inline-grid place-items-center border-2 border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
                 :class="isPortrait(v.values) ? SIZE.tall : SIZE.wide"
               >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.4"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  role="img"
-                  aria-label="capture manquante"
-                >
-                  <title>capture manquante</title>
-                  <path d="M8 2.2L14.5 13.4H1.5z" />
-                  <path d="M8 6.4v3M8 11.4v.1" />
+                <!-- A plain triangle, not the emoji: a coloured glyph next to a
+                     capture is exactly the decoration this interface must not
+                     put there. -->
+                <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M5 3.5v9l7-4.5z" fill="currentColor" />
                 </svg>
-              </span>
-              <span
-                class="mt-1.5 block font-mono text-[10px] text-red-700 dark:text-red-400"
-                >manquante</span
+              </a>
+            </td>
+          </tr>
+
+          <tr v-for="step in grid.steps" :key="step.id">
+            <th
+              class="border-r border-b border-slate-200 px-3 py-2.5 text-left align-middle text-[12.5px] font-semibold last:border-b-0 dark:border-slate-700"
+            >
+              {{ step.name }}
+              <i
+                class="mt-0.5 block font-mono text-[10px] font-normal text-slate-500 not-italic dark:text-slate-400"
               >
-            </template>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+                étape {{ step.position + 1 }}
+              </i>
+            </th>
+            <td
+              v-for="v in variants"
+              :key="v.id"
+              class="border-r border-b border-slate-200 p-2.5 text-center align-middle last:border-r-0 dark:border-slate-700"
+            >
+              <template v-if="cellOf(step, v.id)">
+                <span class="relative inline-block leading-none">
+                  <button
+                    type="button"
+                    class="block cursor-zoom-in border-2 p-0 hover:border-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                    :class="[
+                      isPortrait(v.values) ? SIZE.tall : SIZE.wide,
+                      reading(cellOf(step, v.id)!) === 'judged'
+                        ? RING[cellOf(step, v.id)!.status]
+                        : NEUTRAL,
+                      isOpen(step, cellOf(step, v.id)!)
+                        ? 'ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-900'
+                        : '',
+                    ]"
+                    :aria-label="`ouvrir ${step.name} — ${v.label} dans le carrousel`"
+                    @click="emit('open', step.id, v.id)"
+                  >
+                    <img
+                      :src="`/api/blobs/${cellOf(step, v.id)!.hash}`"
+                      :alt="`${step.name} — ${v.label}`"
+                      loading="lazy"
+                      class="block h-full w-full bg-slate-100 object-cover dark:bg-slate-900"
+                      :class="settled(cellOf(step, v.id)!) ? 'opacity-40' : ''"
+                    />
+                  </button>
+                  <span
+                    v-if="settled(cellOf(step, v.id)!)"
+                    class="pointer-events-none absolute inset-0 grid place-items-center"
+                    :class="INK[cellOf(step, v.id)!.status]"
+                  >
+                    <StateIcon
+                      :tone="TONE[cellOf(step, v.id)!.status]"
+                      :size="18"
+                      :label="LABEL[cellOf(step, v.id)!.status]"
+                      :class="
+                        cellOf(step, v.id)!.status === 'validated'
+                          ? 'bg-emerald-50 dark:bg-emerald-950'
+                          : 'bg-amber-50 dark:bg-amber-950'
+                      "
+                    />
+                  </span>
+                  <span
+                    v-else-if="reading(cellOf(step, v.id)!) === 'moved'"
+                    class="pointer-events-none absolute inset-0 grid place-items-center text-indigo-600 dark:text-indigo-300"
+                  >
+                    <MovedIcon :size="18" label="a bougé" class="bg-indigo-50 dark:bg-indigo-950" />
+                  </span>
+                </span>
+              </template>
+
+              <!-- A hole: every other variant of this step was captured, this
+                   one was not. That is a failed run, not a deliberate
+                   absence. -->
+              <template v-else>
+                <span
+                  class="inline-grid place-items-center border-2 border-dashed border-red-600 bg-red-50 text-red-700 dark:border-red-500 dark:bg-red-950/50 dark:text-red-400"
+                  :class="isPortrait(v.values) ? SIZE.tall : SIZE.wide"
+                >
+                  <MissingIcon :size="18" />
+                </span>
+              </template>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- The words are gone from under the thumbnails, so the language is learnt
+         here instead — once, rather than translated under every cell. -->
+    <div
+      class="mt-2.5 flex flex-wrap justify-center gap-x-5 gap-y-1.5 font-mono text-[10.5px] text-slate-500 dark:text-slate-400"
+    >
+      <span class="flex items-center gap-1.5">
+        <StateIcon tone="reviewer" :size="12" label="à juger" />à juger
+      </span>
+      <span class="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+        <StateIcon tone="done" :size="12" label="validée" />validée
+      </span>
+      <span class="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+        <StateIcon tone="dev" :size="12" label="commentée" />commentée
+      </span>
+      <span class="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-300">
+        <MovedIcon :size="12" label="a bougé" />a bougé
+      </span>
+      <span class="flex items-center gap-1.5 text-red-700 dark:text-red-400">
+        <MissingIcon :size="12" />manquante
+      </span>
+    </div>
+  </template>
 </template>

@@ -9,3 +9,5 @@ reversal is a new ADR carrying links on both sides — are set by
 | --- | --- |
 | [0001](0001-frontend-stack.md) | Vue 3, TypeScript, Vite, Tailwind |
 | [0002](0002-fsd-architecture.md) | Feature-Sliced Design |
+| [0003](0003-the-grid-answers-one-question.md) | The grid answers one question |
+| [0004](0004-a-status-is-a-glyph-on-a-disc.md) | A status is a glyph on a disc |
