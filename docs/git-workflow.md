@@ -96,6 +96,11 @@ check is intended, not a missing step.
 | Web CI | `apps/web/**`, `apps/server/api/openapi.yaml`, the workflow file |
 | PR validation | every pull request |
 | Security (secret scan) | every push to a permanent branch, every pull request |
+| End to end | `apps/web/**`, `apps/server/**`, `internal/**`, `justfile`, `docker-compose.yaml`, the workflow file |
+
+The end-to-end filter names both sides on purpose: a change to the server can
+break the client without touching a line of it, which is the whole reason that
+suite exists.
 
 The API document appears in the web filter deliberately: the typed client is
 generated from it, so a contract change must re-check the client that consumes

@@ -150,10 +150,67 @@ fe-test:
 fe-format:
     cd {{web}} && npm run format
 
+# The ports the end-to-end suite owns. Off the development ones on purpose: a
+# suite that borrows the API you are debugging is a suite you turn off.
+e2e_port := env_var_or_default("OZALID_E2E_PORT", "8091")
+e2e_web_port := env_var_or_default("OZALID_E2E_WEB_PORT", "4174")
+e2e_dsn := "postgres://ozalid:ozalid@localhost:" + pg_port + "/ozalid_e2e?sslmode=disable"
+
+# Run the end-to-end suite: a real browser, a real server, a real database.
+#
+# It owns everything it touches — its own database, its own blob directory, its
+# own ports — and tears them down after. Running against the development
+# database would destroy a developer's data on every run.
+fe-test-e2e:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    docker compose up -d --wait postgres
+    # A database of its own, inside the container that is already running.
+    psql "postgres://ozalid:ozalid@localhost:{{pg_port}}/postgres"       -v ON_ERROR_STOP=1 -c 'DROP DATABASE IF EXISTS ozalid_e2e' -c 'CREATE DATABASE ozalid_e2e' >/dev/null
+    GOOSE_DRIVER=postgres GOOSE_DBSTRING='{{e2e_dsn}}'       GOOSE_MIGRATION_DIR=apps/server/db/migrations go tool goose up >/dev/null
+
+    blobs=$(mktemp -d)
+    go build -o "$blobs/server" ./apps/server/cmd/server
+    OZALID_ADDR=":{{e2e_port}}" OZALID_DSN='{{e2e_dsn}}' OZALID_BLOB_ROOT="$blobs/blobs"       "$blobs/server" >"$blobs/server.log" 2>&1 &
+    server=$!
+    # Everything below is torn down whether the suite passes or fails.
+    trap 'kill $server 2>/dev/null || true; rm -rf "$blobs"' EXIT
+
+    for _ in $(seq 1 50); do
+      curl -sf "http://localhost:{{e2e_port}}/api/health" >/dev/null && break
+      sleep 0.2
+    done
+    curl -sf "http://localhost:{{e2e_port}}/api/health" >/dev/null || {
+      echo "the server never came up:"; cat "$blobs/server.log"; exit 1; }
+
+    cd {{web}}
+    # The suite runs against the built client, not the dev server: what CI
+    # ships is what it watches.
+    OZALID_API="http://localhost:{{e2e_port}}" npm run build >/dev/null
+    OZALID_API="http://localhost:{{e2e_port}}" OZALID_E2E_WEB_PORT="{{e2e_web_port}}" \
+      npx vite preview >"$blobs/web.log" 2>&1 &
+    web=$!
+    trap 'kill $server $web 2>/dev/null || true; rm -rf "$blobs"' EXIT
+
+    for _ in $(seq 1 50); do
+      curl -sf "http://localhost:{{e2e_web_port}}/" >/dev/null && break
+      sleep 0.2
+    done
+    curl -sf "http://localhost:{{e2e_web_port}}/" >/dev/null || {
+      echo "the client never came up:"; cat "$blobs/web.log"; exit 1; }
+
+    OZALID_API="http://localhost:{{e2e_port}}" \
+      OZALID_E2E_WEB="http://localhost:{{e2e_web_port}}" \
+      npx playwright test
+
 # ----------------------------------------------------------------------- both
 
 # Everything a pull request must pass locally.
 check: gen-check be-check fe-check
 
-# Every test suite.
+# Every test suite that needs nothing but the repository.
+#
+# `fe-test-e2e` is deliberately not here: it needs Docker, and a recipe that
+# fails on a machine without it would teach people to skip the recipe.
 test: be-test fe-test
