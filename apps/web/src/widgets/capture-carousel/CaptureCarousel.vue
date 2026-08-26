@@ -8,8 +8,8 @@
  */
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import type { components } from '@/shared/api'
-import { KindIcon, StateIcon } from '@/shared/ui'
-import type { Tone } from '@/shared/lib'
+import { ActionIcon, KindIcon, MovedIcon, StateIcon } from '@/shared/ui'
+import { hasMoved, type Tone } from '@/shared/lib'
 
 type Grid = components['schemas']['Grid']
 type Comment = components['schemas']['Comment']
@@ -69,7 +69,12 @@ const VERDICT_MARK: Record<string, string> = {
 }
 const VERDICT_LABEL: Record<string, string> = { validated: 'validée', 'to-fix': 'commentée' }
 
-const judged = computed(() => cell.value !== undefined && cell.value.status in VERDICT_TONE)
+/** A capture that has moved is back to needing eyes, whatever its verdict says,
+ * so it comes back to full strength here as it does in the grid. */
+const moved = computed(() => hasMoved(cell.value?.freshness))
+const judged = computed(
+  () => cell.value !== undefined && cell.value.status in VERDICT_TONE && !moved.value,
+)
 
 function go(delta: number) {
   const next = squares.value[index.value + delta]
@@ -243,6 +248,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
            steps back and wears its verdict, so what the eye lands on is what
            still needs looking at. -->
       <span v-if="cell" class="relative inline-block leading-none">
+        <!-- Said on the image itself: the reviewer landed here from a keyboard
+             walk and never saw the grid's mark. -->
+        <span
+          v-if="moved"
+          class="absolute -top-3 -right-3 z-10 flex items-center gap-1.5 rounded border border-indigo-500 bg-white px-2 py-1 font-mono text-[10.5px] text-indigo-700 dark:border-indigo-400 dark:bg-slate-900 dark:text-indigo-300"
+        >
+          <MovedIcon :size="12" />a bougé<template v-if="cell.movedPixels !== undefined">
+            · {{ cell.movedPixels }} px</template
+          >
+        </span>
         <img
           :src="`/api/blobs/${cell.hash}`"
           :alt="`${step?.name} — ${variant?.label}`"
@@ -281,7 +296,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           :disabled="busy"
           @click="accept"
         >
-          <StateIcon tone="done" :size="13" label="accepter" />accepter
+          <ActionIcon name="accept" :size="13" />accepter
         </button>
         <button
           type="button"
@@ -289,7 +304,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           :disabled="busy || (refusing && remark.trim() === '')"
           @click="refuse"
         >
-          <StateIcon tone="dev" :size="13" label="refuser" />refuser
+          <ActionIcon name="refuse" :size="13" />refuser
         </button>
         <span v-if="!refusing" class="font-mono text-[11px] text-slate-500"
           >refuser demandera votre remarque</span
@@ -316,7 +331,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         :disabled="busy || cell?.status === 'validated'"
         @click="emit('validate', stepId, variantId)"
       >
-        <StateIcon tone="done" :size="13" label="valider" />valider
+        <ActionIcon name="check" :size="13" />valider
         <kbd class="rounded border border-current px-1 text-[10px]">espace</kbd>
       </button>
       <button
@@ -325,7 +340,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         :disabled="busy"
         @click="openComposer"
       >
-        <StateIcon tone="dev" :size="13" label="commenter" />commenter
+        <ActionIcon name="comment" :size="13" />commenter
       </button>
       <span
         v-if="cell?.status === 'validated'"

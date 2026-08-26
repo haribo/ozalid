@@ -6,8 +6,8 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { api, type components } from '@/shared/api'
-import { StatePill } from '@/shared/ui'
-import { formatMoment, type CaseState } from '@/shared/lib'
+import { MissingIcon, MovedIcon, StatePill } from '@/shared/ui'
+import { formatMoment, hasMoved, type CaseState } from '@/shared/lib'
 import { useReview } from '@/features/review'
 import { CaseGrid } from '@/widgets/case-grid'
 import { CaptureCarousel } from '@/widgets/capture-carousel'
@@ -59,6 +59,9 @@ const tally = computed(() => {
     commented: count('to-fix'),
     toJudge: count('to-review'),
     missing: Math.max(0, expected - cells.length),
+    // Counted like the holes, and for the same reason: a reviewer should not
+    // have to scan the grid to learn there is work waiting.
+    moved: cells.filter((c) => hasMoved(c.freshness)).length,
   }
 })
 
@@ -119,23 +122,18 @@ async function refreshCase() {
           </span>
         </template>
         <span
+          v-if="tally.moved > 0"
+          class="inline-flex items-center gap-1.5 rounded border border-indigo-500 bg-indigo-50 px-1.5 py-0.5 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-950/60 dark:text-indigo-300"
+        >
+          <MovedIcon :size="10" />
+          {{ tally.moved }} capture{{ tally.moved > 1 ? 's' : '' }} {{ tally.moved > 1 ? 'ont' : 'a' }}
+          bougé
+        </span>
+        <span
           v-if="tally.missing > 0"
           class="inline-flex items-center gap-1.5 rounded border border-red-600 bg-red-50 px-1.5 py-0.5 text-red-700 dark:border-red-500 dark:bg-red-950/60 dark:text-red-400"
         >
-          <svg
-            width="11"
-            height="11"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.4"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M8 2.2L14.5 13.4H1.5z" />
-            <path d="M8 6.4v3M8 11.4v.1" />
-          </svg>
+          <MissingIcon :size="10" />
           {{ tally.missing }} capture{{ tally.missing > 1 ? 's' : '' }} manquante{{
             tally.missing > 1 ? 's' : ''
           }}

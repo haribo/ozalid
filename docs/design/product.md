@@ -114,6 +114,12 @@ rendering rather than of a project, and it is fixed. The **threshold** says how
 many differing pixels are worth summoning a reviewer for; that is a project's
 own tolerance for the noise its suite produces, and it is configurable.
 
+Every differing pixel is counted, above the threshold as well as below it.
+Stopping at the threshold would report one more than the threshold and nothing
+else, which would make the number worthless for the only thing it is kept for —
+and a project still on the default threshold would never learn how much noise
+its own suite makes.
+
 Captures whose dimensions differ are moved without being compared: there is no
 pixel-to-pixel reading of two images that are not the same shape.
 

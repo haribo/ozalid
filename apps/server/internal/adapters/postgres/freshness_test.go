@@ -175,9 +175,10 @@ func TestAnImageThatMovedIsMarkedAndCounted(t *testing.T) {
 	if moved == nil {
 		t.Fatal("movedPixels is nil, want the count that makes the threshold judgeable")
 	}
-	// The project's threshold is zero, so counting stops one past it.
-	if *moved != 1 {
-		t.Errorf("movedPixels = %d, want 1 — counting stops once the answer is settled", *moved)
+	// Every differing pixel is counted, threshold or no threshold: the number
+	// is what lets a project judge its threshold rather than guess it.
+	if *moved != 4 {
+		t.Errorf("movedPixels = %d, want 4 — every differing pixel is counted", *moved)
 	}
 }
 

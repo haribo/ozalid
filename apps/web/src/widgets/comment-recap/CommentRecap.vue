@@ -13,7 +13,7 @@
  */
 import { computed } from 'vue'
 import type { components } from '@/shared/api'
-import { KindIcon, StateIcon, VariantHead } from '@/shared/ui'
+import { ActionIcon, KindIcon, StateIcon, VariantHead } from '@/shared/ui'
 import type { Tone } from '@/shared/lib'
 
 type Grid = components['schemas']['Grid']
@@ -173,13 +173,13 @@ function lastRefusal(c: Comment) {
                   v-if="lastRefusal(c)"
                   class="mt-1 flex gap-1.5 font-mono text-[10.5px] text-amber-700 dark:text-amber-400"
                 >
-                  <StateIcon tone="dev" :size="12" label="refusé" />{{ lastRefusal(c) }}
+                  <ActionIcon name="refuse" :size="12" label="refusé" />{{ lastRefusal(c) }}
                 </span>
               </td>
               <td v-for="v in grid.variants" :key="v.id" class="px-1 py-2.5 text-center align-middle">
-                <StateIcon
+                <ActionIcon
                   v-if="c.variantIds.includes(v.id)"
-                  tone="done"
+                  name="check"
                   :size="13"
                   :label="`s'applique à ${v.label}`"
                   class="mx-auto text-emerald-700 dark:text-emerald-400"
