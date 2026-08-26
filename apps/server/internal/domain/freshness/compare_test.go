@@ -85,9 +85,12 @@ func TestOnePixelPastTheThresholdIsEnough(t *testing.T) {
 	}
 }
 
-func TestCountingStopsOnceTheAnswerIsSettled(t *testing.T) {
-	// Above the threshold the exact count changes nothing, and a full redraw
-	// would otherwise walk millions of pixels to say what the first few said.
+func TestEveryPixelIsCountedEvenOnceTheAnswerIsSettled(t *testing.T) {
+	// Stopping at the threshold would be cheaper and would make the number
+	// useless: it would always read one more than the threshold. The count
+	// exists so a project can judge its threshold rather than guess it
+	// (product.md §3.3), and a project on the default zero would learn nothing
+	// about its own noise.
 	a := canvas(400, 400, color.RGBA{A: 255})
 	b := canvas(400, 400, color.RGBA{R: 255, G: 255, B: 255, A: 255})
 
@@ -95,8 +98,34 @@ func TestCountingStopsOnceTheAnswerIsSettled(t *testing.T) {
 	if got.State != freshness.ToReReview {
 		t.Fatalf("state = %q, want to-re-review", got.State)
 	}
-	if got.Pixels != 11 {
-		t.Errorf("pixels = %d, want 11 — counting should stop one past the threshold", got.Pixels)
+	if got.Pixels != 400*400 {
+		t.Errorf("pixels = %d, want %d — the whole image differs", got.Pixels, 400*400)
+	}
+}
+
+// slowOnly wraps an image so it cannot be recognised as an *image.RGBA, which
+// forces the general path.
+type slowOnly struct{ image.Image }
+
+func TestTheFastPathAndTheSlowPathAgree(t *testing.T) {
+	// The byte-slice walk exists only to make counting every pixel affordable.
+	// A second implementation that disagrees with the first would be worse than
+	// no optimisation at all.
+	a := canvas(60, 40, color.RGBA{R: 30, G: 60, B: 90, A: 255})
+	b := canvas(60, 40, color.RGBA{R: 30, G: 60, B: 90, A: 255})
+	for i := 0; i < 37; i++ {
+		b.Set(i%60, i/60, color.RGBA{R: 200, G: 10, B: 10, A: 255})
+	}
+	// One pixel inside the tolerance, which neither path may count.
+	b.Set(59, 39, color.RGBA{R: 32, G: 58, B: 90, A: 255})
+
+	fast := freshness.Compare(a, b, 0)
+	slow := freshness.Compare(slowOnly{a}, slowOnly{b}, 0)
+	if fast.Pixels != slow.Pixels {
+		t.Errorf("fast path counted %d, slow path counted %d", fast.Pixels, slow.Pixels)
+	}
+	if fast.Pixels != 37 {
+		t.Errorf("pixels = %d, want 37 — the pixel within tolerance is not a change", fast.Pixels)
 	}
 }
 
