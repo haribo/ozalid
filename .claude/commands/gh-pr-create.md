@@ -34,7 +34,8 @@ branch is required.
 #### 3.3 End-to-end
 
 Any change that can affect user-observable behaviour, on either side, runs
-`just fe-test-e2e`.
+`just fe-test-e2e`. It brings up its own database, server and client, and tears
+them down after — nothing to prepare, nothing to clean up.
 
 Only exemptions:
 
