@@ -18,6 +18,13 @@ export default defineConfig({
     // server forwards it rather than the client knowing an origin.
     proxy: { '/api': API },
   },
+  // The end-to-end suite runs against the built client rather than the dev
+  // server, so what CI ships is what it watches. `preview` needs the proxy of
+  // its own — it does not inherit the one above.
+  preview: {
+    port: Number(process.env.OZALID_E2E_WEB_PORT ?? 4174),
+    proxy: { '/api': API },
+  },
   test: {
     environment: 'jsdom',
     include: ['src/**/*.spec.ts'],
