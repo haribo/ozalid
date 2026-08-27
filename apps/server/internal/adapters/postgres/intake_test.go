@@ -15,6 +15,7 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/app/comment"
 	"github.com/haribo/ozalid/apps/server/internal/app/intake"
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
+	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
 	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"github.com/haribo/ozalid/internal/contract"
 )
@@ -683,7 +684,7 @@ func TestValidatingEverySquareWithNothingToSayClosesTheCase(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	cells := seedGrid(t, ctx, repo, project, kase)
 
-	got, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells})
+	got, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{Validated: cells})
 	if err != nil {
 		t.Fatalf("saving the review: %v", err)
 	}
@@ -705,7 +706,7 @@ func TestACommentPutsTheBallInTheDevsCourtAndMarksItsCells(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	cells := seedGrid(t, ctx, repo, project, kase)
 
-	got, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{
+	got, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Validated: cells[:1],
 		Comments: []session.NewComment{{
 			StepID: cells[1].StepID, Kind: "defect",
@@ -731,7 +732,7 @@ func TestLeavingOneSquareUnjudgedKeepsTheCaseWaitingOnTheReviewer(t *testing.T) 
 	ctx, repo, project, kase := intakeFixture(t)
 	cells := seedGrid(t, ctx, repo, project, kase)
 
-	got, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells[:1]})
+	got, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{Validated: cells[:1]})
 	if err != nil {
 		t.Fatalf("saving the review: %v", err)
 	}
@@ -744,7 +745,7 @@ func TestTheStateChangeIsJournalledWithWhatTheComputationRead(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	cells := seedGrid(t, ctx, repo, project, kase)
 
-	if _, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells}); err != nil {
+	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{Validated: cells}); err != nil {
 		t.Fatalf("saving the review: %v", err)
 	}
 
@@ -777,12 +778,12 @@ func TestSavingTwiceLeavesTheCaseWhereTheFactsPutIt(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	cells := seedGrid(t, ctx, repo, project, kase)
 
-	if _, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells}); err != nil {
+	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{Validated: cells}); err != nil {
 		t.Fatalf("first save: %v", err)
 	}
 	// The same session again must not move anything: the state is a function
 	// of the facts, not of how often it was computed.
-	got, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells})
+	got, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{Validated: cells})
 	if err != nil {
 		t.Fatalf("second save: %v", err)
 	}
@@ -806,7 +807,7 @@ func TestSavingTwiceLeavesTheCaseWhereTheFactsPutIt(t *testing.T) {
 // commentOn puts one comment on a case and returns its id.
 func commentOn(t *testing.T, ctx context.Context, repo *postgres.Repository, caseID string, cell review.Cell) string {
 	t.Helper()
-	if _, err := repo.SaveReview(ctx, caseID, "nina", session.Save{
+	if _, err := repo.SaveReview(ctx, caseID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Comments: []session.NewComment{{
 			StepID: cell.StepID, Kind: "defect",
 			Body: "the button is cropped", VariantIDs: []string{cell.VariantID},
@@ -825,7 +826,7 @@ func TestACommentTravelsFromReportToClosureAndTakesTheCaseWithIt(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	cells := seedGrid(t, ctx, repo, project, kase)
 
-	if _, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells[:1]}); err != nil {
+	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{Validated: cells[:1]}); err != nil {
 		t.Fatalf("validating the first cell: %v", err)
 	}
 	id := commentOn(t, ctx, repo, kase.ID, cells[1])
@@ -833,7 +834,7 @@ func TestACommentTravelsFromReportToClosureAndTakesTheCaseWithIt(t *testing.T) {
 	// Reported, nothing tracked: the dev has to triage it.
 	assertCaseState(t, ctx, repo, kase.ID, review.CaseToFix)
 
-	out, err := repo.Track(ctx, id, "dev", comment.IssueRef{ID: "142", URL: "https://example.test/142", Title: "Fix the cropped button"})
+	out, err := repo.Track(ctx, id, actor.Actor{ID: "dev", Kind: actor.Human}, comment.IssueRef{ID: "142", URL: "https://example.test/142", Title: "Fix the cropped button"})
 	if err != nil {
 		t.Fatalf("tracking: %v", err)
 	}
@@ -841,7 +842,7 @@ func TestACommentTravelsFromReportToClosureAndTakesTheCaseWithIt(t *testing.T) {
 		t.Errorf("after tracking: %+v, want tracked and the case still with the dev", out)
 	}
 
-	out, err = repo.Deliver(ctx, id, "ci")
+	out, err = repo.Deliver(ctx, id, actor.Actor{ID: "ci", Kind: actor.Human})
 	if err != nil {
 		t.Fatalf("delivering: %v", err)
 	}
@@ -850,7 +851,7 @@ func TestACommentTravelsFromReportToClosureAndTakesTheCaseWithIt(t *testing.T) {
 		t.Errorf("after delivery: %+v, want the reviewer to hold the ball", out)
 	}
 
-	out, err = repo.Judge(ctx, id, "nina", true, "")
+	out, err = repo.Judge(ctx, id, actor.Actor{ID: "nina", Kind: actor.Human}, true, "")
 	if err != nil {
 		t.Fatalf("accepting: %v", err)
 	}
@@ -866,19 +867,19 @@ func TestACommentTravelsFromReportToClosureAndTakesTheCaseWithIt(t *testing.T) {
 func TestARefusalSendsItBackAndIsKeptForever(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	cells := seedGrid(t, ctx, repo, project, kase)
-	if _, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells[:1]}); err != nil {
+	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{Validated: cells[:1]}); err != nil {
 		t.Fatalf("validating: %v", err)
 	}
 	id := commentOn(t, ctx, repo, kase.ID, cells[1])
 
-	if _, err := repo.Track(ctx, id, "dev", comment.IssueRef{ID: "142"}); err != nil {
+	if _, err := repo.Track(ctx, id, actor.Actor{ID: "dev", Kind: actor.Human}, comment.IssueRef{ID: "142"}); err != nil {
 		t.Fatalf("tracking: %v", err)
 	}
-	if _, err := repo.Deliver(ctx, id, "ci"); err != nil {
+	if _, err := repo.Deliver(ctx, id, actor.Actor{ID: "ci", Kind: actor.Human}); err != nil {
 		t.Fatalf("delivering: %v", err)
 	}
 
-	out, err := repo.Judge(ctx, id, "nina", false, "still cropped on iPhone SE")
+	out, err := repo.Judge(ctx, id, actor.Actor{ID: "nina", Kind: actor.Human}, false, "still cropped on iPhone SE")
 	if err != nil {
 		t.Fatalf("refusing: %v", err)
 	}
@@ -887,10 +888,10 @@ func TestARefusalSendsItBackAndIsKeptForever(t *testing.T) {
 		t.Errorf("after refusing: %+v, want the dev to hold the ball", out)
 	}
 
-	if _, err := repo.Deliver(ctx, id, "ci"); err != nil {
+	if _, err := repo.Deliver(ctx, id, actor.Actor{ID: "ci", Kind: actor.Human}); err != nil {
 		t.Fatalf("delivering again: %v", err)
 	}
-	if _, err := repo.Judge(ctx, id, "nina", true, ""); err != nil {
+	if _, err := repo.Judge(ctx, id, actor.Actor{ID: "nina", Kind: actor.Human}, true, ""); err != nil {
 		t.Fatalf("accepting the second try: %v", err)
 	}
 
@@ -911,12 +912,12 @@ func TestARefusalSendsItBackAndIsKeptForever(t *testing.T) {
 func TestADiscardedCommentStopsBlockingAndStaysVisible(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	cells := seedGrid(t, ctx, repo, project, kase)
-	if _, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells}); err != nil {
+	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{Validated: cells}); err != nil {
 		t.Fatalf("validating: %v", err)
 	}
 	id := commentOn(t, ctx, repo, kase.ID, cells[1])
 
-	out, err := repo.Discard(ctx, id, "nina", "agreed it is intentional")
+	out, err := repo.Discard(ctx, id, actor.Actor{ID: "nina", Kind: actor.Human}, "agreed it is intentional")
 	if err != nil {
 		t.Fatalf("discarding: %v", err)
 	}
@@ -941,17 +942,17 @@ func TestADiscardedCommentStopsBlockingAndStaysVisible(t *testing.T) {
 func TestAMoveTheStateDoesNotAllowIsRefusedWithoutTouchingAnything(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	cells := seedGrid(t, ctx, repo, project, kase)
-	if _, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{Validated: cells[:1]}); err != nil {
+	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{Validated: cells[:1]}); err != nil {
 		t.Fatalf("validating: %v", err)
 	}
 	id := commentOn(t, ctx, repo, kase.ID, cells[1])
 
 	// Nothing can be delivered before it is tracked.
-	if _, err := repo.Deliver(ctx, id, "ci"); !errors.Is(err, review.ErrMoveNotAllowed) {
+	if _, err := repo.Deliver(ctx, id, actor.Actor{ID: "ci", Kind: actor.Human}); !errors.Is(err, review.ErrMoveNotAllowed) {
 		t.Errorf("err = %v, want ErrMoveNotAllowed", err)
 	}
 	// Nor judged before it is delivered.
-	if _, err := repo.Judge(ctx, id, "nina", true, ""); !errors.Is(err, review.ErrMoveNotAllowed) {
+	if _, err := repo.Judge(ctx, id, actor.Actor{ID: "nina", Kind: actor.Human}, true, ""); !errors.Is(err, review.ErrMoveNotAllowed) {
 		t.Errorf("err = %v, want ErrMoveNotAllowed", err)
 	}
 

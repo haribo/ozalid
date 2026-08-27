@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres/sqlcgen"
@@ -18,7 +19,9 @@ import (
 // The comments, the verdicts they cover and the case's new state are one
 // write: a state that disagrees with the comments is the single failure the
 // whole model exists to make impossible (ADR 0002).
-func (r *Repository) SaveReview(ctx context.Context, caseID, actorID string, save session.Save) (session.Result, error) {
+func (r *Repository) SaveReview(
+	ctx context.Context, caseID string, by actor.Actor, save session.Save,
+) (session.Result, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return session.Result{}, fmt.Errorf("beginning the review: %w", err)
@@ -38,7 +41,7 @@ func (r *Repository) SaveReview(ctx context.Context, caseID, actorID string, sav
 
 	for _, c := range save.Comments {
 		created, err := q.CreateComment(ctx, sqlcgen.CreateCommentParams{
-			CaseID: caseID, StepID: c.StepID, Kind: c.Kind, Body: c.Body, AuthorID: actorID,
+			CaseID: caseID, StepID: c.StepID, Kind: c.Kind, Body: c.Body, AuthorID: by.ID,
 		})
 		if err != nil {
 			return session.Result{}, translate("recording a comment", err)
@@ -74,7 +77,7 @@ func (r *Repository) SaveReview(ctx context.Context, caseID, actorID string, sav
 		}
 		if err := q.StampCaptureReference(ctx, sqlcgen.StampCaptureReferenceParams{
 			CaseID: caseID, StepID: cell.StepID, VariantID: cell.VariantID,
-			EditionID: *kase.CurrentEditionID, ApprovedBy: actorID,
+			EditionID: *kase.CurrentEditionID, ApprovedBy: by.ID,
 		}); err != nil {
 			return session.Result{}, translate("stamping the reference", err)
 		}
@@ -123,7 +126,8 @@ func (r *Repository) SaveReview(ctx context.Context, caseID, actorID string, sav
 		if err := q.RecordTransition(ctx, sqlcgen.RecordTransitionParams{
 			ProjectID: kase.ProjectID, CaseID: &caseID,
 			FromState: ptr(string(before)), ToState: ptr(string(outcome.State)),
-			Cause: "review-saved", ActorID: actorID, ActorKind: "human",
+			// The actor says what it is; nothing here infers it (ADR 0018).
+			Cause: "review-saved", ActorID: by.ID, ActorKind: string(by.Kind),
 			Inputs: inputs, RuleVersion: 1,
 		}); err != nil {
 			return session.Result{}, translate("journalling the transition", err)

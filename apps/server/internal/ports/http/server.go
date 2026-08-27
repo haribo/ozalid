@@ -69,8 +69,10 @@ func New(deps Deps) *Server {
 // Handler returns the routes described by the contract, mounted under /api.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("/api/", http.StripPrefix("/api", openapi.HandlerFromMux(
+	// Every route passes through resolution, so no handler can be reached
+	// without an answer to "who is this".
+	mux.Handle("/api/", http.StripPrefix("/api", withActor(openapi.HandlerFromMux(
 		openapi.NewStrictHandler(s, nil), http.NewServeMux(),
-	)))
+	))))
 	return mux
 }

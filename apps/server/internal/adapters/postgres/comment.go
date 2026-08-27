@@ -7,11 +7,14 @@ import (
 
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres/sqlcgen"
 	appcomment "github.com/haribo/ozalid/apps/server/internal/app/comment"
+	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
 	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 )
 
-func (r *Repository) Track(ctx context.Context, commentID, actorID string, issue appcomment.IssueRef) (appcomment.Outcome, error) {
-	return r.move(ctx, commentID, actorID, review.MoveTrack, "", func(ctx context.Context, q *sqlcgen.Queries, to review.CommentState) error {
+func (r *Repository) Track(
+	ctx context.Context, commentID string, by actor.Actor, issue appcomment.IssueRef,
+) (appcomment.Outcome, error) {
+	return r.move(ctx, commentID, by, review.MoveTrack, "", func(ctx context.Context, q *sqlcgen.Queries, to review.CommentState) error {
 		return q.AttachIssue(ctx, sqlcgen.AttachIssueParams{
 			ID: commentID, State: string(to),
 			IssueRef: &issue.ID, IssueUrl: nonEmpty(issue.URL), IssueTitle: nonEmpty(issue.Title),
@@ -19,33 +22,39 @@ func (r *Repository) Track(ctx context.Context, commentID, actorID string, issue
 	})
 }
 
-func (r *Repository) Discard(ctx context.Context, commentID, actorID, reason string) (appcomment.Outcome, error) {
-	return r.move(ctx, commentID, actorID, review.MoveDiscard, reason, func(ctx context.Context, q *sqlcgen.Queries, to review.CommentState) error {
+func (r *Repository) Discard(
+	ctx context.Context, commentID string, by actor.Actor, reason string,
+) (appcomment.Outcome, error) {
+	return r.move(ctx, commentID, by, review.MoveDiscard, reason, func(ctx context.Context, q *sqlcgen.Queries, to review.CommentState) error {
 		return q.DiscardComment(ctx, sqlcgen.DiscardCommentParams{
 			ID: commentID, State: string(to), DiscardReason: &reason,
 		})
 	})
 }
 
-func (r *Repository) Deliver(ctx context.Context, commentID, actorID string) (appcomment.Outcome, error) {
-	return r.move(ctx, commentID, actorID, review.MoveDeliver, "", nil)
+func (r *Repository) Deliver(
+	ctx context.Context, commentID string, by actor.Actor,
+) (appcomment.Outcome, error) {
+	return r.move(ctx, commentID, by, review.MoveDeliver, "", nil)
 }
 
-func (r *Repository) Judge(ctx context.Context, commentID, actorID string, accept bool, remark string) (appcomment.Outcome, error) {
+func (r *Repository) Judge(
+	ctx context.Context, commentID string, by actor.Actor, accept bool, remark string,
+) (appcomment.Outcome, error) {
 	move := review.MoveRefuse
 	verdict := "refused"
 	if accept {
 		move, verdict = review.MoveAccept, "accepted"
 	}
 
-	return r.move(ctx, commentID, actorID, move, remark, func(ctx context.Context, q *sqlcgen.Queries, to review.CommentState) error {
+	return r.move(ctx, commentID, by, move, remark, func(ctx context.Context, q *sqlcgen.Queries, to review.CommentState) error {
 		if err := q.SetCommentState(ctx, sqlcgen.SetCommentStateParams{ID: commentID, State: string(to)}); err != nil {
 			return err
 		}
 		// Every judgment is kept, not just the last: three round trips on one
 		// comment is information (ADR 0012).
 		return q.RecordJudgment(ctx, sqlcgen.RecordJudgmentParams{
-			CommentID: commentID, Verdict: verdict, Remark: nonEmpty(remark), ActorID: actorID,
+			CommentID: commentID, Verdict: verdict, Remark: nonEmpty(remark), ActorID: by.ID,
 		})
 	})
 }
@@ -57,7 +66,8 @@ func (r *Repository) Judge(ctx context.Context, commentID, actorID string, accep
 // let a comment move without its case following.
 func (r *Repository) move(
 	ctx context.Context,
-	commentID, actorID string,
+	commentID string,
+	by actor.Actor,
 	m review.Move,
 	reason string,
 	write func(context.Context, *sqlcgen.Queries, review.CommentState) error,
@@ -133,7 +143,9 @@ func (r *Repository) move(
 		if err := q.RecordTransition(ctx, sqlcgen.RecordTransitionParams{
 			ProjectID: kase.ProjectID, CaseID: &kase.ID,
 			FromState: ptr(string(before)), ToState: ptr(string(outcome.State)),
-			Cause: "comment-" + string(m), ActorID: actorID, ActorKind: actorKind(m),
+			// The actor says what it is. Inferring it from the move recorded a
+			// developer who delivered by hand as a program (ADR 0018).
+			Cause: "comment-" + string(m), ActorID: by.ID, ActorKind: string(by.Kind),
 			Inputs: inputs, RuleVersion: 1,
 		}); err != nil {
 			return appcomment.Outcome{}, translate("journalling the transition", err)
@@ -144,15 +156,6 @@ func (r *Repository) move(
 		return appcomment.Outcome{}, fmt.Errorf("committing the move: %w", err)
 	}
 	return appcomment.Outcome{CommentState: to, CaseState: outcome.State}, nil
-}
-
-// actorKind records whether a move came from a person or a program. Delivering
-// is typically automated from a pipeline; judging never is.
-func actorKind(m review.Move) string {
-	if m == review.MoveDeliver {
-		return "machine"
-	}
-	return "human"
 }
 
 func nonEmpty(s string) *string {

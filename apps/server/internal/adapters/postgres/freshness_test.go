@@ -14,6 +14,7 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres/sqlcgen"
 	"github.com/haribo/ozalid/apps/server/internal/app/intake"
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
+	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
 	"github.com/haribo/ozalid/apps/server/internal/domain/freshness"
 	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"github.com/haribo/ozalid/internal/contract"
@@ -108,7 +109,7 @@ func validateOnly(t *testing.T, ctx context.Context, repo *postgres.Repository, 
 	if err != nil {
 		t.Fatalf("reading the grid: %v", err)
 	}
-	if _, err := repo.SaveReview(ctx, caseID, "nina", session.Save{
+	if _, err := repo.SaveReview(ctx, caseID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Validated: []review.Cell{{
 			StepID: grid.Steps[0].ID, VariantID: grid.Steps[0].Cells[0].VariantID,
 		}},

@@ -11,16 +11,11 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/ports/http/openapi"
 )
 
-// anonymousReviewer stands in until identity lands. Every recorded fact states
-// its actor (ADR 0002), so the journal is honest about not knowing who yet
-// rather than leaving the field empty.
-const anonymousReviewer = "anonymous"
-
 // SaveReview records what one review session decided.
 func (s *Server) SaveReview(ctx context.Context, request openapi.SaveReviewRequestObject) (openapi.SaveReviewResponseObject, error) {
 	save := toSave(*request.Body)
 
-	result, err := s.session.Save(ctx, request.CaseId, anonymousReviewer, save)
+	result, err := s.session.Save(ctx, request.CaseId, actorFrom(ctx), save)
 	switch {
 	case errors.Is(err, session.ErrEmptyBody):
 		return badReview("empty-comment", "A comment needs a body",
