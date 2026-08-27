@@ -291,6 +291,14 @@ other fact — an untraceable escape hatch is how a policy quietly dies.
   They never borrow a human identity, so the journal can always answer whether
   an action came from a person or a program.
 
+What ozalid then writes down — the provider's subject as a human's identity, a
+token scoped to one project, and the `anonymous` rows left as they are — is
+settled by [ADR 0018](../adr/0018-an-actor-is-never-invented.md).
+
+Who may do what once identity is proven is **not settled here**, and that is a
+gap rather than an omission: this section says how someone proves who they are,
+never what they may then do.
+
 ## 9. API shape
 
 Indicative, not a contract yet. The principle is what matters: **every fact
