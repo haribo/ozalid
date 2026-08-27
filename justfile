@@ -8,6 +8,17 @@ web := "apps/web"
 # would walk into them. Every Go recipe works from this list instead.
 gopkgs := "$(go list ./... | grep -v /node_modules/)"
 
+# The toolchain the generators run under, read from go.mod so there is one
+# source of truth.
+#
+# Named explicitly, because Go only ever switches *up*: a `toolchain` directive
+# cannot pull a machine running a later release back down. And it has to be
+# pulled down — oapi-codegen embeds the API document gzipped, and those bytes
+# differ between releases, so a developer on a newer Go commits a file CI
+# regenerates differently and `gen-check` fails for everyone but whoever
+# happened to match.
+gotoolchain := "go" + `grep '^go ' go.mod | cut -d' ' -f2`
+
 # List the available recipes.
 default:
     @just --list --unsorted
@@ -56,7 +67,7 @@ db-new name:
 
 # Generate the typed Go from the hand-written SQL.
 gen-db:
-    cd apps/server/db && go tool sqlc generate
+    cd apps/server/db && GOTOOLCHAIN={{gotoolchain}} go tool sqlc generate
 
 # Run the tests that need a live database.
 db-test: db-up
@@ -77,7 +88,7 @@ gen-bundle:
 # Generated from the bundle, not from src/: the bundle is the artifact every
 # consumer reads, so both sides generate from exactly the same bytes.
 gen-server:
-    cd apps/server/api && go tool oapi-codegen -config oapi-codegen.yaml openapi.yaml
+    cd apps/server/api && GOTOOLCHAIN={{gotoolchain}} go tool oapi-codegen -config oapi-codegen.yaml openapi.yaml
 
 # Generate the web client's types.
 gen-web:
