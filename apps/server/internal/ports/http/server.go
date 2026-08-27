@@ -29,6 +29,7 @@ type Server struct {
 	version      string
 	blobs        blobstore.Store
 	blobRecorder BlobRecorder
+	tokens       Tokens
 	catalogue    *catalogue.Service
 	intake       *intake.Service
 	evidence     *evidence.Service
@@ -45,6 +46,7 @@ type Deps struct {
 	Version      string
 	Blobs        blobstore.Store
 	BlobRecorder BlobRecorder
+	Tokens       Tokens
 	Catalogue    *catalogue.Service
 	Intake       *intake.Service
 	Evidence     *evidence.Service
@@ -58,6 +60,7 @@ func New(deps Deps) *Server {
 		version:      deps.Version,
 		blobs:        deps.Blobs,
 		blobRecorder: deps.BlobRecorder,
+		tokens:       deps.Tokens,
 		catalogue:    deps.Catalogue,
 		intake:       deps.Intake,
 		evidence:     deps.Evidence,
@@ -71,7 +74,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	// Every route passes through resolution, so no handler can be reached
 	// without an answer to "who is this".
-	mux.Handle("/api/", http.StripPrefix("/api", withActor(openapi.HandlerFromMux(
+	mux.Handle("/api/", http.StripPrefix("/api", withActor(s.tokens, openapi.HandlerFromMux(
 		openapi.NewStrictHandler(s, nil), http.NewServeMux(),
 	))))
 	return mux

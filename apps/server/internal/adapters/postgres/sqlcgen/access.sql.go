@@ -56,6 +56,32 @@ func (q *Queries) CreateServiceAccount(ctx context.Context, arg CreateServiceAcc
 	return i, err
 }
 
+const createServiceToken = `-- name: CreateServiceToken :one
+INSERT INTO service_tokens (service_account_id, label, token_hash)
+VALUES ($1, $2, $3)
+RETURNING id, service_account_id, label, token_hash, created_at, last_used_at
+`
+
+type CreateServiceTokenParams struct {
+	ServiceAccountID string
+	Label            string
+	TokenHash        string
+}
+
+func (q *Queries) CreateServiceToken(ctx context.Context, arg CreateServiceTokenParams) (ServiceToken, error) {
+	row := q.db.QueryRow(ctx, createServiceToken, arg.ServiceAccountID, arg.Label, arg.TokenHash)
+	var i ServiceToken
+	err := row.Scan(
+		&i.ID,
+		&i.ServiceAccountID,
+		&i.Label,
+		&i.TokenHash,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (name, email, is_admin)
 VALUES ($1, $2, $3)
@@ -93,6 +119,30 @@ func (q *Queries) DeactivateUser(ctx context.Context, id string) error {
 	return err
 }
 
+const serviceAccountByTokenHash = `-- name: ServiceAccountByTokenHash :one
+SELECT s.id, s.name, t.id AS token_id
+FROM service_tokens t
+JOIN service_accounts s ON s.id = t.service_account_id
+WHERE t.token_hash = $1
+`
+
+type ServiceAccountByTokenHashRow struct {
+	ID      string
+	Name    string
+	TokenID string
+}
+
+// The account a token opens, looked up by the hash kept for it.
+//
+// Nothing here compares the token itself: the hash is the key, so a lookup
+// never carries a secret into a query plan or a slow-query log.
+func (q *Queries) ServiceAccountByTokenHash(ctx context.Context, tokenHash string) (ServiceAccountByTokenHashRow, error) {
+	row := q.db.QueryRow(ctx, serviceAccountByTokenHash, tokenHash)
+	var i ServiceAccountByTokenHashRow
+	err := row.Scan(&i.ID, &i.Name, &i.TokenID)
+	return i, err
+}
+
 const standingOfServiceAccount = `-- name: StandingOfServiceAccount :one
 SELECT false AS is_admin, coalesce(m.rights, '')::text AS rights
 FROM service_accounts s
@@ -122,6 +172,31 @@ func (q *Queries) StandingOfServiceAccount(ctx context.Context, arg StandingOfSe
 	return i, err
 }
 
+const standingOfServiceAccountOnSlug = `-- name: StandingOfServiceAccountOnSlug :one
+SELECT false AS is_admin, coalesce(m.rights, '')::text AS rights
+FROM service_accounts s
+LEFT JOIN projects p ON p.slug = $2
+LEFT JOIN project_members m ON m.service_account_id = s.id AND m.project_id = p.id
+WHERE s.id = $1
+`
+
+type StandingOfServiceAccountOnSlugParams struct {
+	ID   string
+	Slug *string
+}
+
+type StandingOfServiceAccountOnSlugRow struct {
+	IsAdmin bool
+	Rights  string
+}
+
+func (q *Queries) StandingOfServiceAccountOnSlug(ctx context.Context, arg StandingOfServiceAccountOnSlugParams) (StandingOfServiceAccountOnSlugRow, error) {
+	row := q.db.QueryRow(ctx, standingOfServiceAccountOnSlug, arg.ID, arg.Slug)
+	var i StandingOfServiceAccountOnSlugRow
+	err := row.Scan(&i.IsAdmin, &i.Rights)
+	return i, err
+}
+
 const standingOfUser = `-- name: StandingOfUser :one
 SELECT u.is_admin, coalesce(m.rights, '')::text AS rights
 FROM users u
@@ -140,11 +215,50 @@ type StandingOfUserRow struct {
 	Rights  string
 }
 
-// What a person may do on one project: whether they administer the instance,
-// and what their membership carries. A deactivated account resolves to nothing.
 func (q *Queries) StandingOfUser(ctx context.Context, arg StandingOfUserParams) (StandingOfUserRow, error) {
 	row := q.db.QueryRow(ctx, standingOfUser, arg.ID, arg.ProjectID)
 	var i StandingOfUserRow
 	err := row.Scan(&i.IsAdmin, &i.Rights)
 	return i, err
+}
+
+const standingOfUserOnSlug = `-- name: StandingOfUserOnSlug :one
+SELECT u.is_admin, coalesce(m.rights, '')::text AS rights
+FROM users u
+LEFT JOIN projects p ON p.slug = $2
+LEFT JOIN project_members m ON m.user_id = u.id AND m.project_id = p.id
+WHERE u.id = $1 AND u.deactivated_at IS NULL
+`
+
+type StandingOfUserOnSlugParams struct {
+	ID   string
+	Slug *string
+}
+
+type StandingOfUserOnSlugRow struct {
+	IsAdmin bool
+	Rights  string
+}
+
+// What a person may do on one project: whether they administer the instance,
+// and what their membership carries. A deactivated account resolves to nothing.
+// The same two questions, asked by the slug a caller names rather than by an id
+// it has no way to know. A slug nobody has resolves to nothing, which the rule
+// then refuses — the same answer as an unknown project by a shorter road.
+func (q *Queries) StandingOfUserOnSlug(ctx context.Context, arg StandingOfUserOnSlugParams) (StandingOfUserOnSlugRow, error) {
+	row := q.db.QueryRow(ctx, standingOfUserOnSlug, arg.ID, arg.Slug)
+	var i StandingOfUserOnSlugRow
+	err := row.Scan(&i.IsAdmin, &i.Rights)
+	return i, err
+}
+
+const touchServiceToken = `-- name: TouchServiceToken :exec
+UPDATE service_tokens SET last_used_at = now() WHERE id = $1
+`
+
+// Read on every accepted call, so an operator can tell which tokens are still
+// in use and which can go.
+func (q *Queries) TouchServiceToken(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, touchServiceToken, id)
+	return err
 }
