@@ -132,6 +132,14 @@ type Project struct {
 	PixelThreshold int32
 }
 
+type ProjectMember struct {
+	ProjectID        string
+	UserID           *string
+	ServiceAccountID *string
+	Rights           string
+	AddedAt          pgtype.Timestamptz
+}
+
 type Recording struct {
 	ID        string
 	EditionID string
@@ -140,11 +148,27 @@ type Recording struct {
 	BlobHash  string
 }
 
+type ServiceAccount struct {
+	ID        string
+	Name      string
+	OwnerID   string
+	CreatedAt pgtype.Timestamptz
+}
+
 type Step struct {
 	ID       string
 	CaseID   string
 	Name     string
 	Position int32
+}
+
+type User struct {
+	ID            string
+	Name          string
+	Email         string
+	IsAdmin       bool
+	DeactivatedAt pgtype.Timestamptz
+	CreatedAt     pgtype.Timestamptz
 }
 
 type Variant struct {
