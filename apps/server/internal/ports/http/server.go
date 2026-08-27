@@ -16,6 +16,7 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/app/intake"
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
 	"github.com/haribo/ozalid/apps/server/internal/ports/http/openapi"
+	"github.com/haribo/ozalid/apps/server/internal/ports/http/webui"
 )
 
 // BlobRecorder remembers, in the database, what the blob store now holds. The
@@ -80,5 +81,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/api/", http.StripPrefix("/api", withActor(s.tokens, openapi.HandlerFromMux(
 		openapi.NewStrictHandler(s, nil), http.NewServeMux(),
 	))))
+	// Everything else is the client, built into this binary. Registered last
+	// and at the root, so it catches what /api/ did not.
+	mux.Handle("/", webui.Handler())
 	return mux
 }
