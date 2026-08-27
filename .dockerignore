@@ -1,0 +1,14 @@
+# What the image build must never copy.
+#
+# `apps/web/dist` matters most: copying a locally built client would overwrite
+# what the image builds itself, and ship whatever happened to be on the machine.
+# Named precisely rather than as `**/dist`, which would also drop the placeholder
+# the server embeds — and without it `go build` fails inside the image.
+apps/web/node_modules
+apps/web/dist
+apps/web/test-results
+apps/web/playwright-report
+.git
+.github
+docs
+var

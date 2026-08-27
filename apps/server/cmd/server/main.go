@@ -19,6 +19,7 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/app/intake"
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
 	ozhttp "github.com/haribo/ozalid/apps/server/internal/ports/http"
+	"github.com/haribo/ozalid/apps/server/internal/ports/http/webui"
 )
 
 // version is stamped at build time with -ldflags.
@@ -77,6 +78,12 @@ func run() error {
 		return err
 	}
 
+	// Before anything else opens: a schema that is behind must fail the deploy,
+	// not the first request that touches a missing column.
+	if err := migrate(ctx, cfg.dsn); err != nil {
+		return err
+	}
+
 	store, err := postgres.Open(ctx, cfg.dsn)
 	if err != nil {
 		return err
@@ -100,7 +107,12 @@ func run() error {
 
 	srv := &http.Server{Addr: cfg.addr, Handler: api.Handler()}
 
-	slog.Info("listening", "addr", cfg.addr, "blobs", cfg.blobRoot)
+	if !webui.Built() {
+		// Said at startup rather than discovered as a blank page.
+		slog.Warn("the web client was not built into this binary; only the API is served")
+	}
+
+	slog.Info("listening", "addr", cfg.addr, "blobs", cfg.blobRoot, "version", version)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return err
 	}
