@@ -2,6 +2,7 @@ package http_test
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,9 +10,25 @@ import (
 	"testing"
 
 	"github.com/haribo/ozalid/apps/server/internal/adapters/blobstore"
+	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
 	ozhttp "github.com/haribo/ozalid/apps/server/internal/ports/http"
 	"github.com/haribo/ozalid/internal/contract"
 )
+
+// theToken is the one credential these tests present. Uploading capture bytes
+// needs a service account (ADR 0018), so the tests carry one — going through
+// the real middleware rather than around it.
+const theToken = "ozp_thetokenthesetestspresent"
+
+// oneToken knows exactly that token and nothing else.
+type oneToken struct{}
+
+func (oneToken) ServiceAccountByToken(_ context.Context, token string) (actor.Actor, bool, error) {
+	if token != theToken {
+		return actor.Actor{}, false, nil
+	}
+	return actor.Actor{ID: "a-service-account", Kind: actor.Machine}, true, nil
+}
 
 func newServer(t *testing.T) http.Handler {
 	t.Helper()
@@ -19,15 +36,53 @@ func newServer(t *testing.T) http.Handler {
 	if err != nil {
 		t.Fatalf("creating the store: %v", err)
 	}
-	return ozhttp.New(ozhttp.Deps{Version: "test", Blobs: store}).Handler()
+	return ozhttp.New(ozhttp.Deps{Version: "test", Blobs: store, Tokens: oneToken{}}).Handler()
 }
 
 func do(t *testing.T, h http.Handler, method, path string, body io.Reader) *httptest.ResponseRecorder {
 	t.Helper()
+	return doAs(t, h, method, path, body, "Bearer "+theToken)
+}
+
+// doAs makes a request with whatever the caller wants in Authorization.
+func doAs(t *testing.T, h http.Handler, method, path string, body io.Reader, authorization string) *httptest.ResponseRecorder {
+	t.Helper()
 	req := httptest.NewRequest(method, path, body)
+	if authorization != "" {
+		req.Header.Set("Authorization", authorization)
+	}
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	return rec
+}
+
+func TestUploadingCaptureBytesNeedsAToken(t *testing.T) {
+	h := newServer(t)
+	content := []byte("a capture")
+	hash, _, _ := contract.HashReader(bytes.NewReader(content))
+
+	for _, c := range []struct {
+		name          string
+		authorization string
+	}{
+		{"nothing at all", ""},
+		{"a token nobody minted", "Bearer ozp_neverminted"},
+		{"the right token, no scheme", theToken},
+		{"another scheme", "Basic " + theToken},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got := doAs(t, h, http.MethodPut, "/api/blobs/"+hash, bytes.NewReader(content), c.authorization)
+			if got.Code != http.StatusUnauthorized {
+				t.Errorf("status = %d, want 401", got.Code)
+			}
+		})
+	}
+
+	// And reading needs nothing, which is where sixteen of the eighteen
+	// endpoints still stand until sign-in exists.
+	if got := doAs(t, h, http.MethodHead, "/api/blobs/"+hash, nil, ""); got.Code == http.StatusUnauthorized {
+		t.Error("reading was refused; only the two writing endpoints are closed so far")
+	}
 }
 
 func TestUploadingTheSameContentTwiceIsIdempotent(t *testing.T) {

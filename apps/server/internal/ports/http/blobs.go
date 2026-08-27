@@ -62,6 +62,15 @@ func (s *Server) GetBlob(ctx context.Context, request openapi.GetBlobRequestObje
 // Idempotent by construction: an address always denotes the same bytes, so a
 // second write of content already held is a no-op.
 func (s *Server) PutBlob(ctx context.Context, request openapi.PutBlobRequestObject) (openapi.PutBlobResponseObject, error) {
+	// A token, and nothing more. Content addressing makes the store shared
+	// across projects by design (ADR 0004), so there is no project here to be a
+	// member of — the meaningful bar is holding a token at all.
+	if !isKnown(ctx) {
+		return openapi.PutBlob401ApplicationProblemPlusJSONResponse{
+			UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(unknownCaller()),
+		}, nil
+	}
+
 	if !contract.ValidHash(request.Hash) {
 		return openapi.PutBlob400ApplicationProblemPlusJSONResponse{
 			BadRequestApplicationProblemPlusJSONResponse: badAddress(),

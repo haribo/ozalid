@@ -91,6 +91,7 @@ func run() error {
 		BlobRecorder: store,
 		Catalogue:    catalogue.New(store),
 		Tokens:       store,
+		Standings:    store,
 		Intake:       intake.New(store, blobs),
 		Evidence:     evidence.New(store),
 		Session:      session.New(store),

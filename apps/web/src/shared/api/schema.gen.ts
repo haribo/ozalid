@@ -824,6 +824,24 @@ export interface components {
                 "application/problem+json": components["schemas"]["problem"];
             };
         };
+        /** @description The caller presented no usable credential. */
+        Unauthenticated: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["problem"];
+            };
+        };
+        /** @description The caller is known and not allowed to do this. */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["problem"];
+            };
+        };
         /** @description Where the comment and its case now stand. */
         MoveApplied: {
             headers: {
@@ -939,6 +957,8 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             /** @description The bytes do not produce the announced address. */
             422: {
                 headers: {
@@ -1176,6 +1196,8 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             /**
              * @description The manifest cannot be taken in: content is missing, a case is unknown

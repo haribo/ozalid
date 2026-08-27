@@ -30,6 +30,7 @@ type Server struct {
 	blobs        blobstore.Store
 	blobRecorder BlobRecorder
 	tokens       Tokens
+	standings    Standings
 	catalogue    *catalogue.Service
 	intake       *intake.Service
 	evidence     *evidence.Service
@@ -47,6 +48,7 @@ type Deps struct {
 	Blobs        blobstore.Store
 	BlobRecorder BlobRecorder
 	Tokens       Tokens
+	Standings    Standings
 	Catalogue    *catalogue.Service
 	Intake       *intake.Service
 	Evidence     *evidence.Service
@@ -61,6 +63,7 @@ func New(deps Deps) *Server {
 		blobs:        deps.Blobs,
 		blobRecorder: deps.BlobRecorder,
 		tokens:       deps.Tokens,
+		standings:    deps.Standings,
 		catalogue:    deps.Catalogue,
 		intake:       deps.Intake,
 		evidence:     deps.Evidence,

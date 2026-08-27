@@ -78,6 +78,8 @@ paths:
           $ref: '#/components/responses/NotFound'
     put:
       operationId: putBlob
+      security:
+        - serviceToken: []
       summary: Store content under its address
       description: |
         Idempotent: storing content that is already held changes nothing. The bytes
@@ -106,6 +108,10 @@ paths:
           description: The store already held this content.
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '422':
           description: The bytes do not produce the announced address.
           content:
@@ -298,6 +304,8 @@ paths:
           type: string
     post:
       operationId: createEdition
+      security:
+        - serviceToken: []
       summary: Take a run's evidence into the book
       description: |
         Push the complete manifest. Ask `HEAD /blobs/{hash}` first and upload what
@@ -323,6 +331,10 @@ paths:
                 $ref: '#/components/schemas/EditionAccepted'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -704,6 +716,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/problem'
 components:
+  securitySchemes:
+    serviceToken:
+      type: http
+      scheme: bearer
+      description: |
+        A service account's token, minted once and shown once
+        ([ADR 0019](https://github.com/haribo/ozalid/blob/develop/docs/adr/0019-two-kinds-of-account-one-set-of-rights.md)).
+
+        It belongs to exactly one project: a token naming project A cannot push
+        to project B, and the attempt is refused rather than ignored.
   schemas:
     Problem:
       $ref: '#/components/schemas/problem'
@@ -1398,6 +1420,18 @@ components:
             $ref: '#/components/schemas/problem'
     NotFound:
       description: No such resource.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/problem'
+    Unauthenticated:
+      description: The caller presented no usable credential.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/problem'
+    Forbidden:
+      description: The caller is known and not allowed to do this.
       content:
         application/problem+json:
           schema:

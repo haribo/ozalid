@@ -52,7 +52,23 @@ paths:
   /categories/{categoryId}:
     $ref: "./paths/category.yaml"
 
+# Declared where it is required, never globally. Sixteen of the eighteen
+# operations carry no security today: the web client has no way to prove itself
+# until sign-in exists, and closing its door first would leave an instance
+# nobody can read. An empty default would have said the same thing less
+# visibly — this way, `security` appearing on an operation is a decision
+# somebody made rather than one they forgot.
 components:
+  securitySchemes:
+    serviceToken:
+      type: http
+      scheme: bearer
+      description: |
+        A service account's token, minted once and shown once
+        ([ADR 0019](https://github.com/haribo/ozalid/blob/develop/docs/adr/0019-two-kinds-of-account-one-set-of-rights.md)).
+
+        It belongs to exactly one project: a token naming project A cannot push
+        to project B, and the attempt is refused rather than ignored.
   schemas:
     Problem:
       $ref: "./components/problem.yaml"
