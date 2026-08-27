@@ -155,6 +155,15 @@ type ServiceAccount struct {
 	CreatedAt pgtype.Timestamptz
 }
 
+type ServiceToken struct {
+	ID               string
+	ServiceAccountID string
+	Label            string
+	TokenHash        string
+	CreatedAt        pgtype.Timestamptz
+	LastUsedAt       pgtype.Timestamptz
+}
+
 type Step struct {
 	ID       string
 	CaseID   string

@@ -11,3 +11,24 @@ NotFound:
     application/problem+json:
       schema:
         $ref: "./problem.yaml"
+
+Unauthenticated:
+  # No credential, a malformed one, or one nobody knows — all the same answer.
+  # Telling them apart would let a caller learn which tokens exist by watching
+  # how the server replies.
+  description: The caller presented no usable credential.
+  content:
+    application/problem+json:
+      schema:
+        $ref: "./problem.yaml"
+
+Forbidden:
+  # The caller is somebody, and that somebody may not do this. Distinct from
+  # Unauthenticated on purpose: one is fixed by presenting a credential, the
+  # other by being granted something, and a client that cannot tell them apart
+  # retries forever.
+  description: The caller is known and not allowed to do this.
+  content:
+    application/problem+json:
+      schema:
+        $ref: "./problem.yaml"

@@ -7,12 +7,27 @@ import (
 
 	app "github.com/haribo/ozalid/apps/server/internal/app/catalogue"
 	"github.com/haribo/ozalid/apps/server/internal/app/intake"
+	"github.com/haribo/ozalid/apps/server/internal/domain/access"
 	"github.com/haribo/ozalid/apps/server/internal/ports/http/openapi"
 	"github.com/haribo/ozalid/internal/contract"
 )
 
 // CreateEdition takes a run's evidence into the book.
 func (s *Server) CreateEdition(ctx context.Context, request openapi.CreateEditionRequestObject) (openapi.CreateEditionResponseObject, error) {
+	// Evidence is what this book is for, so nothing writes any without saying
+	// who it is. A token belongs to one project and reaches nothing outside it
+	// (ADR 0018).
+	if why, no := s.mayNot(ctx, request.Slug, access.WriteProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.CreateEdition401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.CreateEdition403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
+
 	result, err := s.intake.Take(ctx, request.Slug, toManifest(*request.Body))
 
 	var missing *intake.MissingContent

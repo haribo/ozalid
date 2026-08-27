@@ -14,10 +14,24 @@ import type { Page } from '@playwright/test'
 
 const API = process.env.OZALID_API ?? 'http://localhost:8091'
 
+/**
+ * The suite's own project, and the token that reaches it.
+ *
+ * A token belongs to exactly one project (ADR 0018), which is why the suite
+ * works inside a single one and gives each test its own **case** rather than
+ * its own project. That is also how a real client is shaped, so the suite
+ * exercises the shape it is meant to watch.
+ */
+const PROJECT = process.env.OZALID_E2E_PROJECT ?? 'e2e'
+const TOKEN = process.env.OZALID_E2E_TOKEN ?? ''
+
 export type Seeded = { slug: string; caseId: string }
 
 async function call(path: string, init?: RequestInit) {
-  const response = await fetch(`${API}/api${path}`, init)
+  const response = await fetch(`${API}/api${path}`, {
+    ...init,
+    headers: { ...init?.headers, ...(TOKEN ? { authorization: `Bearer ${TOKEN}` } : {}) },
+  })
   if (!response.ok) {
     throw new Error(`${init?.method ?? 'GET'} ${path} — ${response.status} ${await response.text()}`)
   }
@@ -76,21 +90,23 @@ function manifest(caseId: string, first: string, second: string) {
 }
 
 /**
- * A project with one case, three steps and two variants, taken in once.
+ * One case in the suite's project, with three steps and two variants, taken in
+ * once.
  *
- * The slug carries the clock so two runs never collide: this suite writes for
+ * The title carries the clock so two runs never collide: this suite writes for
  * real, against a database it owns.
  */
 export async function seed(page: Page): Promise<Seeded> {
-  const slug = `e2e-${Date.now()}`
-  await call('/projects', post({ slug, name: 'atlas' }))
   const kase = (await (
-    await call(`/projects/${slug}/cases`, post({ title: 'réinitialiser un mot de passe oublié' }))
+    await call(
+      `/projects/${PROJECT}/cases`,
+      post({ title: `réinitialiser un mot de passe oublié — ${Date.now()}` }),
+    )
   ).json()) as { id: string }
 
   const still = await upload(await screen(page, 0))
-  await call(`/projects/${slug}/editions`, manifest(kase.id, still, still))
-  return { slug, caseId: kase.id }
+  await call(`/projects/${PROJECT}/editions`, manifest(kase.id, still, still))
+  return { slug: PROJECT, caseId: kase.id }
 }
 
 /** A second edition where the call to action slid on the dark variant only. */

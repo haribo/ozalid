@@ -6,6 +6,8 @@ parameters:
 
 post:
   operationId: createEdition
+  security:
+    - serviceToken: []
   summary: Take a run's evidence into the book
   description: |
     Push the complete manifest. Ask `HEAD /blobs/{hash}` first and upload what
@@ -22,6 +24,10 @@ post:
         schema:
           $ref: "../components/manifest.yaml#/Manifest"
   responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
     "201":
       description: The edition is in the book.
       content:

@@ -52,6 +52,16 @@ func env(key, fallback string) string {
 }
 
 func main() {
+	// One subcommand, and it is not a client: it seeds the instance so clients
+	// can begin (see bootstrap.go).
+	if len(os.Args) > 1 && os.Args[1] == "bootstrap" {
+		if err := bootstrap(context.Background(), os.Args[2:]); err != nil {
+			slog.Error("bootstrap failed", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if err := run(); err != nil {
 		slog.Error("server stopped", "error", err)
 		os.Exit(1)
@@ -80,6 +90,8 @@ func run() error {
 		Blobs:        blobs,
 		BlobRecorder: store,
 		Catalogue:    catalogue.New(store),
+		Tokens:       store,
+		Standings:    store,
 		Intake:       intake.New(store, blobs),
 		Evidence:     evidence.New(store),
 		Session:      session.New(store),

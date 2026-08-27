@@ -195,6 +195,15 @@ fe-test-e2e:
     curl -sf "http://localhost:{{e2e_port}}/api/health" >/dev/null || {
       echo "the server never came up:"; cat "$blobs/server.log"; exit 1; }
 
+    # The suite pushes evidence, so it needs a token like any other client —
+    # and a token belongs to one project, which is why the suite works inside a
+    # single one and gives each test its own case rather than its own project.
+    OZALID_DSN='{{e2e_dsn}}' "$blobs/server" bootstrap \
+      -name "e2e" -email "e2e@ozalid.test" \
+      -project "e2e" -service-account "e2e-runner" > "$blobs/bootstrap.txt"
+    token=$(grep -o 'ozp_[A-Za-z0-9_-]*' "$blobs/bootstrap.txt")
+    [ -n "$token" ] || { echo "bootstrap minted no token:"; cat "$blobs/bootstrap.txt"; exit 1; }
+
     cd {{web}}
     # The suite runs against the built client, not the dev server: what CI
     # ships is what it watches.
@@ -213,6 +222,7 @@ fe-test-e2e:
 
     OZALID_API="http://localhost:{{e2e_port}}" \
       OZALID_E2E_WEB="http://localhost:{{e2e_web_port}}" \
+      OZALID_E2E_TOKEN="$token" OZALID_E2E_PROJECT="e2e" \
       npx playwright test
 
 # ----------------------------------------------------------------------- both
