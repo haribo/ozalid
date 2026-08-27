@@ -284,20 +284,32 @@ other fact — an untraceable escape hatch is how a policy quietly dies.
 
 ## 8. Identity and access
 
-- **Humans** authenticate through a delegated provider. No passwords stored, no
-  reset flow to build, and reviewer identity lines up with the identity they
-  already use on their tracker.
-- **Machines** — the intake client, automation agents — use service tokens.
-  They never borrow a human identity, so the journal can always answer whether
-  an action came from a person or a program.
+Two kinds of account, one set of rights
+([ADR 0019](../adr/0019-two-kinds-of-account-one-set-of-rights.md)).
 
-What ozalid then writes down — the provider's subject as a human's identity, a
-token scoped to one project, and the `anonymous` rows left as they are — is
-settled by [ADR 0018](../adr/0018-an-actor-is-never-invented.md).
+- A **user** is a person: a name and a unique email address. They sign in
+  through a link sent to that address. No password is stored, so there is
+  nothing to forget and no recovery procedure to build — the recovery *is* the
+  sign-in.
+- A **service account** is a program: the intake client, an automation agent, an
+  assistant pushing captures. It belongs to one project, it is owned by a user,
+  and it proves itself with a token. A machine account nobody owns is a machine
+  account nobody revokes.
 
-Who may do what once identity is proven is **not settled here**, and that is a
-gap rather than an omission: this section says how someone proves who they are,
-never what they may then do.
+**The kind is derived, never declared.** It is read from how the caller
+authenticated — a person came through a sign-in, a program presented a token —
+which is what makes the journal's answer to "was this a person?" worth keeping.
+A claim nobody checks is not evidence.
+
+**Rights belong to membership, never to the kind.** A user belongs to any number
+of projects with rights on each; a service account belongs to one. Nothing is
+forbidden because the caller is a program: an agent pushing captures and a person
+pushing captures do the same thing, and only the journal separates them.
+
+Every recorded fact names its actor, and the journal keeps no foreign key to
+either table: evidence has to survive the account that produced it
+([ADR 0018](../adr/0018-an-actor-is-never-invented.md)). Rows written before
+identity existed stay as they are.
 
 ## 9. API shape
 

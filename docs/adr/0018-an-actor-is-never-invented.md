@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted — 2026-08-27
+Accepted — 2026-08-27. **Partly superseded by
+[ADR 0019](0019-two-kinds-of-account-one-set-of-rights.md)** — what a person's
+identity is, and how they prove it. What survives: a service token belongs to
+one project, and the rows already written as `anonymous` stay.
 
 Settles what `docs/design/product.md` § 8 left open: it says how someone proves
 who they are, not what ozalid then writes down.
