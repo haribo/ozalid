@@ -3,7 +3,9 @@ package postgres_test
 import (
 	"testing"
 
+	appcomment "github.com/haribo/ozalid/apps/server/internal/app/comment"
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
+	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
 	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 )
 
@@ -12,7 +14,7 @@ func TestValidatingASquareRemembersTheBytesThatWereApproved(t *testing.T) {
 	hash := pushEdition(t, ctx, repo, project, kase, "the form on ci", "ci")
 	cell := onlyCell(t, ctx, repo, kase.ID)
 
-	if _, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{
+	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Validated: []review.Cell{cell},
 	}); err != nil {
 		t.Fatalf("saving the review: %v", err)
@@ -43,14 +45,14 @@ func TestEachEnvironmentKeepsItsOwnReference(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 
 	fromCI := pushEdition(t, ctx, repo, project, kase, "the form on ci", "ci")
-	if _, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{
+	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Validated: []review.Cell{onlyCell(t, ctx, repo, kase.ID)},
 	}); err != nil {
 		t.Fatalf("saving the first review: %v", err)
 	}
 
 	fromLaptop := pushEdition(t, ctx, repo, project, kase, "the form on a laptop", "laptop")
-	if _, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{
+	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Validated: []review.Cell{onlyCell(t, ctx, repo, kase.ID)},
 	}); err != nil {
 		t.Fatalf("saving the second review: %v", err)
@@ -82,7 +84,7 @@ func TestASquareThatNobodyLookedAtIsNeverStamped(t *testing.T) {
 	pushEdition(t, ctx, repo, project, kase, "the form on ci", "ci")
 	cell := onlyCell(t, ctx, repo, kase.ID)
 
-	if _, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{
+	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Comments: []session.NewComment{{
 			StepID: cell.StepID, Kind: "defect", Body: "the button is cropped",
 			VariantIDs: []string{cell.VariantID},
@@ -94,7 +96,7 @@ func TestASquareThatNobodyLookedAtIsNeverStamped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading the comments: %v", err)
 	}
-	if _, err := repo.Discard(ctx, comments[0].ID, "nina", "intentional"); err != nil {
+	if _, err := repo.Discard(ctx, comments[0].ID, actor.Actor{ID: "nina", Kind: actor.Human}, "intentional"); err != nil {
 		t.Fatalf("discarding: %v", err)
 	}
 
@@ -112,5 +114,52 @@ func TestASquareThatNobodyLookedAtIsNeverStamped(t *testing.T) {
 	}
 	if len(refs) != 0 {
 		t.Errorf("got %d references, want none — nobody approved those bytes", len(refs))
+	}
+}
+
+func TestTheJournalRecordsWhatTheActorSaysItIs(t *testing.T) {
+	// The kind used to be inferred from the move: delivering was recorded as a
+	// program, everything else as a person. A developer marking a fix delivered
+	// by hand was written into the journal as a machine. The actor says what it
+	// is, and nothing guesses (ADR 0018).
+	ctx, repo, project, kase := intakeFixture(t)
+	pushEdition(t, ctx, repo, project, kase, "the form on ci", "ci")
+	cell := onlyCell(t, ctx, repo, kase.ID)
+
+	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
+		Comments: []session.NewComment{{
+			StepID: cell.StepID, Kind: "defect", Body: "the button is cropped",
+			VariantIDs: []string{cell.VariantID},
+		}},
+	}); err != nil {
+		t.Fatalf("saving the review: %v", err)
+	}
+	comments, err := repo.Queries().CaseComments(ctx, kase.ID)
+	if err != nil {
+		t.Fatalf("reading the comments: %v", err)
+	}
+
+	// A person marks the fix delivered, which used to be recorded as a program.
+	byHand := actor.Actor{ID: "dev", Kind: actor.Human}
+	if _, err := repo.Track(ctx, comments[0].ID, byHand, appcomment.IssueRef{ID: "142"}); err != nil {
+		t.Fatalf("tracking: %v", err)
+	}
+	if _, err := repo.Deliver(ctx, comments[0].ID, byHand); err != nil {
+		t.Fatalf("delivering: %v", err)
+	}
+
+	var kind, id string
+	if err := repo.Pool().QueryRow(ctx,
+		`SELECT actor_kind, actor_id FROM journal
+		 WHERE case_id = $1 AND cause = 'comment-deliver' ORDER BY at DESC LIMIT 1`,
+		kase.ID,
+	).Scan(&kind, &id); err != nil {
+		t.Fatalf("reading the journal: %v", err)
+	}
+	if kind != string(actor.Human) {
+		t.Errorf("actor kind = %q, want human — a person delivered it", kind)
+	}
+	if id != "dev" {
+		t.Errorf("actor id = %q, want the actor that was carried", id)
 	}
 }

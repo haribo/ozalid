@@ -7,6 +7,7 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres"
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres/sqlcgen"
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
+	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
 	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"github.com/haribo/ozalid/internal/contract"
 )
@@ -88,7 +89,7 @@ func TestACaseCatchesUpOnceItsReviewEnds(t *testing.T) {
 	second := pushEdition(t, ctx, repo, project, kase, "the form, second run", "ci")
 
 	// The reviewer judges the edition they opened, and lets go.
-	if _, err := repo.SaveReview(ctx, kase.ID, "nina", session.Save{
+	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Validated: []review.Cell{onlyCell(t, ctx, repo, kase.ID)},
 	}); err != nil {
 		t.Fatalf("saving the review: %v", err)

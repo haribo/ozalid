@@ -21,7 +21,7 @@ func (s *Server) TrackComment(ctx context.Context, request openapi.TrackCommentR
 		issue.Title = *request.Body.Title
 	}
 
-	out, err := s.comment.Track(ctx, request.CommentId, anonymousReviewer, issue)
+	out, err := s.comment.Track(ctx, request.CommentId, actorFrom(ctx), issue)
 	switch {
 	case errors.Is(err, comment.ErrIssueRequired):
 		return openapi.TrackComment400ApplicationProblemPlusJSONResponse{
@@ -44,7 +44,7 @@ func (s *Server) TrackComment(ctx context.Context, request openapi.TrackCommentR
 
 // DiscardComment sets a comment aside, with its reason.
 func (s *Server) DiscardComment(ctx context.Context, request openapi.DiscardCommentRequestObject) (openapi.DiscardCommentResponseObject, error) {
-	out, err := s.comment.Discard(ctx, request.CommentId, anonymousReviewer, request.Body.Reason)
+	out, err := s.comment.Discard(ctx, request.CommentId, actorFrom(ctx), request.Body.Reason)
 	switch {
 	case errors.Is(err, review.ErrReasonRequired):
 		return openapi.DiscardComment400ApplicationProblemPlusJSONResponse{
@@ -67,7 +67,7 @@ func (s *Server) DiscardComment(ctx context.Context, request openapi.DiscardComm
 
 // DeliverComment is the dev asking for a judgment.
 func (s *Server) DeliverComment(ctx context.Context, request openapi.DeliverCommentRequestObject) (openapi.DeliverCommentResponseObject, error) {
-	out, err := s.comment.Deliver(ctx, request.CommentId, anonymousReviewer)
+	out, err := s.comment.Deliver(ctx, request.CommentId, actorFrom(ctx))
 	switch {
 	case errors.Is(err, app.ErrNotFound):
 		return openapi.DeliverComment404ApplicationProblemPlusJSONResponse{
@@ -88,7 +88,7 @@ func (s *Server) JudgeComment(ctx context.Context, request openapi.JudgeCommentR
 		remark = *request.Body.Remark
 	}
 
-	out, err := s.comment.Judge(ctx, request.CommentId, anonymousReviewer, request.Body.Accept, remark)
+	out, err := s.comment.Judge(ctx, request.CommentId, actorFrom(ctx), request.Body.Accept, remark)
 	switch {
 	case errors.Is(err, review.ErrRemarkRequired):
 		return openapi.JudgeComment400ApplicationProblemPlusJSONResponse{
