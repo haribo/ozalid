@@ -5,6 +5,11 @@
  * because a fixture written straight into the database would prove the
  * interface reads what the test wrote, not what the product produces.
  *
+ * It takes the simple way of `docs/pushing-evidence.md`: every capture is sent
+ * on every run, including bytes the store already holds. A suite this size does
+ * not care, and the frugal way — push first, be told what is missing, upload
+ * only that — would put a retry loop in a fixture whose job is to be obvious.
+ *
  * The captures are made by the browser the suite already runs. Hand-rolling a
  * PNG encoder here would be ninety lines proving that ninety lines encode a
  * PNG; a screenshot is a real one, produced the way real ones are.
