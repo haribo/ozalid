@@ -29,7 +29,8 @@ on the new one. The full lifecycle is set by
 | [0015](0015-no-cli-clients-call-the-api.md) | No CLI; clients call the API directly |
 | [0016](0016-a-case-is-complete-or-it-says-so.md) | A case is complete, or it says so |
 | [0017](0017-a-reference-belongs-to-an-environment.md) | A reference belongs to an environment |
-| [0018](0018-an-actor-is-never-invented.md) | An actor is never invented |
+| [0018](0018-an-actor-is-never-invented.md) | An actor is never invented — *partly superseded by 0019* |
+| [0019](0019-two-kinds-of-account-one-set-of-rights.md) | Two kinds of account, one set of rights |
 
 0001 to 0008 were decided in a single design conversation on 2026-08-18/19 and
 settle what the product is. 0009 to 0011 followed on 2026-08-19 and settle how
