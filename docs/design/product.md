@@ -311,6 +311,54 @@ either table: evidence has to survive the account that produced it
 ([ADR 0018](../adr/0018-an-actor-is-never-invented.md)). Rows written before
 identity existed stay as they are.
 
+### 8.1 What a membership carries
+
+**Nothing is public.** A project is reached by its members, and by nobody else —
+reading included. Opening this later is easy; closing it never is.
+
+A membership carries one of two values:
+
+| | |
+| --- | --- |
+| **reader** | sees everything, changes nothing |
+| **member** | everything |
+
+Two, and no more. A product owner following where a review stands has nothing to
+validate, and a stray click from them would falsify the book. That is the one
+distinction met so far, and it is the only one written down. Inventing
+*reviewer*, *developer* or *project administrator* before meeting the need
+produces roles nobody uses and nobody dares remove.
+
+A service account holds a membership like anyone else. Nothing is forbidden
+because the caller is a program
+([ADR 0019](../adr/0019-two-kinds-of-account-one-set-of-rights.md)).
+
+### 8.2 The administrator manages accounts, not content
+
+There is no open sign-up: accounts are made by whoever runs the instance. Since
+clients speak to the API and nothing else
+([ADR 0015](../adr/0015-no-cli-clients-call-the-api.md)), making an account is a
+call, which needs an actor allowed to make it — a power that belongs to no
+project.
+
+That power is a single flag on a user, not a hierarchy.
+
+An administrator **creates and deactivates accounts, creates a project and names
+its first member**.
+
+An administrator **cannot read or write the content of a project they are not a
+member of**.
+
+The second line is the one that matters. On an instance carrying several
+projects, an administrator who could read every review book would see every
+team's work — their product's captures, the remarks they exchange. Separating
+administration from access to content is what lets the running of the instance
+be handed to someone without handing them everything.
+
+When an administrator does need to see a project, they are added to it as a
+member. That leaves a trace, which is exactly what an exceptional access should
+do.
+
 ## 9. API shape
 
 Indicative, not a contract yet. The principle is what matters: **every fact
