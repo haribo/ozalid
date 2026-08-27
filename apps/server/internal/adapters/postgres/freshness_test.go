@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"strings"
 	"testing"
 
 	"github.com/haribo/ozalid/apps/server/internal/adapters/blobstore"
@@ -232,5 +233,75 @@ func TestACaptureThatIsNotAPNGIsRefused(t *testing.T) {
 	}
 	if len(grid.Steps) != 0 {
 		t.Errorf("the case has %d steps, want the manifest refused without a trace", len(grid.Steps))
+	}
+}
+
+func TestAbsentBytesAreReportedAsMissingRatherThanAsAFailure(t *testing.T) {
+	// The designed sequence: push, be told exactly what is missing, upload that,
+	// push again. The PNG check used to read every capture before the write
+	// could speak, so a capture the store did not hold surfaced as a 500 — and
+	// the refusal written for this exact case was unreachable (#64).
+	ctx, repo, blobs, project, kase := freshnessFixture(t)
+
+	// An address that is well-formed and that nothing was ever stored under.
+	absent := "sha256:" + strings.Repeat("ab", 32)
+
+	svc := intake.New(repo, blobs)
+	_, err := svc.Take(ctx, project.Slug, contract.Manifest{
+		Cases: []contract.ManifestCase{{
+			ID: kase.ID,
+			Steps: []contract.ManifestStep{{
+				Name: "opens",
+				Captures: []contract.ManifestCapture{{
+					Variant: map[string]string{"theme": "light"}, Hash: absent,
+				}},
+			}},
+		}},
+	})
+
+	var missing *intake.MissingContent
+	if !errors.As(err, &missing) {
+		t.Fatalf("err = %v, want MissingContent naming the address to upload", err)
+	}
+	if len(missing.Hashes) != 1 || missing.Hashes[0] != absent {
+		t.Errorf("hashes = %v, want exactly the absent address", missing.Hashes)
+	}
+}
+
+func TestAHeldCaptureThatIsNotAPNGIsStillRefusedOnItsFormat(t *testing.T) {
+	// Fixing #64 must not stop the format check from working on bytes that are
+	// there.
+	ctx, repo, blobs, project, kase := freshnessFixture(t)
+	notAnImage := storeBlobBytes(t, ctx, repo, blobs, []byte("\xff\xd8\xff\xe0 pretending to be a jpeg"))
+
+	if err := takeIn(t, ctx, repo, blobs, project, kase, notAnImage); !errors.Is(err, intake.ErrNotAPNG) {
+		t.Errorf("err = %v, want ErrNotAPNG", err)
+	}
+}
+
+func TestMissingContentIsReportedBeforeAFormatProblem(t *testing.T) {
+	// Uploading is what the client must do before a format can even be judged,
+	// so the missing address is the useful half of the answer.
+	ctx, repo, blobs, project, kase := freshnessFixture(t)
+	notAnImage := storeBlobBytes(t, ctx, repo, blobs, []byte("\xff\xd8\xff\xe0 pretending to be a jpeg"))
+	absent := "sha256:" + strings.Repeat("cd", 32)
+
+	svc := intake.New(repo, blobs)
+	_, err := svc.Take(ctx, project.Slug, contract.Manifest{
+		Cases: []contract.ManifestCase{{
+			ID: kase.ID,
+			Steps: []contract.ManifestStep{{
+				Name: "opens",
+				Captures: []contract.ManifestCapture{
+					{Variant: map[string]string{"theme": "light"}, Hash: absent},
+					{Variant: map[string]string{"theme": "dark"}, Hash: notAnImage},
+				},
+			}},
+		}},
+	})
+
+	var missing *intake.MissingContent
+	if !errors.As(err, &missing) {
+		t.Fatalf("err = %v, want the missing content reported first", err)
 	}
 }

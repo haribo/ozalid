@@ -87,9 +87,10 @@ func (s *Service) Take(ctx context.Context, projectSlug string, m contract.Manif
 		return Result{}, err
 	}
 
-	// A capture that cannot be compared is not a capture (product.md §2). This
-	// runs before anything is written, like every other refusal.
-	if err := s.checkCapturesArePNG(ctx, m); err != nil {
+	// One read of every capture answers two questions: is it here, and can it be
+	// compared (product.md §2). Both refusals happen before anything is written,
+	// like every other one.
+	if err := s.checkCaptures(ctx, m); err != nil {
 		return Result{}, err
 	}
 

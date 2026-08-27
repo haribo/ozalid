@@ -34,12 +34,24 @@ func (n *NotPNG) Error() string {
 
 func (n *NotPNG) Unwrap() error { return ErrNotAPNG }
 
-// checkCapturesArePNG reads the first bytes of every capture the manifest
-// names. Recordings are not checked: they are never compared, so their format
-// is nobody's business (ADR 0013).
-func (s *Service) checkCapturesArePNG(ctx context.Context, m contract.Manifest) error {
+// checkCaptures reads the first bytes of every capture the manifest names.
+//
+// One pass, two possible refusals, and a settled order between them. What
+// cannot be read is missing content; what reads and is not a PNG is a format
+// problem; **missing wins**. Uploading is what a client has to do before a
+// format can be judged at all, and pushing new captures is the ordinary case
+// while a bad format is a mistake — the ordinary case must not be interrupted
+// by the rare one (#64).
+//
+// The adapter checks for missing content too, inside the transaction where the
+// answer cannot change under it. This is the early, useful answer; that one is
+// the guard.
+//
+// Recordings are not checked: they are never compared, so their format is
+// nobody's business (ADR 0013).
+func (s *Service) checkCaptures(ctx context.Context, m contract.Manifest) error {
 	seen := map[string]struct{}{}
-	var offenders []string
+	var absent, notPNG []string
 	for _, c := range m.Cases {
 		for _, st := range c.Steps {
 			for _, capture := range st.Captures {
@@ -47,26 +59,35 @@ func (s *Service) checkCapturesArePNG(ctx context.Context, m contract.Manifest) 
 					continue
 				}
 				seen[capture.Hash] = struct{}{}
-				ok, err := s.isPNG(ctx, capture.Hash)
+
+				held, ok, err := s.readsAsPNG(ctx, capture.Hash)
 				if err != nil {
 					return err
 				}
-				if !ok {
-					offenders = append(offenders, capture.Hash)
+				switch {
+				case !held:
+					absent = append(absent, capture.Hash)
+				case !ok:
+					notPNG = append(notPNG, capture.Hash)
 				}
 			}
 		}
 	}
-	if len(offenders) > 0 {
-		return &NotPNG{Hashes: offenders}
+	if len(absent) > 0 {
+		return &MissingContent{Hashes: absent}
+	}
+	if len(notPNG) > 0 {
+		return &NotPNG{Hashes: notPNG}
 	}
 	return nil
 }
 
-func (s *Service) isPNG(ctx context.Context, hash string) (bool, error) {
+func (s *Service) readsAsPNG(ctx context.Context, hash string) (held, isPNG bool, err error) {
 	body, err := s.blobs.Get(ctx, hash)
 	if err != nil {
-		return false, fmt.Errorf("reading %s: %w", hash, err)
+		// Absent, not malformed. The caller decides what that means; here it is
+		// simply not something to judge the format of.
+		return false, false, nil
 	}
 	defer func() { _ = body.Close() }()
 
@@ -74,9 +95,9 @@ func (s *Service) isPNG(ctx context.Context, hash string) (bool, error) {
 	if _, err := io.ReadFull(body, head); err != nil {
 		// Too short to be a PNG is simply not a PNG.
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-			return false, nil
+			return true, false, nil
 		}
-		return false, fmt.Errorf("reading %s: %w", hash, err)
+		return true, false, fmt.Errorf("reading %s: %w", hash, err)
 	}
-	return bytes.Equal(head, pngSignature), nil
+	return true, bytes.Equal(head, pngSignature), nil
 }
