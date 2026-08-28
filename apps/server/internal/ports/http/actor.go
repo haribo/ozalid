@@ -27,27 +27,51 @@ type Tokens interface {
 }
 
 type actorKey struct{}
+type sessionKey struct{}
 
 // withActor resolves who is calling, once per request, and carries the answer
 // down.
 //
-// One place decides. A header that is absent, malformed, or names a token
-// nobody knows all resolve the same way — to nobody — so a caller cannot tell a
-// real token from an invented one by how the server behaves.
+// One place decides. Two credentials are read, and only one of them can be
+// presented at a time in practice: a program sends a bearer token, a browser
+// carries a session cookie. A header that is absent, malformed, or names
+// something nobody knows all resolve the same way — to nobody — so a caller
+// cannot tell a real credential from an invented one by how the server behaves.
+//
+// The token wins if both arrive. A request carrying both is a client doing
+// something deliberate, and the explicit header is the more deliberate of the
+// two.
 //
 // Resolving is not deciding: this says who is calling, and `access.Allows` says
 // what they may do. Keeping them apart is what lets an unauthenticated call
 // reach an endpoint that does not require one.
-func withActor(tokens Tokens, next http.Handler) http.Handler {
+func withActor(tokens Tokens, sessions SignIn, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
 		by := anonymous
-		if token, ok := credential.FromHeader(r.Header.Get("Authorization")); ok {
-			if resolved, found, err := tokens.ServiceAccountByToken(r.Context(), token); err == nil && found {
+
+		if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
+			ctx = context.WithValue(ctx, sessionKey{}, c.Value)
+			if resolved, found, err := sessions.UserBySession(ctx, c.Value); err == nil && found {
 				by = resolved
 			}
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), actorKey{}, by)))
+		if token, ok := credential.FromHeader(r.Header.Get("Authorization")); ok {
+			if resolved, found, err := tokens.ServiceAccountByToken(ctx, token); err == nil && found {
+				by = resolved
+			}
+		}
+
+		next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, actorKey{}, by)))
 	})
+}
+
+// sessionFrom returns the session the browser presented, whether or not it
+// resolved to anybody. Signing out has to forget a session that has expired
+// just as much as one that has not.
+func sessionFrom(ctx context.Context) string {
+	token, _ := ctx.Value(sessionKey{}).(string)
+	return token
 }
 
 // actorFrom returns who the request resolved to.

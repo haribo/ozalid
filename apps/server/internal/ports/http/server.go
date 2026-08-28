@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/haribo/ozalid/apps/server/internal/adapters/blobstore"
+	"github.com/haribo/ozalid/apps/server/internal/adapters/mail"
 	"github.com/haribo/ozalid/apps/server/internal/app/catalogue"
 	"github.com/haribo/ozalid/apps/server/internal/app/comment"
 	"github.com/haribo/ozalid/apps/server/internal/app/evidence"
@@ -31,6 +32,8 @@ type Server struct {
 	blobs        blobstore.Store
 	blobRecorder BlobRecorder
 	tokens       Tokens
+	signIn       SignIn
+	mail         mail.Sender
 	standings    Standings
 	catalogue    *catalogue.Service
 	intake       *intake.Service
@@ -49,6 +52,8 @@ type Deps struct {
 	Blobs        blobstore.Store
 	BlobRecorder BlobRecorder
 	Tokens       Tokens
+	SignIn       SignIn
+	Mail         mail.Sender
 	Standings    Standings
 	Catalogue    *catalogue.Service
 	Intake       *intake.Service
@@ -64,6 +69,8 @@ func New(deps Deps) *Server {
 		blobs:        deps.Blobs,
 		blobRecorder: deps.BlobRecorder,
 		tokens:       deps.Tokens,
+		signIn:       deps.SignIn,
+		mail:         deps.Mail,
 		standings:    deps.Standings,
 		catalogue:    deps.Catalogue,
 		intake:       deps.Intake,
@@ -78,7 +85,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	// Every route passes through resolution, so no handler can be reached
 	// without an answer to "who is this".
-	mux.Handle("/api/", http.StripPrefix("/api", withActor(s.tokens, openapi.HandlerFromMux(
+	mux.Handle("/api/", http.StripPrefix("/api", withActor(s.tokens, s.signIn, openapi.HandlerFromMux(
 		openapi.NewStrictHandler(s, nil), http.NewServeMux(),
 	))))
 	// Everything else is the client, built into this binary. Registered last

@@ -75,3 +75,44 @@ WHERE t.token_hash = $1;
 -- in use and which can go.
 -- name: TouchServiceToken :exec
 UPDATE service_tokens SET last_used_at = now() WHERE id = $1;
+
+-- name: UserByEmail :one
+SELECT * FROM users WHERE lower(email) = lower($1) AND deactivated_at IS NULL;
+
+-- The expiry is computed by the database, against the clock that will later
+-- decide whether the link is still good. Setting it from the application would
+-- compare one clock against another, and clock skew would decide.
+-- name: CreateSignInLink :exec
+INSERT INTO sign_in_links (user_id, link_hash, expires_at)
+VALUES (@user_id, @link_hash, now() + make_interval(secs => @lifetime_seconds::int));
+
+-- A link is found by its hash, and only if it is still good. Expired and
+-- already used are both refused here rather than reported to the caller: what
+-- reaches the browser is one answer, "this link no longer works".
+-- name: ClaimSignInLink :one
+UPDATE sign_in_links
+SET used_at = now()
+WHERE link_hash = $1 AND used_at IS NULL AND expires_at > now()
+RETURNING user_id;
+
+-- name: CreateSession :exec
+INSERT INTO sessions (user_id, token_hash, expires_at)
+VALUES (@user_id, @token_hash, now() + make_interval(secs => @lifetime_seconds::int));
+
+-- The account a session belongs to, provided both are still good. A deactivated
+-- account resolves to nothing, so shutting an account shuts its sessions in the
+-- same instant.
+-- name: UserBySessionToken :one
+SELECT u.id, s.id AS session_id
+FROM sessions s
+JOIN users u ON u.id = s.user_id
+WHERE s.token_hash = $1 AND s.expires_at > now() AND u.deactivated_at IS NULL;
+
+-- name: TouchSession :exec
+UPDATE sessions SET last_seen_at = now() WHERE id = $1;
+
+-- name: EndSession :exec
+DELETE FROM sessions WHERE token_hash = $1;
+
+-- name: UserByID :one
+SELECT * FROM users WHERE id = $1 AND deactivated_at IS NULL;

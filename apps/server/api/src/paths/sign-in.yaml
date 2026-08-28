@@ -1,0 +1,27 @@
+post:
+  operationId: requestSignIn
+  summary: Ask for a sign-in link
+  description: |
+    Sends a link to the address, good once and for a few minutes.
+
+    **The answer is the same whether the address is known or not.** Whether
+    somebody has an account here is not something a stranger gets to learn by
+    asking.
+  tags:
+    - sign-in
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required: [email]
+          properties:
+            email:
+              type: string
+              format: email
+  responses:
+    '202':
+      description: If that address has an account, a link is on its way.
+    '400':
+      $ref: "../components/responses.yaml#/BadRequest"

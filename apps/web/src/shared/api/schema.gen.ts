@@ -21,6 +21,95 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sign-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask for a sign-in link
+         * @description Sends a link to the address, good once and for a few minutes.
+         *
+         *     **The answer is the same whether the address is known or not.** Whether
+         *     somebody has an account here is not something a stranger gets to learn by
+         *     asking.
+         */
+        post: operations["requestSignIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sign-in/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Spend a sign-in link and open a session
+         * @description The session is set as an `HttpOnly` cookie, so no script can read it.
+         *
+         *     Expired, already spent and never issued are one answer: the browser is told
+         *     the link no longer works, and learns nothing about which of the three it
+         *     was.
+         */
+        post: operations["claimSignIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sign-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * End this session
+         * @description This browser's session, and no other. Signing out here does not sign out
+         *     elsewhere.
+         */
+        post: operations["signOut"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who this request resolves to
+         * @description What the client needs to know whether to show a review or a sign-in form.
+         */
+        get: operations["whoAmI"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/blobs/{hash}": {
         parameters: {
             query?: never;
@@ -815,8 +904,8 @@ export interface components {
                 "application/problem+json": components["schemas"]["problem"];
             };
         };
-        /** @description No such resource. */
-        NotFound: {
+        /** @description The caller presented no usable credential. */
+        Unauthenticated: {
             headers: {
                 [name: string]: unknown;
             };
@@ -824,8 +913,8 @@ export interface components {
                 "application/problem+json": components["schemas"]["problem"];
             };
         };
-        /** @description The caller presented no usable credential. */
-        Unauthenticated: {
+        /** @description No such resource. */
+        NotFound: {
             headers: {
                 [name: string]: unknown;
             };
@@ -899,6 +988,102 @@ export interface operations {
                     };
                 };
             };
+        };
+    };
+    requestSignIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: email */
+                    email: string;
+                };
+            };
+        };
+        responses: {
+            /** @description If that address has an account, a link is on its way. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    claimSignIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    link: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Signed in. The session is in the response's cookie. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    signOut: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out, or was not signed in — the same answer. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    whoAmI: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The signed-in person. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        name: string;
+                        email: string;
+                        /** @description Manages accounts and creates projects; reaches no content. */
+                        isAdmin: boolean;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
         };
     };
     getBlob: {

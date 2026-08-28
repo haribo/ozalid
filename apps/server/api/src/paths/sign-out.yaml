@@ -1,0 +1,11 @@
+post:
+  operationId: signOut
+  summary: End this session
+  description: |
+    This browser's session, and no other. Signing out here does not sign out
+    elsewhere.
+  tags:
+    - sign-in
+  responses:
+    '204':
+      description: Signed out, or was not signed in — the same answer.

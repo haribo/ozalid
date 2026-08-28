@@ -32,6 +32,107 @@ paths:
                     description: The build this instance runs.
                     examples:
                       - 0.1.0
+  /sign-in:
+    post:
+      operationId: requestSignIn
+      summary: Ask for a sign-in link
+      description: |
+        Sends a link to the address, good once and for a few minutes.
+
+        **The answer is the same whether the address is known or not.** Whether
+        somebody has an account here is not something a stranger gets to learn by
+        asking.
+      tags:
+        - sign-in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '202':
+          description: If that address has an account, a link is on its way.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /sign-in/claim:
+    post:
+      operationId: claimSignIn
+      summary: Spend a sign-in link and open a session
+      description: |
+        The session is set as an `HttpOnly` cookie, so no script can read it.
+
+        Expired, already spent and never issued are one answer: the browser is told
+        the link no longer works, and learns nothing about which of the three it
+        was.
+      tags:
+        - sign-in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - link
+              properties:
+                link:
+                  type: string
+      responses:
+        '204':
+          description: Signed in. The session is in the response's cookie.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+  /sign-out:
+    post:
+      operationId: signOut
+      summary: End this session
+      description: |
+        This browser's session, and no other. Signing out here does not sign out
+        elsewhere.
+      tags:
+        - sign-in
+      responses:
+        '204':
+          description: Signed out, or was not signed in — the same answer.
+  /me:
+    get:
+      operationId: whoAmI
+      summary: Who this request resolves to
+      description: |
+        What the client needs to know whether to show a review or a sign-in form.
+      tags:
+        - sign-in
+      responses:
+        '200':
+          description: The signed-in person.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                  - name
+                  - email
+                  - isAdmin
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  email:
+                    type: string
+                  isAdmin:
+                    type: boolean
+                    description: Manages accounts and creates projects; reaches no content.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
   /blobs/{hash}:
     parameters:
       - name: hash
@@ -1418,14 +1519,14 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/problem'
-    NotFound:
-      description: No such resource.
+    Unauthenticated:
+      description: The caller presented no usable credential.
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/problem'
-    Unauthenticated:
-      description: The caller presented no usable credential.
+    NotFound:
+      description: No such resource.
       content:
         application/problem+json:
           schema:
