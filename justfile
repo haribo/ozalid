@@ -165,6 +165,10 @@ fe-format:
 # suite that borrows the API you are debugging is a suite you turn off.
 e2e_port := env_var_or_default("OZALID_E2E_PORT", "8091")
 e2e_web_port := env_var_or_default("OZALID_E2E_WEB_PORT", "4174")
+# Where mailpit listens. The suite reads the sign-in message from it rather than
+# from the database, so the sending is watched too.
+smtp_port := env_var_or_default("OZALID_SMTP_PORT", "1045")
+mailpit_port := env_var_or_default("OZALID_MAILPIT_PORT", "8045")
 e2e_dsn := "postgres://ozalid:ozalid@localhost:" + pg_port + "/ozalid_e2e?sslmode=disable"
 
 # Run the end-to-end suite: a real browser, a real server, a real database.
@@ -176,14 +180,18 @@ fe-test-e2e:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    docker compose up -d --wait postgres
+    docker compose up -d --wait postgres mailpit
     # A database of its own, inside the container that is already running.
     psql "postgres://ozalid:ozalid@localhost:{{pg_port}}/postgres"       -v ON_ERROR_STOP=1 -c 'DROP DATABASE IF EXISTS ozalid_e2e' -c 'CREATE DATABASE ozalid_e2e' >/dev/null
     GOOSE_DRIVER=postgres GOOSE_DBSTRING='{{e2e_dsn}}'       GOOSE_MIGRATION_DIR=apps/server/db/migrations go tool goose up >/dev/null
 
     blobs=$(mktemp -d)
     go build -o "$blobs/server" ./apps/server/cmd/server
-    OZALID_ADDR=":{{e2e_port}}" OZALID_DSN='{{e2e_dsn}}' OZALID_BLOB_ROOT="$blobs/blobs"       "$blobs/server" >"$blobs/server.log" 2>&1 &
+    OZALID_ADDR=":{{e2e_port}}" OZALID_DSN='{{e2e_dsn}}' OZALID_BLOB_ROOT="$blobs/blobs" \
+      OZALID_BASE_URL="http://localhost:{{e2e_web_port}}" \
+      OZALID_SMTP_HOST=localhost OZALID_SMTP_PORT="{{smtp_port}}" \
+      OZALID_SMTP_FROM="ozalid@localhost" \
+      "$blobs/server" >"$blobs/server.log" 2>&1 &
     server=$!
     # Everything below is torn down whether the suite passes or fails.
     trap 'kill $server 2>/dev/null || true; rm -rf "$blobs"' EXIT
@@ -223,6 +231,7 @@ fe-test-e2e:
     OZALID_API="http://localhost:{{e2e_port}}" \
       OZALID_E2E_WEB="http://localhost:{{e2e_web_port}}" \
       OZALID_E2E_TOKEN="$token" OZALID_E2E_PROJECT="e2e" \
+      OZALID_E2E_MAILPIT="http://localhost:{{mailpit_port}}" \
       npx playwright test
 
 # ----------------------------------------------------------------------- both

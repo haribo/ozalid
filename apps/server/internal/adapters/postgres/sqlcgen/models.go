@@ -164,6 +164,24 @@ type ServiceToken struct {
 	LastUsedAt       pgtype.Timestamptz
 }
 
+type Session struct {
+	ID         string
+	UserID     string
+	TokenHash  string
+	ExpiresAt  pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
+	LastSeenAt pgtype.Timestamptz
+}
+
+type SignInLink struct {
+	ID        string
+	UserID    string
+	LinkHash  string
+	ExpiresAt pgtype.Timestamptz
+	UsedAt    pgtype.Timestamptz
+	CreatedAt pgtype.Timestamptz
+}
+
 type Step struct {
 	ID       string
 	CaseID   string

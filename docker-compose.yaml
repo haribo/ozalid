@@ -20,5 +20,24 @@ services:
       timeout: 3s
       retries: 10
 
+  # A mailbox the end-to-end suite can read.
+  #
+  # Sign-in sends a message, and a suite that reached into the database for the
+  # link would leave the sending untested — the half most likely to be
+  # misconfigured on a real instance.
+  mailpit:
+    image: axllent/mailpit:v1.28
+    ports:
+      # Off 1025 and 8025 on purpose, like Postgres off 5432 and the API off
+      # 8080: a developer machine often already runs a mailpit, and the
+      # collision is only loud the first time.
+      - "${OZALID_SMTP_PORT:-1045}:1025"
+      - "${OZALID_MAILPIT_PORT:-8045}:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   pgdata:

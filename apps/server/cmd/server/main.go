@@ -7,11 +7,13 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 
 	"github.com/haribo/ozalid/apps/server/internal/adapters/blobstore"
+	"github.com/haribo/ozalid/apps/server/internal/adapters/mail"
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres"
 	"github.com/haribo/ozalid/apps/server/internal/app/catalogue"
 	"github.com/haribo/ozalid/apps/server/internal/app/comment"
@@ -29,6 +31,11 @@ type config struct {
 	addr     string
 	blobRoot string
 	dsn      string
+	// baseURL is the address this instance is reached at. The sign-in link in
+	// a message has to point back here, and the server cannot work it out from
+	// a request — it sits behind whatever terminates TLS.
+	baseURL string
+	mail    mail.Config
 }
 
 // defaultAddr is off :8080 on purpose. That port is the first thing anything
@@ -42,6 +49,14 @@ func load() config {
 		addr:     env("OZALID_ADDR", defaultAddr),
 		blobRoot: env("OZALID_BLOB_ROOT", "var/blobs"),
 		dsn:      env("OZALID_DSN", "postgres://ozalid:ozalid@localhost:5442/ozalid?sslmode=disable"),
+		baseURL:  env("OZALID_BASE_URL", "http://localhost:8090"),
+		mail: mail.Config{
+			Host:     env("OZALID_SMTP_HOST", ""),
+			Port:     env("OZALID_SMTP_PORT", "587"),
+			Username: env("OZALID_SMTP_USERNAME", ""),
+			Password: env("OZALID_SMTP_PASSWORD", ""),
+			From:     env("OZALID_SMTP_FROM", ""),
+		},
 	}
 }
 
@@ -73,6 +88,14 @@ func run() error {
 	ctx := context.Background()
 	cfg := load()
 
+	// Signing in is the only way a person gets in, and it sends a message. An
+	// instance that cannot send one is an instance nobody can enter, so it
+	// fails here rather than at the first person who tries.
+	if !cfg.mail.Complete() {
+		return fmt.Errorf(
+			"sign-in sends a link, so OZALID_SMTP_HOST and OZALID_SMTP_FROM are required")
+	}
+
 	blobs, err := blobstore.NewFileStore(cfg.blobRoot)
 	if err != nil {
 		return err
@@ -98,6 +121,8 @@ func run() error {
 		BlobRecorder: store,
 		Catalogue:    catalogue.New(store),
 		Tokens:       store,
+		SignIn:       store,
+		Mail:         mail.NewSMTP(cfg.mail, cfg.baseURL),
 		Standings:    store,
 		Intake:       intake.New(store, blobs),
 		Evidence:     evidence.New(store),

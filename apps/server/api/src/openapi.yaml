@@ -17,6 +17,14 @@ servers:
 paths:
   /health:
     $ref: "./paths/health.yaml"
+  /sign-in:
+    $ref: "./paths/sign-in.yaml"
+  /sign-in/claim:
+    $ref: "./paths/sign-in-claim.yaml"
+  /sign-out:
+    $ref: "./paths/sign-out.yaml"
+  /me:
+    $ref: "./paths/me.yaml"
   /blobs/{hash}:
     $ref: "./paths/blob.yaml"
   /projects:

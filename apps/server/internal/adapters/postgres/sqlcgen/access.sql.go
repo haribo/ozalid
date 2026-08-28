@@ -33,6 +33,23 @@ func (q *Queries) AddProjectMember(ctx context.Context, arg AddProjectMemberPara
 	return err
 }
 
+const claimSignInLink = `-- name: ClaimSignInLink :one
+UPDATE sign_in_links
+SET used_at = now()
+WHERE link_hash = $1 AND used_at IS NULL AND expires_at > now()
+RETURNING user_id
+`
+
+// A link is found by its hash, and only if it is still good. Expired and
+// already used are both refused here rather than reported to the caller: what
+// reaches the browser is one answer, "this link no longer works".
+func (q *Queries) ClaimSignInLink(ctx context.Context, linkHash string) (string, error) {
+	row := q.db.QueryRow(ctx, claimSignInLink, linkHash)
+	var user_id string
+	err := row.Scan(&user_id)
+	return user_id, err
+}
+
 const createServiceAccount = `-- name: CreateServiceAccount :one
 INSERT INTO service_accounts (name, owner_id)
 VALUES ($1, $2)
@@ -82,6 +99,41 @@ func (q *Queries) CreateServiceToken(ctx context.Context, arg CreateServiceToken
 	return i, err
 }
 
+const createSession = `-- name: CreateSession :exec
+INSERT INTO sessions (user_id, token_hash, expires_at)
+VALUES ($1, $2, now() + make_interval(secs => $3::int))
+`
+
+type CreateSessionParams struct {
+	UserID          string
+	TokenHash       string
+	LifetimeSeconds int32
+}
+
+func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
+	_, err := q.db.Exec(ctx, createSession, arg.UserID, arg.TokenHash, arg.LifetimeSeconds)
+	return err
+}
+
+const createSignInLink = `-- name: CreateSignInLink :exec
+INSERT INTO sign_in_links (user_id, link_hash, expires_at)
+VALUES ($1, $2, now() + make_interval(secs => $3::int))
+`
+
+type CreateSignInLinkParams struct {
+	UserID          string
+	LinkHash        string
+	LifetimeSeconds int32
+}
+
+// The expiry is computed by the database, against the clock that will later
+// decide whether the link is still good. Setting it from the application would
+// compare one clock against another, and clock skew would decide.
+func (q *Queries) CreateSignInLink(ctx context.Context, arg CreateSignInLinkParams) error {
+	_, err := q.db.Exec(ctx, createSignInLink, arg.UserID, arg.LinkHash, arg.LifetimeSeconds)
+	return err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (name, email, is_admin)
 VALUES ($1, $2, $3)
@@ -116,6 +168,15 @@ UPDATE users SET deactivated_at = now() WHERE id = $1
 // readable, and the journal names it (ADR 0018).
 func (q *Queries) DeactivateUser(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, deactivateUser, id)
+	return err
+}
+
+const endSession = `-- name: EndSession :exec
+DELETE FROM sessions WHERE token_hash = $1
+`
+
+func (q *Queries) EndSession(ctx context.Context, tokenHash string) error {
+	_, err := q.db.Exec(ctx, endSession, tokenHash)
 	return err
 }
 
@@ -261,4 +322,71 @@ UPDATE service_tokens SET last_used_at = now() WHERE id = $1
 func (q *Queries) TouchServiceToken(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, touchServiceToken, id)
 	return err
+}
+
+const touchSession = `-- name: TouchSession :exec
+UPDATE sessions SET last_seen_at = now() WHERE id = $1
+`
+
+func (q *Queries) TouchSession(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, touchSession, id)
+	return err
+}
+
+const userByEmail = `-- name: UserByEmail :one
+SELECT id, name, email, is_admin, deactivated_at, created_at FROM users WHERE lower(email) = lower($1) AND deactivated_at IS NULL
+`
+
+func (q *Queries) UserByEmail(ctx context.Context, lower string) (User, error) {
+	row := q.db.QueryRow(ctx, userByEmail, lower)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.IsAdmin,
+		&i.DeactivatedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const userByID = `-- name: UserByID :one
+SELECT id, name, email, is_admin, deactivated_at, created_at FROM users WHERE id = $1 AND deactivated_at IS NULL
+`
+
+func (q *Queries) UserByID(ctx context.Context, id string) (User, error) {
+	row := q.db.QueryRow(ctx, userByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.IsAdmin,
+		&i.DeactivatedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const userBySessionToken = `-- name: UserBySessionToken :one
+SELECT u.id, s.id AS session_id
+FROM sessions s
+JOIN users u ON u.id = s.user_id
+WHERE s.token_hash = $1 AND s.expires_at > now() AND u.deactivated_at IS NULL
+`
+
+type UserBySessionTokenRow struct {
+	ID        string
+	SessionID string
+}
+
+// The account a session belongs to, provided both are still good. A deactivated
+// account resolves to nothing, so shutting an account shuts its sessions in the
+// same instant.
+func (q *Queries) UserBySessionToken(ctx context.Context, tokenHash string) (UserBySessionTokenRow, error) {
+	row := q.db.QueryRow(ctx, userBySessionToken, tokenHash)
+	var i UserBySessionTokenRow
+	err := row.Scan(&i.ID, &i.SessionID)
+	return i, err
 }
