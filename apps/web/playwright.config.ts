@@ -10,6 +10,7 @@
  * owns the database and the server; this file only points at them.
  */
 import { defineConfig, devices } from '@playwright/test'
+import { SIGNED_IN } from './e2e/session'
 
 const WEB = process.env.OZALID_E2E_WEB ?? 'http://localhost:4174'
 
@@ -28,5 +29,14 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    // Nothing here is public any more, so the suite signs in first — through
+    // the interface, once — and every test after it runs as that reviewer.
+    { name: 'setup', testMatch: /.*\.setup\.ts/ },
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'], storageState: SIGNED_IN },
+      dependencies: ['setup'],
+    },
+  ],
 })

@@ -2,27 +2,18 @@
  * Signing in, walked end to end: a link is asked for, a message arrives, the
  * link is spent, and a session exists.
  *
- * The message is read from a real mailbox rather than from the database, so the
- * sending is watched too — it is the half most likely to be misconfigured on a
- * real instance, and the half a database shortcut would never exercise.
+ * This is the one file that starts signed out. Every other test in the suite
+ * inherits the session the setup project opened, which is why the state is
+ * cleared here by hand.
  */
 import { expect, test } from '@playwright/test'
+import { linkSentTo } from './mailbox'
+import { seed } from './fixture'
+import { REVIEWER } from './session'
+
+test.use({ storageState: { cookies: [], origins: [] } })
 
 const API = process.env.OZALID_API ?? 'http://localhost:8091'
-const MAILPIT = process.env.OZALID_E2E_MAILPIT ?? 'http://localhost:8045'
-
-/** The link in the newest message sent to an address. */
-async function linkSentTo(address: string): Promise<string> {
-  const listed = await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent('to:' + address)}`)
-  const { messages } = (await listed.json()) as { messages: { ID: string }[] }
-  expect(messages.length, `no message reached ${address}`).toBeGreaterThan(0)
-
-  const body = await fetch(`${MAILPIT}/api/v1/message/${messages[0].ID}`)
-  const { Text } = (await body.json()) as { Text: string }
-  const found = Text.match(/\/sign-in\/([A-Za-z0-9_-]+)/)
-  expect(found, `no sign-in link in the message:\n${Text}`).not.toBeNull()
-  return found![1]
-}
 
 async function ask(email: string) {
   return fetch(`${API}/api/sign-in`, {
@@ -33,8 +24,7 @@ async function ask(email: string) {
 }
 
 test('a person asks, reads their mail, and is signed in', async ({ request }) => {
-  // The account the e2e instance was bootstrapped with.
-  const email = 'e2e@ozalid.test'
+  const email = REVIEWER
 
   const asked = await ask(email)
   expect(asked.status).toBe(202)
@@ -68,4 +58,30 @@ test('an address nobody has gets the same answer as one that exists', async () =
 test('a link nobody issued is refused', async ({ request }) => {
   const claimed = await request.post(`${API}/api/sign-in/claim`, { data: { link: 'never-issued' } })
   expect(claimed.status()).toBe(401)
+})
+
+test('a signed-out visitor reaching a case is offered the way in', async ({ page }) => {
+  await page.goto('/cases/00000000-0000-0000-0000-000000000000')
+
+  await expect(page.getByRole('heading', { name: 'Se connecter' })).toBeVisible()
+})
+
+test('the link opens in another tab, and the waiting one carries on', async ({ page, context }) => {
+  // The mail client opens its own tab, so the tab that was refused never sees
+  // the link. It is told, and resumes — without this the reviewer is left
+  // looking at a sign-in form next to a session that works.
+  const seeded = await seed(page)
+  await page.goto(`/cases/${seeded.caseId}`)
+  await expect(page.getByRole('heading', { name: 'Se connecter' })).toBeVisible()
+
+  await page.getByLabel('adresse').fill(REVIEWER)
+  await page.getByRole('button', { name: 'Envoyer le lien' }).click()
+  await expect(page.getByText('Le lien est parti.')).toBeVisible()
+
+  const other = await context.newPage()
+  await other.goto(`/sign-in/${await linkSentTo(REVIEWER)}`)
+
+  await expect(
+    page.getByRole('heading', { name: 'réinitialiser un mot de passe oublié' }),
+  ).toBeVisible()
 })

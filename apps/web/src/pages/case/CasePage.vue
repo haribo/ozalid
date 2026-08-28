@@ -9,6 +9,7 @@ import { api, type components } from '@/shared/api'
 import { MissingIcon, MovedIcon, StatePill } from '@/shared/ui'
 import { formatMoment, hasMoved, type CaseState } from '@/shared/lib'
 import { useReview } from '@/features/review'
+import { useSession } from '@/features/session'
 import { CaseGrid } from '@/widgets/case-grid'
 import { CaptureCarousel } from '@/widgets/capture-carousel'
 import { CommentRecap } from '@/widgets/comment-recap'
@@ -23,6 +24,14 @@ const loading = ref(true)
 const open = ref<{ stepId: string; variantId: string } | null>(null)
 
 const review = useReview(() => caseId.value)
+
+// The page is where the two meet: the session knows it came back, the review
+// knows what it was holding, and neither may reach into the other
+// (frontend ADR 0002).
+const { standing } = useSession()
+watch(standing, (now, before) => {
+  if (before === 'expired' && now === 'in') void review.resume()
+})
 
 watch(
   caseId,
@@ -126,7 +135,8 @@ async function refreshCase() {
           class="inline-flex items-center gap-1.5 rounded border border-indigo-500 bg-indigo-50 px-1.5 py-0.5 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-950/60 dark:text-indigo-300"
         >
           <MovedIcon :size="10" />
-          {{ tally.moved }} capture{{ tally.moved > 1 ? 's' : '' }} {{ tally.moved > 1 ? 'ont' : 'a' }}
+          {{ tally.moved }} capture{{ tally.moved > 1 ? 's' : '' }}
+          {{ tally.moved > 1 ? 'ont' : 'a' }}
           bougé
         </span>
         <span
