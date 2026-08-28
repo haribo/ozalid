@@ -56,6 +56,8 @@ coverage/
 .eslintcache
 apps/web/test-results/
 apps/web/playwright-report/
+# The session the e2e suite signs into. Minted per run, never shared.
+apps/web/e2e/.auth/
 *.timestamp-*-*.mjs
 
 # =============================================================================
