@@ -153,6 +153,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every account on this instance
+         * @description Deactivated accounts are listed too, and say so. They are what a name in the
+         *     journal resolves to, so hiding them would leave a reviewer's name pointing
+         *     at nothing.
+         */
+        get: operations["listAccounts"];
+        put?: never;
+        /**
+         * Make an account for a person
+         * @description There is no open sign-up: an account exists because an administrator made it
+         *     (`product.md` §8.2). No password is stored — the address is how they sign
+         *     in, so there is nothing to forget and nothing to reset
+         *     ([ADR 0019](https://github.com/haribo/ozalid/blob/develop/docs/adr/0019-two-kinds-of-account-one-set-of-rights.md)).
+         *
+         *     The new account reaches nothing until somebody grants it a membership.
+         */
+        post: operations["createAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounts/{accountId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Stop an account from signing in
+         * @description Deactivated, never deleted. Every fact it recorded keeps naming it, and the
+         *     journal holds no foreign key to the account table precisely so evidence
+         *     outlives the person ([ADR 0018](https://github.com/haribo/ozalid/blob/develop/docs/adr/0018-an-actor-is-never-invented.md)).
+         *
+         *     Idempotent: deactivating an account that is already deactivated changes
+         *     nothing and answers the same.
+         */
+        delete: operations["deactivateAccount"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects": {
         parameters: {
             query?: never;
@@ -637,6 +695,33 @@ export interface components {
             detail?: string;
             /** Format: uri-reference */
             instance?: string;
+        };
+        Account: {
+            id: string;
+            name: string;
+            /** Format: email */
+            email: string;
+            /** @description Manages accounts and creates projects; reaches no content. */
+            isAdmin: boolean;
+            /**
+             * Format: date-time
+             * @description Absent while the account works. An account is deactivated, never
+             *     deleted: what it reviewed stays readable and the journal keeps naming
+             *     it (ADR 0018).
+             */
+            deactivatedAt?: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        NewAccount: {
+            name: string;
+            /**
+             * Format: email
+             * @description Unique, and where the sign-in link is sent. There is no password.
+             */
+            email: string;
+            /** @default false */
+            isAdmin: boolean;
         };
         NewProject: {
             slug: string;
@@ -1244,6 +1329,87 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    listAccounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The accounts, by name. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewAccount"];
+            };
+        };
+        responses: {
+            /** @description The account. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            /** @description That address already has an account. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["problem"];
+                };
+            };
+        };
+    };
+    deactivateAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The account can no longer sign in. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     createProject: {

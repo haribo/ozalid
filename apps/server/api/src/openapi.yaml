@@ -27,6 +27,10 @@ paths:
     $ref: "./paths/me.yaml"
   /projects/{slug}/blobs/{hash}:
     $ref: "./paths/blob.yaml"
+  /accounts:
+    $ref: "./paths/accounts.yaml"
+  /accounts/{accountId}:
+    $ref: "./paths/account.yaml"
   /projects:
     $ref: "./paths/projects.yaml"
   /projects/{slug}:
