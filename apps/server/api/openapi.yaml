@@ -595,6 +595,110 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/IntakeRefused'
+  /projects/{slug}/members:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: listMembers
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Who reaches this project
+      description: |
+        People and programs in one list. A service account holds a membership like
+        anyone else ([ADR 0019](https://github.com/haribo/ozalid/blob/develop/docs/adr/0019-two-kinds-of-account-one-set-of-rights.md)),
+        and hiding either kind would make the list a lie about who can see the book.
+
+        Reaching this needs `reader`, not administration: seeing who is on a project
+        is seeing, and a reader sees everything (`product.md` §8.1).
+      tags:
+        - accounts
+      responses:
+        '200':
+          description: The members, people first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Membership'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /projects/{slug}/members/{accountId}:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      operationId: grantMembership
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Put a person on a project, or change what they may do
+      description: |
+        An administrator grants memberships — all of them, not only the first
+        (`product.md` §8.2). Granting to somebody who is already a member changes
+        their rights rather than failing: an administrator who meant to demote
+        somebody said so, and refusing would make them revoke first and risk
+        forgetting the second half.
+
+        Names a **person**. A service account's membership is written when it is
+        created and never moved: it belongs to one project, and that is enforced
+        rather than trusted ([ADR 0018](https://github.com/haribo/ozalid/blob/develop/docs/adr/0018-an-actor-is-never-invented.md)).
+      tags:
+        - accounts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewMembership'
+      responses:
+        '204':
+          description: They are a member with those rights.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: revokeMembership
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Take a person off a project
+      description: |
+        They stop reaching it. Everything they recorded stays, and keeps naming
+        them: the journal holds no foreign key to any account table precisely so
+        evidence outlives a membership (`product.md` §8).
+
+        Idempotent: revoking a membership nobody holds changes nothing and answers
+        the same.
+      tags:
+        - accounts
+      responses:
+        '204':
+          description: They no longer reach this project.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /projects/{slug}/categories:
     parameters:
       - name: slug
@@ -1547,6 +1651,49 @@ components:
                 uploading them again would fix nothing. They have to be re-captured.
               items:
                 type: string
+    Rights:
+      type: string
+      enum:
+        - reader
+        - member
+      description: |
+        `reader` sees everything and changes nothing; `member` does everything, on
+        the projects they belong to. Two, and no more (`product.md` §8.1).
+    Membership:
+      type: object
+      required:
+        - accountId
+        - name
+        - isPerson
+        - rights
+        - addedAt
+      properties:
+        accountId:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+          description: Absent for a service account, which has no address to reach.
+        isPerson:
+          type: boolean
+          description: |
+            Whether this member is a person or a program. Derived from which kind of
+            account holds the membership, never declared
+            (`product.md` §8).
+        rights:
+          $ref: '#/components/schemas/Rights'
+        addedAt:
+          type: string
+          format: date-time
+    NewMembership:
+      type: object
+      required:
+        - rights
+      properties:
+        rights:
+          $ref: '#/components/schemas/Rights'
     StateCounts:
       type: object
       required:

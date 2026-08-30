@@ -165,3 +165,37 @@ NewAccount:
     isAdmin:
       type: boolean
       default: false
+
+Rights:
+  type: string
+  enum: [reader, member]
+  description: |
+    `reader` sees everything and changes nothing; `member` does everything, on
+    the projects they belong to. Two, and no more (`product.md` §8.1).
+
+Membership:
+  type: object
+  required: [accountId, name, isPerson, rights, addedAt]
+  properties:
+    accountId: { type: string }
+    name: { type: string }
+    email:
+      type: string
+      format: email
+      description: Absent for a service account, which has no address to reach.
+    isPerson:
+      type: boolean
+      description: |
+        Whether this member is a person or a program. Derived from which kind of
+        account holds the membership, never declared
+        (`product.md` §8).
+    rights:
+      $ref: "#/Rights"
+    addedAt: { type: string, format: date-time }
+
+NewMembership:
+  type: object
+  required: [rights]
+  properties:
+    rights:
+      $ref: "#/Rights"

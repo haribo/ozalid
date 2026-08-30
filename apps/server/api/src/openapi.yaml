@@ -41,6 +41,10 @@ paths:
     $ref: "./paths/cases.yaml"
   /projects/{slug}/editions:
     $ref: "./paths/editions.yaml"
+  /projects/{slug}/members:
+    $ref: "./paths/members.yaml"
+  /projects/{slug}/members/{accountId}:
+    $ref: "./paths/member.yaml"
   /projects/{slug}/categories:
     $ref: "./paths/categories.yaml"
   /projects/{slug}/captures/{captureId}:
