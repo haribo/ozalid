@@ -619,8 +619,9 @@ paths:
                   $ref: '#/components/schemas/Comment'
         '404':
           $ref: '#/components/responses/NotFound'
-  /comments/{commentId}/reference:
+  /projects/{slug}/comments/{commentId}/reference:
     parameters:
+      - $ref: '#/components/parameters/Slug'
       - $ref: '#/components/parameters/CommentId'
     post:
       operationId: trackComment
@@ -647,8 +648,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MoveRefused'
-  /comments/{commentId}/discard:
+  /projects/{slug}/comments/{commentId}/discard:
     parameters:
+      - $ref: '#/components/parameters/Slug'
       - $ref: '#/components/parameters/CommentId'
     post:
       operationId: discardComment
@@ -681,8 +683,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MoveRefused'
-  /comments/{commentId}/delivery:
+  /projects/{slug}/comments/{commentId}/delivery:
     parameters:
+      - $ref: '#/components/parameters/Slug'
       - $ref: '#/components/parameters/CommentId'
     post:
       operationId: deliverComment
@@ -703,8 +706,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MoveRefused'
-  /comments/{commentId}/judgment:
+  /projects/{slug}/comments/{commentId}/judgment:
     parameters:
+      - $ref: '#/components/parameters/Slug'
       - $ref: '#/components/parameters/CommentId'
     post:
       operationId: judgeComment
@@ -811,8 +815,13 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/problem'
-  /categories/{categoryId}:
+  /projects/{slug}/categories/{categoryId}:
     parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
       - name: categoryId
         in: path
         required: true
@@ -1577,6 +1586,12 @@ components:
           schema:
             $ref: '#/components/schemas/problem'
   parameters:
+    Slug:
+      name: slug
+      in: path
+      required: true
+      schema:
+        type: string
     CommentId:
       name: commentId
       in: path

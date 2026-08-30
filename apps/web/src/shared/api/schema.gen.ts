@@ -370,11 +370,12 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/comments/{commentId}/reference": {
+    "/projects/{slug}/comments/{commentId}/reference": {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                slug: components["parameters"]["Slug"];
                 commentId: components["parameters"]["CommentId"];
             };
             cookie?: never;
@@ -395,11 +396,12 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/comments/{commentId}/discard": {
+    "/projects/{slug}/comments/{commentId}/discard": {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                slug: components["parameters"]["Slug"];
                 commentId: components["parameters"]["CommentId"];
             };
             cookie?: never;
@@ -420,11 +422,12 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/comments/{commentId}/delivery": {
+    "/projects/{slug}/comments/{commentId}/delivery": {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                slug: components["parameters"]["Slug"];
                 commentId: components["parameters"]["CommentId"];
             };
             cookie?: never;
@@ -447,11 +450,12 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/comments/{commentId}/judgment": {
+    "/projects/{slug}/comments/{commentId}/judgment": {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                slug: components["parameters"]["Slug"];
                 commentId: components["parameters"]["CommentId"];
             };
             cookie?: never;
@@ -524,11 +528,12 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/categories/{categoryId}": {
+    "/projects/{slug}/categories/{categoryId}": {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                slug: string;
                 categoryId: string;
             };
             cookie?: never;
@@ -959,6 +964,7 @@ export interface components {
         };
     };
     parameters: {
+        Slug: string;
         CommentId: string;
     };
     requestBodies: never;
@@ -1571,6 +1577,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                slug: components["parameters"]["Slug"];
                 commentId: components["parameters"]["CommentId"];
             };
             cookie?: never;
@@ -1592,6 +1599,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                slug: components["parameters"]["Slug"];
                 commentId: components["parameters"]["CommentId"];
             };
             cookie?: never;
@@ -1615,6 +1623,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                slug: components["parameters"]["Slug"];
                 commentId: components["parameters"]["CommentId"];
             };
             cookie?: never;
@@ -1631,6 +1640,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                slug: components["parameters"]["Slug"];
                 commentId: components["parameters"]["CommentId"];
             };
             cookie?: never;
@@ -1716,6 +1726,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                slug: string;
                 categoryId: string;
             };
             cookie?: never;

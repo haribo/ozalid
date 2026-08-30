@@ -700,6 +700,9 @@ type Problem struct {
 // CommentId defines model for CommentId.
 type CommentId = string
 
+// Slug defines model for Slug.
+type Slug = string
+
 // BadRequest defines model for BadRequest.
 type BadRequest = Problem
 
@@ -717,19 +720,6 @@ type NotFound = Problem
 
 // Unauthenticated defines model for Unauthenticated.
 type Unauthenticated = Problem
-
-// DiscardCommentJSONBody defines parameters for DiscardComment.
-type DiscardCommentJSONBody struct {
-	Reason string `json:"reason"`
-}
-
-// JudgeCommentJSONBody defines parameters for JudgeComment.
-type JudgeCommentJSONBody struct {
-	Accept bool `json:"accept"`
-
-	// Remark Mandatory when refusing. It is what the dev has to read.
-	Remark *string `json:"remark,omitempty"`
-}
 
 // GetHealth200JSONResponseBodyStatus defines parameters for GetHealth.
 type GetHealth200JSONResponseBodyStatus string
@@ -753,6 +743,19 @@ type GetCaseCapturesParams struct {
 	EditionId *string `form:"editionId,omitempty" json:"editionId,omitempty"`
 }
 
+// DiscardCommentJSONBody defines parameters for DiscardComment.
+type DiscardCommentJSONBody struct {
+	Reason string `json:"reason"`
+}
+
+// JudgeCommentJSONBody defines parameters for JudgeComment.
+type JudgeCommentJSONBody struct {
+	Accept bool `json:"accept"`
+
+	// Remark Mandatory when refusing. It is what the dev has to read.
+	Remark *string `json:"remark,omitempty"`
+}
+
 // RequestSignInJSONBody defines parameters for RequestSignIn.
 type RequestSignInJSONBody struct {
 	Email openapi_types.Email `json:"email"`
@@ -762,15 +765,6 @@ type RequestSignInJSONBody struct {
 type ClaimSignInJSONBody struct {
 	Link string `json:"link"`
 }
-
-// DiscardCommentJSONRequestBody defines body for DiscardComment for application/json ContentType.
-type DiscardCommentJSONRequestBody DiscardCommentJSONBody
-
-// JudgeCommentJSONRequestBody defines body for JudgeComment for application/json ContentType.
-type JudgeCommentJSONRequestBody JudgeCommentJSONBody
-
-// TrackCommentJSONRequestBody defines body for TrackComment for application/json ContentType.
-type TrackCommentJSONRequestBody = IssueRef
 
 // CreateProjectJSONRequestBody defines body for CreateProject for application/json ContentType.
 type CreateProjectJSONRequestBody = NewProject
@@ -789,6 +783,15 @@ type SaveReviewJSONRequestBody = ReviewSave
 
 // CreateCategoryJSONRequestBody defines body for CreateCategory for application/json ContentType.
 type CreateCategoryJSONRequestBody = NewCategory
+
+// DiscardCommentJSONRequestBody defines body for DiscardComment for application/json ContentType.
+type DiscardCommentJSONRequestBody DiscardCommentJSONBody
+
+// JudgeCommentJSONRequestBody defines body for JudgeComment for application/json ContentType.
+type JudgeCommentJSONRequestBody JudgeCommentJSONBody
+
+// TrackCommentJSONRequestBody defines body for TrackComment for application/json ContentType.
+type TrackCommentJSONRequestBody = IssueRef
 
 // CreateEditionJSONRequestBody defines body for CreateEdition for application/json ContentType.
 type CreateEditionJSONRequestBody = Manifest
@@ -810,21 +813,6 @@ type ServerInterface interface {
 	// PutBlob Store content under its address
 	// (PUT /blobs/{hash})
 	PutBlob(w http.ResponseWriter, r *http.Request, hash string)
-	// DeleteCategory Remove an empty node
-	// (DELETE /categories/{categoryId})
-	DeleteCategory(w http.ResponseWriter, r *http.Request, categoryId string)
-	// DeliverComment Ask for a judgment on a delivered fix
-	// (POST /comments/{commentId}/delivery)
-	DeliverComment(w http.ResponseWriter, r *http.Request, commentId CommentId)
-	// DiscardComment Set a comment aside
-	// (POST /comments/{commentId}/discard)
-	DiscardComment(w http.ResponseWriter, r *http.Request, commentId CommentId)
-	// JudgeComment Accept a delivery, or refuse it
-	// (POST /comments/{commentId}/judgment)
-	JudgeComment(w http.ResponseWriter, r *http.Request, commentId CommentId)
-	// TrackComment Attach an external issue to a comment
-	// (POST /comments/{commentId}/reference)
-	TrackComment(w http.ResponseWriter, r *http.Request, commentId CommentId)
 	// GetHealth Report whether the service is able to serve
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -873,6 +861,21 @@ type ServerInterface interface {
 	// CreateCategory Add a node to the tree
 	// (POST /projects/{slug}/categories)
 	CreateCategory(w http.ResponseWriter, r *http.Request, slug string)
+	// DeleteCategory Remove an empty node
+	// (DELETE /projects/{slug}/categories/{categoryId})
+	DeleteCategory(w http.ResponseWriter, r *http.Request, slug string, categoryId string)
+	// DeliverComment Ask for a judgment on a delivered fix
+	// (POST /projects/{slug}/comments/{commentId}/delivery)
+	DeliverComment(w http.ResponseWriter, r *http.Request, slug Slug, commentId CommentId)
+	// DiscardComment Set a comment aside
+	// (POST /projects/{slug}/comments/{commentId}/discard)
+	DiscardComment(w http.ResponseWriter, r *http.Request, slug Slug, commentId CommentId)
+	// JudgeComment Accept a delivery, or refuse it
+	// (POST /projects/{slug}/comments/{commentId}/judgment)
+	JudgeComment(w http.ResponseWriter, r *http.Request, slug Slug, commentId CommentId)
+	// TrackComment Attach an external issue to a comment
+	// (POST /projects/{slug}/comments/{commentId}/reference)
+	TrackComment(w http.ResponseWriter, r *http.Request, slug Slug, commentId CommentId)
 	// CreateEdition Take a run's evidence into the book
 	// (POST /projects/{slug}/editions)
 	CreateEdition(w http.ResponseWriter, r *http.Request, slug string)
@@ -965,136 +968,6 @@ func (siw *ServerInterfaceWrapper) PutBlob(w http.ResponseWriter, r *http.Reques
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutBlob(w, r, hash)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// DeleteCategory operation middleware
-func (siw *ServerInterfaceWrapper) DeleteCategory(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "categoryId" -------------
-	var categoryId string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "categoryId", r.PathValue("categoryId"), &categoryId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "categoryId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteCategory(w, r, categoryId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// DeliverComment operation middleware
-func (siw *ServerInterfaceWrapper) DeliverComment(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "commentId" -------------
-	var commentId CommentId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "commentId", r.PathValue("commentId"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "commentId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeliverComment(w, r, commentId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// DiscardComment operation middleware
-func (siw *ServerInterfaceWrapper) DiscardComment(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "commentId" -------------
-	var commentId CommentId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "commentId", r.PathValue("commentId"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "commentId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DiscardComment(w, r, commentId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// JudgeComment operation middleware
-func (siw *ServerInterfaceWrapper) JudgeComment(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "commentId" -------------
-	var commentId CommentId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "commentId", r.PathValue("commentId"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "commentId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.JudgeComment(w, r, commentId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// TrackComment operation middleware
-func (siw *ServerInterfaceWrapper) TrackComment(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "commentId" -------------
-	var commentId CommentId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "commentId", r.PathValue("commentId"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "commentId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.TrackComment(w, r, commentId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1583,6 +1456,181 @@ func (siw *ServerInterfaceWrapper) CreateCategory(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteCategory operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCategory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "categoryId" -------------
+	var categoryId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "categoryId", r.PathValue("categoryId"), &categoryId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "categoryId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteCategory(w, r, slug, categoryId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeliverComment operation middleware
+func (siw *ServerInterfaceWrapper) DeliverComment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug Slug
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "commentId" -------------
+	var commentId CommentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "commentId", r.PathValue("commentId"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "commentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeliverComment(w, r, slug, commentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DiscardComment operation middleware
+func (siw *ServerInterfaceWrapper) DiscardComment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug Slug
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "commentId" -------------
+	var commentId CommentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "commentId", r.PathValue("commentId"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "commentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DiscardComment(w, r, slug, commentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// JudgeComment operation middleware
+func (siw *ServerInterfaceWrapper) JudgeComment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug Slug
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "commentId" -------------
+	var commentId CommentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "commentId", r.PathValue("commentId"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "commentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.JudgeComment(w, r, slug, commentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// TrackComment operation middleware
+func (siw *ServerInterfaceWrapper) TrackComment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug Slug
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "commentId" -------------
+	var commentId CommentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "commentId", r.PathValue("commentId"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "commentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.TrackComment(w, r, slug, commentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CreateEdition operation middleware
 func (siw *ServerInterfaceWrapper) CreateEdition(w http.ResponseWriter, r *http.Request) {
 
@@ -1792,13 +1840,13 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}", wrapper.UpdateCase)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}/captures", wrapper.GetCaseCaptures)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}/comments", wrapper.ListComments)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/comments/{commentId}/reference", wrapper.TrackComment)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/comments/{commentId}/discard", wrapper.DiscardComment)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/comments/{commentId}/delivery", wrapper.DeliverComment)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/comments/{commentId}/judgment", wrapper.JudgeComment)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/comments/{commentId}/reference", wrapper.TrackComment)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/comments/{commentId}/discard", wrapper.DiscardComment)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/comments/{commentId}/delivery", wrapper.DeliverComment)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/comments/{commentId}/judgment", wrapper.JudgeComment)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}/reviews", wrapper.SaveReview)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}/archive", wrapper.ArchiveCase)
-	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/categories/{categoryId}", wrapper.DeleteCategory)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/projects/{slug}/categories/{categoryId}", wrapper.DeleteCategory)
 
 	return m
 }
@@ -1998,319 +2046,6 @@ func (response PutBlob422ApplicationProblemPlusJSONResponse) VisitPutBlobRespons
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(422)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeleteCategoryRequestObject struct {
-	CategoryId string `json:"categoryId"`
-}
-
-type DeleteCategoryResponseObject interface {
-	VisitDeleteCategoryResponse(w http.ResponseWriter) error
-}
-
-type DeleteCategory204Response struct {
-}
-
-func (response DeleteCategory204Response) VisitDeleteCategoryResponse(w http.ResponseWriter) error {
-	w.WriteHeader(204)
-	return nil
-}
-
-type DeleteCategory404ApplicationProblemPlusJSONResponse struct {
-	NotFoundApplicationProblemPlusJSONResponse
-}
-
-func (response DeleteCategory404ApplicationProblemPlusJSONResponse) VisitDeleteCategoryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeleteCategory409ApplicationProblemPlusJSONResponse Problem
-
-func (response DeleteCategory409ApplicationProblemPlusJSONResponse) VisitDeleteCategoryResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(409)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeliverCommentRequestObject struct {
-	CommentId CommentId `json:"commentId"`
-}
-
-type DeliverCommentResponseObject interface {
-	VisitDeliverCommentResponse(w http.ResponseWriter) error
-}
-
-type DeliverComment200JSONResponse struct{ MoveAppliedJSONResponse }
-
-func (response DeliverComment200JSONResponse) VisitDeliverCommentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeliverComment404ApplicationProblemPlusJSONResponse struct {
-	NotFoundApplicationProblemPlusJSONResponse
-}
-
-func (response DeliverComment404ApplicationProblemPlusJSONResponse) VisitDeliverCommentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeliverComment409ApplicationProblemPlusJSONResponse struct {
-	MoveRefusedApplicationProblemPlusJSONResponse
-}
-
-func (response DeliverComment409ApplicationProblemPlusJSONResponse) VisitDeliverCommentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(409)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DiscardCommentRequestObject struct {
-	CommentId CommentId `json:"commentId"`
-	Body      *DiscardCommentJSONRequestBody
-}
-
-type DiscardCommentResponseObject interface {
-	VisitDiscardCommentResponse(w http.ResponseWriter) error
-}
-
-type DiscardComment200JSONResponse struct{ MoveAppliedJSONResponse }
-
-func (response DiscardComment200JSONResponse) VisitDiscardCommentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DiscardComment400ApplicationProblemPlusJSONResponse struct {
-	BadRequestApplicationProblemPlusJSONResponse
-}
-
-func (response DiscardComment400ApplicationProblemPlusJSONResponse) VisitDiscardCommentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DiscardComment404ApplicationProblemPlusJSONResponse struct {
-	NotFoundApplicationProblemPlusJSONResponse
-}
-
-func (response DiscardComment404ApplicationProblemPlusJSONResponse) VisitDiscardCommentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DiscardComment409ApplicationProblemPlusJSONResponse struct {
-	MoveRefusedApplicationProblemPlusJSONResponse
-}
-
-func (response DiscardComment409ApplicationProblemPlusJSONResponse) VisitDiscardCommentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(409)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type JudgeCommentRequestObject struct {
-	CommentId CommentId `json:"commentId"`
-	Body      *JudgeCommentJSONRequestBody
-}
-
-type JudgeCommentResponseObject interface {
-	VisitJudgeCommentResponse(w http.ResponseWriter) error
-}
-
-type JudgeComment200JSONResponse struct{ MoveAppliedJSONResponse }
-
-func (response JudgeComment200JSONResponse) VisitJudgeCommentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type JudgeComment400ApplicationProblemPlusJSONResponse struct {
-	BadRequestApplicationProblemPlusJSONResponse
-}
-
-func (response JudgeComment400ApplicationProblemPlusJSONResponse) VisitJudgeCommentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type JudgeComment404ApplicationProblemPlusJSONResponse struct {
-	NotFoundApplicationProblemPlusJSONResponse
-}
-
-func (response JudgeComment404ApplicationProblemPlusJSONResponse) VisitJudgeCommentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type JudgeComment409ApplicationProblemPlusJSONResponse struct {
-	MoveRefusedApplicationProblemPlusJSONResponse
-}
-
-func (response JudgeComment409ApplicationProblemPlusJSONResponse) VisitJudgeCommentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(409)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type TrackCommentRequestObject struct {
-	CommentId CommentId `json:"commentId"`
-	Body      *TrackCommentJSONRequestBody
-}
-
-type TrackCommentResponseObject interface {
-	VisitTrackCommentResponse(w http.ResponseWriter) error
-}
-
-type TrackComment200JSONResponse struct{ MoveAppliedJSONResponse }
-
-func (response TrackComment200JSONResponse) VisitTrackCommentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type TrackComment400ApplicationProblemPlusJSONResponse struct {
-	BadRequestApplicationProblemPlusJSONResponse
-}
-
-func (response TrackComment400ApplicationProblemPlusJSONResponse) VisitTrackCommentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type TrackComment404ApplicationProblemPlusJSONResponse struct {
-	NotFoundApplicationProblemPlusJSONResponse
-}
-
-func (response TrackComment404ApplicationProblemPlusJSONResponse) VisitTrackCommentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type TrackComment409ApplicationProblemPlusJSONResponse struct {
-	MoveRefusedApplicationProblemPlusJSONResponse
-}
-
-func (response TrackComment409ApplicationProblemPlusJSONResponse) VisitTrackCommentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -3048,6 +2783,324 @@ func (response CreateCategory409ApplicationProblemPlusJSONResponse) VisitCreateC
 	return err
 }
 
+type DeleteCategoryRequestObject struct {
+	Slug       string `json:"slug"`
+	CategoryId string `json:"categoryId"`
+}
+
+type DeleteCategoryResponseObject interface {
+	VisitDeleteCategoryResponse(w http.ResponseWriter) error
+}
+
+type DeleteCategory204Response struct {
+}
+
+func (response DeleteCategory204Response) VisitDeleteCategoryResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteCategory404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteCategory404ApplicationProblemPlusJSONResponse) VisitDeleteCategoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteCategory409ApplicationProblemPlusJSONResponse Problem
+
+func (response DeleteCategory409ApplicationProblemPlusJSONResponse) VisitDeleteCategoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeliverCommentRequestObject struct {
+	Slug      Slug      `json:"slug"`
+	CommentId CommentId `json:"commentId"`
+}
+
+type DeliverCommentResponseObject interface {
+	VisitDeliverCommentResponse(w http.ResponseWriter) error
+}
+
+type DeliverComment200JSONResponse struct{ MoveAppliedJSONResponse }
+
+func (response DeliverComment200JSONResponse) VisitDeliverCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeliverComment404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response DeliverComment404ApplicationProblemPlusJSONResponse) VisitDeliverCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeliverComment409ApplicationProblemPlusJSONResponse struct {
+	MoveRefusedApplicationProblemPlusJSONResponse
+}
+
+func (response DeliverComment409ApplicationProblemPlusJSONResponse) VisitDeliverCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiscardCommentRequestObject struct {
+	Slug      Slug      `json:"slug"`
+	CommentId CommentId `json:"commentId"`
+	Body      *DiscardCommentJSONRequestBody
+}
+
+type DiscardCommentResponseObject interface {
+	VisitDiscardCommentResponse(w http.ResponseWriter) error
+}
+
+type DiscardComment200JSONResponse struct{ MoveAppliedJSONResponse }
+
+func (response DiscardComment200JSONResponse) VisitDiscardCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiscardComment400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response DiscardComment400ApplicationProblemPlusJSONResponse) VisitDiscardCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiscardComment404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response DiscardComment404ApplicationProblemPlusJSONResponse) VisitDiscardCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiscardComment409ApplicationProblemPlusJSONResponse struct {
+	MoveRefusedApplicationProblemPlusJSONResponse
+}
+
+func (response DiscardComment409ApplicationProblemPlusJSONResponse) VisitDiscardCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JudgeCommentRequestObject struct {
+	Slug      Slug      `json:"slug"`
+	CommentId CommentId `json:"commentId"`
+	Body      *JudgeCommentJSONRequestBody
+}
+
+type JudgeCommentResponseObject interface {
+	VisitJudgeCommentResponse(w http.ResponseWriter) error
+}
+
+type JudgeComment200JSONResponse struct{ MoveAppliedJSONResponse }
+
+func (response JudgeComment200JSONResponse) VisitJudgeCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JudgeComment400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response JudgeComment400ApplicationProblemPlusJSONResponse) VisitJudgeCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JudgeComment404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response JudgeComment404ApplicationProblemPlusJSONResponse) VisitJudgeCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JudgeComment409ApplicationProblemPlusJSONResponse struct {
+	MoveRefusedApplicationProblemPlusJSONResponse
+}
+
+func (response JudgeComment409ApplicationProblemPlusJSONResponse) VisitJudgeCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TrackCommentRequestObject struct {
+	Slug      Slug      `json:"slug"`
+	CommentId CommentId `json:"commentId"`
+	Body      *TrackCommentJSONRequestBody
+}
+
+type TrackCommentResponseObject interface {
+	VisitTrackCommentResponse(w http.ResponseWriter) error
+}
+
+type TrackComment200JSONResponse struct{ MoveAppliedJSONResponse }
+
+func (response TrackComment200JSONResponse) VisitTrackCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TrackComment400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response TrackComment400ApplicationProblemPlusJSONResponse) VisitTrackCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TrackComment404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response TrackComment404ApplicationProblemPlusJSONResponse) VisitTrackCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TrackComment409ApplicationProblemPlusJSONResponse struct {
+	MoveRefusedApplicationProblemPlusJSONResponse
+}
+
+func (response TrackComment409ApplicationProblemPlusJSONResponse) VisitTrackCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CreateEditionRequestObject struct {
 	Slug string `json:"slug"`
 	Body *CreateEditionJSONRequestBody
@@ -3239,21 +3292,6 @@ type StrictServerInterface interface {
 	// PutBlob Store content under its address
 	// (PUT /blobs/{hash})
 	PutBlob(ctx context.Context, request PutBlobRequestObject) (PutBlobResponseObject, error)
-	// DeleteCategory Remove an empty node
-	// (DELETE /categories/{categoryId})
-	DeleteCategory(ctx context.Context, request DeleteCategoryRequestObject) (DeleteCategoryResponseObject, error)
-	// DeliverComment Ask for a judgment on a delivered fix
-	// (POST /comments/{commentId}/delivery)
-	DeliverComment(ctx context.Context, request DeliverCommentRequestObject) (DeliverCommentResponseObject, error)
-	// DiscardComment Set a comment aside
-	// (POST /comments/{commentId}/discard)
-	DiscardComment(ctx context.Context, request DiscardCommentRequestObject) (DiscardCommentResponseObject, error)
-	// JudgeComment Accept a delivery, or refuse it
-	// (POST /comments/{commentId}/judgment)
-	JudgeComment(ctx context.Context, request JudgeCommentRequestObject) (JudgeCommentResponseObject, error)
-	// TrackComment Attach an external issue to a comment
-	// (POST /comments/{commentId}/reference)
-	TrackComment(ctx context.Context, request TrackCommentRequestObject) (TrackCommentResponseObject, error)
 	// GetHealth Report whether the service is able to serve
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
@@ -3302,6 +3340,21 @@ type StrictServerInterface interface {
 	// CreateCategory Add a node to the tree
 	// (POST /projects/{slug}/categories)
 	CreateCategory(ctx context.Context, request CreateCategoryRequestObject) (CreateCategoryResponseObject, error)
+	// DeleteCategory Remove an empty node
+	// (DELETE /projects/{slug}/categories/{categoryId})
+	DeleteCategory(ctx context.Context, request DeleteCategoryRequestObject) (DeleteCategoryResponseObject, error)
+	// DeliverComment Ask for a judgment on a delivered fix
+	// (POST /projects/{slug}/comments/{commentId}/delivery)
+	DeliverComment(ctx context.Context, request DeliverCommentRequestObject) (DeliverCommentResponseObject, error)
+	// DiscardComment Set a comment aside
+	// (POST /projects/{slug}/comments/{commentId}/discard)
+	DiscardComment(ctx context.Context, request DiscardCommentRequestObject) (DiscardCommentResponseObject, error)
+	// JudgeComment Accept a delivery, or refuse it
+	// (POST /projects/{slug}/comments/{commentId}/judgment)
+	JudgeComment(ctx context.Context, request JudgeCommentRequestObject) (JudgeCommentResponseObject, error)
+	// TrackComment Attach an external issue to a comment
+	// (POST /projects/{slug}/comments/{commentId}/reference)
+	TrackComment(ctx context.Context, request TrackCommentRequestObject) (TrackCommentResponseObject, error)
 	// CreateEdition Take a run's evidence into the book
 	// (POST /projects/{slug}/editions)
 	CreateEdition(ctx context.Context, request CreateEditionRequestObject) (CreateEditionResponseObject, error)
@@ -3428,157 +3481,6 @@ func (sh *strictHandler) PutBlob(w http.ResponseWriter, r *http.Request, hash st
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PutBlobResponseObject); ok {
 		if err := validResponse.VisitPutBlobResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// DeleteCategory operation middleware
-func (sh *strictHandler) DeleteCategory(w http.ResponseWriter, r *http.Request, categoryId string) {
-	var request DeleteCategoryRequestObject
-
-	request.CategoryId = categoryId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.DeleteCategory(ctx, request.(DeleteCategoryRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "DeleteCategory")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(DeleteCategoryResponseObject); ok {
-		if err := validResponse.VisitDeleteCategoryResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// DeliverComment operation middleware
-func (sh *strictHandler) DeliverComment(w http.ResponseWriter, r *http.Request, commentId CommentId) {
-	var request DeliverCommentRequestObject
-
-	request.CommentId = commentId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.DeliverComment(ctx, request.(DeliverCommentRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "DeliverComment")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(DeliverCommentResponseObject); ok {
-		if err := validResponse.VisitDeliverCommentResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// DiscardComment operation middleware
-func (sh *strictHandler) DiscardComment(w http.ResponseWriter, r *http.Request, commentId CommentId) {
-	var request DiscardCommentRequestObject
-
-	request.CommentId = commentId
-
-	var body DiscardCommentJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.DiscardComment(ctx, request.(DiscardCommentRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "DiscardComment")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(DiscardCommentResponseObject); ok {
-		if err := validResponse.VisitDiscardCommentResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// JudgeComment operation middleware
-func (sh *strictHandler) JudgeComment(w http.ResponseWriter, r *http.Request, commentId CommentId) {
-	var request JudgeCommentRequestObject
-
-	request.CommentId = commentId
-
-	var body JudgeCommentJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.JudgeComment(ctx, request.(JudgeCommentRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "JudgeComment")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(JudgeCommentResponseObject); ok {
-		if err := validResponse.VisitJudgeCommentResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// TrackComment operation middleware
-func (sh *strictHandler) TrackComment(w http.ResponseWriter, r *http.Request, commentId CommentId) {
-	var request TrackCommentRequestObject
-
-	request.CommentId = commentId
-
-	var body TrackCommentJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.TrackComment(ctx, request.(TrackCommentRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TrackComment")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(TrackCommentResponseObject); ok {
-		if err := validResponse.VisitTrackCommentResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -4046,6 +3948,162 @@ func (sh *strictHandler) CreateCategory(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
+// DeleteCategory operation middleware
+func (sh *strictHandler) DeleteCategory(w http.ResponseWriter, r *http.Request, slug string, categoryId string) {
+	var request DeleteCategoryRequestObject
+
+	request.Slug = slug
+	request.CategoryId = categoryId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteCategory(ctx, request.(DeleteCategoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteCategory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteCategoryResponseObject); ok {
+		if err := validResponse.VisitDeleteCategoryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeliverComment operation middleware
+func (sh *strictHandler) DeliverComment(w http.ResponseWriter, r *http.Request, slug Slug, commentId CommentId) {
+	var request DeliverCommentRequestObject
+
+	request.Slug = slug
+	request.CommentId = commentId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeliverComment(ctx, request.(DeliverCommentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeliverComment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeliverCommentResponseObject); ok {
+		if err := validResponse.VisitDeliverCommentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DiscardComment operation middleware
+func (sh *strictHandler) DiscardComment(w http.ResponseWriter, r *http.Request, slug Slug, commentId CommentId) {
+	var request DiscardCommentRequestObject
+
+	request.Slug = slug
+	request.CommentId = commentId
+
+	var body DiscardCommentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DiscardComment(ctx, request.(DiscardCommentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DiscardComment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DiscardCommentResponseObject); ok {
+		if err := validResponse.VisitDiscardCommentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// JudgeComment operation middleware
+func (sh *strictHandler) JudgeComment(w http.ResponseWriter, r *http.Request, slug Slug, commentId CommentId) {
+	var request JudgeCommentRequestObject
+
+	request.Slug = slug
+	request.CommentId = commentId
+
+	var body JudgeCommentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.JudgeComment(ctx, request.(JudgeCommentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "JudgeComment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(JudgeCommentResponseObject); ok {
+		if err := validResponse.VisitJudgeCommentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// TrackComment operation middleware
+func (sh *strictHandler) TrackComment(w http.ResponseWriter, r *http.Request, slug Slug, commentId CommentId) {
+	var request TrackCommentRequestObject
+
+	request.Slug = slug
+	request.CommentId = commentId
+
+	var body TrackCommentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.TrackComment(ctx, request.(TrackCommentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TrackComment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(TrackCommentResponseObject); ok {
+		if err := validResponse.VisitTrackCommentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // CreateEdition operation middleware
 func (sh *strictHandler) CreateEdition(w http.ResponseWriter, r *http.Request, slug string) {
 	var request CreateEditionRequestObject
@@ -4170,143 +4228,143 @@ func (sh *strictHandler) SignOut(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

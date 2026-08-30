@@ -1,5 +1,6 @@
 Reference:
   parameters:
+    - $ref: "#/Slug"
     - $ref: "#/CommentId"
   post:
     operationId: trackComment
@@ -28,6 +29,7 @@ Reference:
 
 Discard:
   parameters:
+    - $ref: "#/Slug"
     - $ref: "#/CommentId"
   post:
     operationId: discardComment
@@ -59,6 +61,7 @@ Discard:
 
 Delivery:
   parameters:
+    - $ref: "#/Slug"
     - $ref: "#/CommentId"
   post:
     operationId: deliverComment
@@ -81,6 +84,7 @@ Delivery:
 
 Judgment:
   parameters:
+    - $ref: "#/Slug"
     - $ref: "#/CommentId"
   post:
     operationId: judgeComment
@@ -111,6 +115,12 @@ Judgment:
         $ref: "../components/responses.yaml#/NotFound"
       "409":
         $ref: "#/MoveRefused"
+
+Slug:
+  name: slug
+  in: path
+  required: true
+  schema: { type: string }
 
 CommentId:
   name: commentId

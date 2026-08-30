@@ -45,19 +45,19 @@ paths:
     $ref: "./paths/case-captures.yaml"
   /projects/{slug}/cases/{caseId}/comments:
     $ref: "./paths/case-comments.yaml"
-  /comments/{commentId}/reference:
+  /projects/{slug}/comments/{commentId}/reference:
     $ref: "./paths/comment-moves.yaml#/Reference"
-  /comments/{commentId}/discard:
+  /projects/{slug}/comments/{commentId}/discard:
     $ref: "./paths/comment-moves.yaml#/Discard"
-  /comments/{commentId}/delivery:
+  /projects/{slug}/comments/{commentId}/delivery:
     $ref: "./paths/comment-moves.yaml#/Delivery"
-  /comments/{commentId}/judgment:
+  /projects/{slug}/comments/{commentId}/judgment:
     $ref: "./paths/comment-moves.yaml#/Judgment"
   /projects/{slug}/cases/{caseId}/reviews:
     $ref: "./paths/case-reviews.yaml"
   /projects/{slug}/cases/{caseId}/archive:
     $ref: "./paths/case-archive.yaml"
-  /categories/{categoryId}:
+  /projects/{slug}/categories/{categoryId}:
     $ref: "./paths/category.yaml"
 
 # Declared where it is required, never globally. Twenty-six of the twenty-eight
