@@ -7,6 +7,8 @@ package sqlcgen
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const addProjectMember = `-- name: AddProjectMember :exec
@@ -185,6 +187,85 @@ func (q *Queries) EndSession(ctx context.Context, tokenHash string) error {
 	return err
 }
 
+const grantMembership = `-- name: GrantMembership :execrows
+INSERT INTO project_members (project_id, user_id, rights)
+SELECT p.id, u.id, $1
+FROM projects p, users u
+WHERE p.slug = $2 AND u.id = $3
+ON CONFLICT (project_id, user_id) WHERE user_id IS NOT NULL
+DO UPDATE SET rights = excluded.rights
+`
+
+type GrantMembershipParams struct {
+	Rights string
+	Slug   string
+	UserID string
+}
+
+// Granting again changes the rights rather than failing: an administrator who
+// meant to demote somebody said so, and refusing would make them revoke first.
+func (q *Queries) GrantMembership(ctx context.Context, arg GrantMembershipParams) (int64, error) {
+	result, err := q.db.Exec(ctx, grantMembership, arg.Rights, arg.Slug, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const listProjectMembers = `-- name: ListProjectMembers :many
+SELECT
+    coalesce(u.id, sa.id)     AS account_id,
+    coalesce(u.name, sa.name) AS name,
+    u.email,
+    (m.user_id IS NOT NULL)::boolean AS is_person,
+    m.rights,
+    m.added_at
+FROM project_members m
+JOIN projects p ON p.id = m.project_id
+LEFT JOIN users u ON u.id = m.user_id
+LEFT JOIN service_accounts sa ON sa.id = m.service_account_id
+WHERE p.slug = $1
+ORDER BY is_person DESC, lower(coalesce(u.name, sa.name))
+`
+
+type ListProjectMembersRow struct {
+	AccountID string
+	Name      string
+	Email     *string
+	IsPerson  bool
+	Rights    string
+	AddedAt   pgtype.Timestamptz
+}
+
+// Both kinds of holder in one list: a project's members are the people and the
+// programs that reach it, and hiding either would make the list a lie.
+func (q *Queries) ListProjectMembers(ctx context.Context, slug string) ([]ListProjectMembersRow, error) {
+	rows, err := q.db.Query(ctx, listProjectMembers, slug)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProjectMembersRow{}
+	for rows.Next() {
+		var i ListProjectMembersRow
+		if err := rows.Scan(
+			&i.AccountID,
+			&i.Name,
+			&i.Email,
+			&i.IsPerson,
+			&i.Rights,
+			&i.AddedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUsers = `-- name: ListUsers :many
 SELECT id, name, email, is_admin, deactivated_at, created_at FROM users ORDER BY lower(name), id
 `
@@ -214,6 +295,25 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const revokeMembership = `-- name: RevokeMembership :execrows
+DELETE FROM project_members m
+USING projects p
+WHERE m.project_id = p.id AND p.slug = $1 AND m.user_id = $2
+`
+
+type RevokeMembershipParams struct {
+	Slug   string
+	UserID *string
+}
+
+func (q *Queries) RevokeMembership(ctx context.Context, arg RevokeMembershipParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeMembership, arg.Slug, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const serviceAccountByTokenHash = `-- name: ServiceAccountByTokenHash :one

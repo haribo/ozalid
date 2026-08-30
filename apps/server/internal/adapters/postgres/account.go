@@ -7,6 +7,7 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres/sqlcgen"
 	"github.com/haribo/ozalid/apps/server/internal/app/account"
 	app "github.com/haribo/ozalid/apps/server/internal/app/catalogue"
+	"github.com/haribo/ozalid/apps/server/internal/domain/access"
 )
 
 // CreateAccount stores an account for a person.
@@ -61,4 +62,48 @@ func toAccount(row sqlcgen.User) account.Account {
 		out.DeactivatedAt = &at
 	}
 	return out
+}
+
+// Members returns who reaches a project, people first.
+func (r *Repository) Members(ctx context.Context, slug string) ([]account.Membership, error) {
+	rows, err := r.q.ListProjectMembers(ctx, slug)
+	if err != nil {
+		return nil, translate("listing the members", err)
+	}
+	out := make([]account.Membership, 0, len(rows))
+	for _, row := range rows {
+		m := account.Membership{
+			AccountID: row.AccountID, Name: row.Name, IsPerson: row.IsPerson,
+			Rights: access.Rights(row.Rights), AddedAt: row.AddedAt.Time,
+		}
+		if row.Email != nil {
+			m.Email = *row.Email
+		}
+		out = append(out, m)
+	}
+	return out, nil
+}
+
+// Grant puts a person on a project, or changes their rights on it. It reports
+// whether both the project and the person exist; neither is named to the
+// caller when one does not.
+func (r *Repository) Grant(ctx context.Context, slug, userID string, rights access.Rights) (bool, error) {
+	rows, err := r.q.GrantMembership(ctx, sqlcgen.GrantMembershipParams{
+		Slug: slug, UserID: userID, Rights: string(rights),
+	})
+	if err != nil {
+		return false, translate("granting the membership", err)
+	}
+	return rows > 0, nil
+}
+
+// Revoke takes a person off a project. Revoking one nobody holds is not an
+// error: the caller wanted them off, and they are.
+func (r *Repository) Revoke(ctx context.Context, slug, userID string) error {
+	if _, err := r.q.RevokeMembership(ctx, sqlcgen.RevokeMembershipParams{
+		Slug: slug, UserID: &userID,
+	}); err != nil {
+		return translate("revoking the membership", err)
+	}
+	return nil
 }
