@@ -20,7 +20,7 @@ import (
 // write: a state that disagrees with the comments is the single failure the
 // whole model exists to make impossible (ADR 0002).
 func (r *Repository) SaveReview(
-	ctx context.Context, caseID string, by actor.Actor, save session.Save,
+	ctx context.Context, slug, caseID string, by actor.Actor, save session.Save,
 ) (session.Result, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -33,7 +33,9 @@ func (r *Repository) SaveReview(
 	}()
 	q := r.q.WithTx(tx)
 
-	kase, err := q.GetCase(ctx, caseID)
+	// Scoped by the project, so a case belonging to somebody else is not found
+	// rather than judged (#71).
+	kase, err := q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: caseID, Slug: slug})
 	if err != nil {
 		return session.Result{}, translate("reading the case", err)
 	}
@@ -170,7 +172,7 @@ func gatherFacts(ctx context.Context, q *sqlcgen.Queries, kase sqlcgen.Case) (re
 		facts.Validated = append(facts.Validated, review.Cell{StepID: v.StepID, VariantID: v.VariantID})
 	}
 
-	comments, err := q.CaseComments(ctx, kase.ID)
+	comments, err := q.CaseComments(ctx, sqlcgen.CaseCommentsParams{CaseID: kase.ID, ProjectID: kase.ProjectID})
 	if err != nil {
 		return facts, translate("reading the comments", err)
 	}

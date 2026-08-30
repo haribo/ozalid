@@ -64,8 +64,13 @@ func (r *Repository) CreateCase(ctx context.Context, projectID string, categoryI
 	return toCase(row), nil
 }
 
-func (r *Repository) CaseByID(ctx context.Context, id string) (catalogue.Case, error) {
-	row, err := r.q.GetCase(ctx, id)
+// CaseByID reads a case inside the project the caller named.
+//
+// A case belonging to another project is not found here rather than refused:
+// the row does not exist for this caller, and a refusal would confirm that it
+// exists elsewhere (#71).
+func (r *Repository) CaseByID(ctx context.Context, slug, id string) (catalogue.Case, error) {
+	row, err := r.q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: id, Slug: slug})
 	if err != nil {
 		return catalogue.Case{}, translate("reading the case", err)
 	}
@@ -86,9 +91,9 @@ func (r *Repository) ListCases(ctx context.Context, projectID string, state, cat
 	return out, nil
 }
 
-func (r *Repository) UpdateCase(ctx context.Context, id, title string, description, categoryID *string) (catalogue.Case, error) {
+func (r *Repository) UpdateCase(ctx context.Context, slug, id, title string, description, categoryID *string) (catalogue.Case, error) {
 	row, err := r.q.UpdateCaseDetails(ctx, sqlcgen.UpdateCaseDetailsParams{
-		ID: id, Title: title, Description: description, CategoryID: categoryID,
+		ID: id, Title: title, Description: description, CategoryID: categoryID, Slug: slug,
 	})
 	if err != nil {
 		return catalogue.Case{}, translate("updating the case", err)
@@ -96,8 +101,8 @@ func (r *Repository) UpdateCase(ctx context.Context, id, title string, descripti
 	return toCase(row), nil
 }
 
-func (r *Repository) ArchiveCase(ctx context.Context, id string) (bool, error) {
-	rows, err := r.q.ArchiveCase(ctx, id)
+func (r *Repository) ArchiveCase(ctx context.Context, slug, id string) (bool, error) {
+	rows, err := r.q.ArchiveCase(ctx, sqlcgen.ArchiveCaseParams{ID: id, Slug: slug})
 	if err != nil {
 		return false, translate("archiving the case", err)
 	}

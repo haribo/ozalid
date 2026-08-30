@@ -1,4 +1,8 @@
 parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
   - name: caseId
     in: path
     required: true

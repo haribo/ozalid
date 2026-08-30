@@ -123,12 +123,12 @@ export async function moveTheDarkVariant(page: Page, seeded: Seeded): Promise<vo
 
 /** Report one defect over every variant of one step, through the API. */
 export async function commentOnStep(seeded: Seeded, stepIndex: number, body: string): Promise<void> {
-  const grid = (await (await call(`/cases/${seeded.caseId}/captures`)).json()) as {
+  const grid = (await (await call(`/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)).json()) as {
     steps: { id: string; cells: { variantId: string }[] }[]
   }
   const step = grid.steps[stepIndex]
   await call(
-    `/cases/${seeded.caseId}/reviews`,
+    `/projects/${seeded.slug}/cases/${seeded.caseId}/reviews`,
     post({
       comments: [
         {
@@ -144,11 +144,11 @@ export async function commentOnStep(seeded: Seeded, stepIndex: number, body: str
 
 /** Validate every square, the way a reviewer who had nothing to say would. */
 export async function validateEverything(seeded: Seeded): Promise<void> {
-  const grid = (await (await call(`/cases/${seeded.caseId}/captures`)).json()) as {
+  const grid = (await (await call(`/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)).json()) as {
     steps: { id: string; cells: { variantId: string }[] }[]
   }
   await call(
-    `/cases/${seeded.caseId}/reviews`,
+    `/projects/${seeded.slug}/cases/${seeded.caseId}/reviews`,
     post({
       validated: grid.steps.flatMap((s) =>
         s.cells.map((c) => ({ stepId: s.id, variantId: c.variantId })),

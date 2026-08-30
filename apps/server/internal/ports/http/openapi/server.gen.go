@@ -718,11 +718,6 @@ type NotFound = Problem
 // Unauthenticated defines model for Unauthenticated.
 type Unauthenticated = Problem
 
-// GetCaseCapturesParams defines parameters for GetCaseCaptures.
-type GetCaseCapturesParams struct {
-	EditionId *string `form:"editionId,omitempty" json:"editionId,omitempty"`
-}
-
 // DiscardCommentJSONBody defines parameters for DiscardComment.
 type DiscardCommentJSONBody struct {
 	Reason string `json:"reason"`
@@ -753,6 +748,11 @@ type ListCasesParams struct {
 	CategoryId *string    `form:"categoryId,omitempty" json:"categoryId,omitempty"`
 }
 
+// GetCaseCapturesParams defines parameters for GetCaseCaptures.
+type GetCaseCapturesParams struct {
+	EditionId *string `form:"editionId,omitempty" json:"editionId,omitempty"`
+}
+
 // RequestSignInJSONBody defines parameters for RequestSignIn.
 type RequestSignInJSONBody struct {
 	Email openapi_types.Email `json:"email"`
@@ -762,12 +762,6 @@ type RequestSignInJSONBody struct {
 type ClaimSignInJSONBody struct {
 	Link string `json:"link"`
 }
-
-// UpdateCaseJSONRequestBody defines body for UpdateCase for application/json ContentType.
-type UpdateCaseJSONRequestBody = CaseUpdate
-
-// SaveReviewJSONRequestBody defines body for SaveReview for application/json ContentType.
-type SaveReviewJSONRequestBody = ReviewSave
 
 // DiscardCommentJSONRequestBody defines body for DiscardComment for application/json ContentType.
 type DiscardCommentJSONRequestBody DiscardCommentJSONBody
@@ -786,6 +780,12 @@ type OrderAxesJSONRequestBody OrderAxesJSONBody
 
 // CreateCaseJSONRequestBody defines body for CreateCase for application/json ContentType.
 type CreateCaseJSONRequestBody = NewCase
+
+// UpdateCaseJSONRequestBody defines body for UpdateCase for application/json ContentType.
+type UpdateCaseJSONRequestBody = CaseUpdate
+
+// SaveReviewJSONRequestBody defines body for SaveReview for application/json ContentType.
+type SaveReviewJSONRequestBody = ReviewSave
 
 // CreateCategoryJSONRequestBody defines body for CreateCategory for application/json ContentType.
 type CreateCategoryJSONRequestBody = NewCategory
@@ -810,24 +810,6 @@ type ServerInterface interface {
 	// PutBlob Store content under its address
 	// (PUT /blobs/{hash})
 	PutBlob(w http.ResponseWriter, r *http.Request, hash string)
-	// GetCase Read a case, archived or not
-	// (GET /cases/{caseId})
-	GetCase(w http.ResponseWriter, r *http.Request, caseId string)
-	// UpdateCase Change what is mutable about a case
-	// (PATCH /cases/{caseId})
-	UpdateCase(w http.ResponseWriter, r *http.Request, caseId string)
-	// ArchiveCase Take a case out of the catalogue
-	// (POST /cases/{caseId}/archive)
-	ArchiveCase(w http.ResponseWriter, r *http.Request, caseId string)
-	// GetCaseCaptures Read the evidence a case is judged from
-	// (GET /cases/{caseId}/captures)
-	GetCaseCaptures(w http.ResponseWriter, r *http.Request, caseId string, params GetCaseCapturesParams)
-	// ListComments Read what has been said about a case
-	// (GET /cases/{caseId}/comments)
-	ListComments(w http.ResponseWriter, r *http.Request, caseId string)
-	// SaveReview Save what one review session decided
-	// (POST /cases/{caseId}/reviews)
-	SaveReview(w http.ResponseWriter, r *http.Request, caseId string)
 	// DeleteCategory Remove an empty node
 	// (DELETE /categories/{categoryId})
 	DeleteCategory(w http.ResponseWriter, r *http.Request, categoryId string)
@@ -867,6 +849,24 @@ type ServerInterface interface {
 	// CreateCase Open a case and receive its id
 	// (POST /projects/{slug}/cases)
 	CreateCase(w http.ResponseWriter, r *http.Request, slug string)
+	// GetCase Read a case, archived or not
+	// (GET /projects/{slug}/cases/{caseId})
+	GetCase(w http.ResponseWriter, r *http.Request, slug string, caseId string)
+	// UpdateCase Change what is mutable about a case
+	// (PATCH /projects/{slug}/cases/{caseId})
+	UpdateCase(w http.ResponseWriter, r *http.Request, slug string, caseId string)
+	// ArchiveCase Take a case out of the catalogue
+	// (POST /projects/{slug}/cases/{caseId}/archive)
+	ArchiveCase(w http.ResponseWriter, r *http.Request, slug string, caseId string)
+	// GetCaseCaptures Read the evidence a case is judged from
+	// (GET /projects/{slug}/cases/{caseId}/captures)
+	GetCaseCaptures(w http.ResponseWriter, r *http.Request, slug string, caseId string, params GetCaseCapturesParams)
+	// ListComments Read what has been said about a case
+	// (GET /projects/{slug}/cases/{caseId}/comments)
+	ListComments(w http.ResponseWriter, r *http.Request, slug string, caseId string)
+	// SaveReview Save what one review session decided
+	// (POST /projects/{slug}/cases/{caseId}/reviews)
+	SaveReview(w http.ResponseWriter, r *http.Request, slug string, caseId string)
 	// ListCategories Read the catalogue tree
 	// (GET /projects/{slug}/categories)
 	ListCategories(w http.ResponseWriter, r *http.Request, slug string)
@@ -965,178 +965,6 @@ func (siw *ServerInterfaceWrapper) PutBlob(w http.ResponseWriter, r *http.Reques
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutBlob(w, r, hash)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetCase operation middleware
-func (siw *ServerInterfaceWrapper) GetCase(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "caseId" -------------
-	var caseId string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "caseId", r.PathValue("caseId"), &caseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "caseId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetCase(w, r, caseId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// UpdateCase operation middleware
-func (siw *ServerInterfaceWrapper) UpdateCase(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "caseId" -------------
-	var caseId string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "caseId", r.PathValue("caseId"), &caseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "caseId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UpdateCase(w, r, caseId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ArchiveCase operation middleware
-func (siw *ServerInterfaceWrapper) ArchiveCase(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "caseId" -------------
-	var caseId string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "caseId", r.PathValue("caseId"), &caseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "caseId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ArchiveCase(w, r, caseId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetCaseCaptures operation middleware
-func (siw *ServerInterfaceWrapper) GetCaseCaptures(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "caseId" -------------
-	var caseId string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "caseId", r.PathValue("caseId"), &caseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "caseId", Err: err})
-		return
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetCaseCapturesParams
-
-	// ------------- Optional query parameter "editionId" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "editionId", r.URL.Query(), &params.EditionId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "editionId"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "editionId", Err: err})
-		}
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetCaseCaptures(w, r, caseId, params)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ListComments operation middleware
-func (siw *ServerInterfaceWrapper) ListComments(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "caseId" -------------
-	var caseId string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "caseId", r.PathValue("caseId"), &caseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "caseId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListComments(w, r, caseId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// SaveReview operation middleware
-func (siw *ServerInterfaceWrapper) SaveReview(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "caseId" -------------
-	var caseId string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "caseId", r.PathValue("caseId"), &caseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "caseId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.SaveReview(w, r, caseId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1477,6 +1305,232 @@ func (siw *ServerInterfaceWrapper) CreateCase(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// GetCase operation middleware
+func (siw *ServerInterfaceWrapper) GetCase(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "caseId" -------------
+	var caseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "caseId", r.PathValue("caseId"), &caseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "caseId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCase(w, r, slug, caseId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateCase operation middleware
+func (siw *ServerInterfaceWrapper) UpdateCase(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "caseId" -------------
+	var caseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "caseId", r.PathValue("caseId"), &caseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "caseId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateCase(w, r, slug, caseId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ArchiveCase operation middleware
+func (siw *ServerInterfaceWrapper) ArchiveCase(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "caseId" -------------
+	var caseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "caseId", r.PathValue("caseId"), &caseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "caseId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ArchiveCase(w, r, slug, caseId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCaseCaptures operation middleware
+func (siw *ServerInterfaceWrapper) GetCaseCaptures(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "caseId" -------------
+	var caseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "caseId", r.PathValue("caseId"), &caseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "caseId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetCaseCapturesParams
+
+	// ------------- Optional query parameter "editionId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "editionId", r.URL.Query(), &params.EditionId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "editionId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "editionId", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCaseCaptures(w, r, slug, caseId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListComments operation middleware
+func (siw *ServerInterfaceWrapper) ListComments(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "caseId" -------------
+	var caseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "caseId", r.PathValue("caseId"), &caseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "caseId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListComments(w, r, slug, caseId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SaveReview operation middleware
+func (siw *ServerInterfaceWrapper) SaveReview(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "caseId" -------------
+	var caseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "caseId", r.PathValue("caseId"), &caseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "caseId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SaveReview(w, r, slug, caseId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListCategories operation middleware
 func (siw *ServerInterfaceWrapper) ListCategories(w http.ResponseWriter, r *http.Request) {
 
@@ -1734,16 +1788,16 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/editions", wrapper.CreateEdition)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/categories", wrapper.ListCategories)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/categories", wrapper.CreateCategory)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cases/{caseId}", wrapper.GetCase)
-	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/cases/{caseId}", wrapper.UpdateCase)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cases/{caseId}/captures", wrapper.GetCaseCaptures)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cases/{caseId}/comments", wrapper.ListComments)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}", wrapper.GetCase)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}", wrapper.UpdateCase)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}/captures", wrapper.GetCaseCaptures)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}/comments", wrapper.ListComments)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/comments/{commentId}/reference", wrapper.TrackComment)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/comments/{commentId}/discard", wrapper.DiscardComment)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/comments/{commentId}/delivery", wrapper.DeliverComment)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/comments/{commentId}/judgment", wrapper.JudgeComment)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/cases/{caseId}/reviews", wrapper.SaveReview)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/cases/{caseId}/archive", wrapper.ArchiveCase)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}/reviews", wrapper.SaveReview)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}/archive", wrapper.ArchiveCase)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/categories/{categoryId}", wrapper.DeleteCategory)
 
 	return m
@@ -1944,277 +1998,6 @@ func (response PutBlob422ApplicationProblemPlusJSONResponse) VisitPutBlobRespons
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(422)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetCaseRequestObject struct {
-	CaseId string `json:"caseId"`
-}
-
-type GetCaseResponseObject interface {
-	VisitGetCaseResponse(w http.ResponseWriter) error
-}
-
-type GetCase200JSONResponse Case
-
-func (response GetCase200JSONResponse) VisitGetCaseResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetCase404ApplicationProblemPlusJSONResponse struct {
-	NotFoundApplicationProblemPlusJSONResponse
-}
-
-func (response GetCase404ApplicationProblemPlusJSONResponse) VisitGetCaseResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateCaseRequestObject struct {
-	CaseId string `json:"caseId"`
-	Body   *UpdateCaseJSONRequestBody
-}
-
-type UpdateCaseResponseObject interface {
-	VisitUpdateCaseResponse(w http.ResponseWriter) error
-}
-
-type UpdateCase200JSONResponse Case
-
-func (response UpdateCase200JSONResponse) VisitUpdateCaseResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateCase400ApplicationProblemPlusJSONResponse struct {
-	BadRequestApplicationProblemPlusJSONResponse
-}
-
-func (response UpdateCase400ApplicationProblemPlusJSONResponse) VisitUpdateCaseResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateCase404ApplicationProblemPlusJSONResponse struct {
-	NotFoundApplicationProblemPlusJSONResponse
-}
-
-func (response UpdateCase404ApplicationProblemPlusJSONResponse) VisitUpdateCaseResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ArchiveCaseRequestObject struct {
-	CaseId string `json:"caseId"`
-}
-
-type ArchiveCaseResponseObject interface {
-	VisitArchiveCaseResponse(w http.ResponseWriter) error
-}
-
-type ArchiveCase204Response struct {
-}
-
-func (response ArchiveCase204Response) VisitArchiveCaseResponse(w http.ResponseWriter) error {
-	w.WriteHeader(204)
-	return nil
-}
-
-type ArchiveCase404ApplicationProblemPlusJSONResponse struct {
-	NotFoundApplicationProblemPlusJSONResponse
-}
-
-func (response ArchiveCase404ApplicationProblemPlusJSONResponse) VisitArchiveCaseResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ArchiveCase409ApplicationProblemPlusJSONResponse Problem
-
-func (response ArchiveCase409ApplicationProblemPlusJSONResponse) VisitArchiveCaseResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(409)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetCaseCapturesRequestObject struct {
-	CaseId string `json:"caseId"`
-	Params GetCaseCapturesParams
-}
-
-type GetCaseCapturesResponseObject interface {
-	VisitGetCaseCapturesResponse(w http.ResponseWriter) error
-}
-
-type GetCaseCaptures200JSONResponse Grid
-
-func (response GetCaseCaptures200JSONResponse) VisitGetCaseCapturesResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetCaseCaptures404ApplicationProblemPlusJSONResponse struct {
-	NotFoundApplicationProblemPlusJSONResponse
-}
-
-func (response GetCaseCaptures404ApplicationProblemPlusJSONResponse) VisitGetCaseCapturesResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListCommentsRequestObject struct {
-	CaseId string `json:"caseId"`
-}
-
-type ListCommentsResponseObject interface {
-	VisitListCommentsResponse(w http.ResponseWriter) error
-}
-
-type ListComments200JSONResponse []Comment
-
-func (response ListComments200JSONResponse) VisitListCommentsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListComments404ApplicationProblemPlusJSONResponse struct {
-	NotFoundApplicationProblemPlusJSONResponse
-}
-
-func (response ListComments404ApplicationProblemPlusJSONResponse) VisitListCommentsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type SaveReviewRequestObject struct {
-	CaseId string `json:"caseId"`
-	Body   *SaveReviewJSONRequestBody
-}
-
-type SaveReviewResponseObject interface {
-	VisitSaveReviewResponse(w http.ResponseWriter) error
-}
-
-type SaveReview200JSONResponse ReviewOutcome
-
-func (response SaveReview200JSONResponse) VisitSaveReviewResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type SaveReview400ApplicationProblemPlusJSONResponse struct {
-	BadRequestApplicationProblemPlusJSONResponse
-}
-
-func (response SaveReview400ApplicationProblemPlusJSONResponse) VisitSaveReviewResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type SaveReview404ApplicationProblemPlusJSONResponse struct {
-	NotFoundApplicationProblemPlusJSONResponse
-}
-
-func (response SaveReview404ApplicationProblemPlusJSONResponse) VisitSaveReviewResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(404)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -2881,6 +2664,283 @@ func (response CreateCase404ApplicationProblemPlusJSONResponse) VisitCreateCaseR
 	return err
 }
 
+type GetCaseRequestObject struct {
+	Slug   string `json:"slug"`
+	CaseId string `json:"caseId"`
+}
+
+type GetCaseResponseObject interface {
+	VisitGetCaseResponse(w http.ResponseWriter) error
+}
+
+type GetCase200JSONResponse Case
+
+func (response GetCase200JSONResponse) VisitGetCaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCase404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response GetCase404ApplicationProblemPlusJSONResponse) VisitGetCaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCaseRequestObject struct {
+	Slug   string `json:"slug"`
+	CaseId string `json:"caseId"`
+	Body   *UpdateCaseJSONRequestBody
+}
+
+type UpdateCaseResponseObject interface {
+	VisitUpdateCaseResponse(w http.ResponseWriter) error
+}
+
+type UpdateCase200JSONResponse Case
+
+func (response UpdateCase200JSONResponse) VisitUpdateCaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCase400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateCase400ApplicationProblemPlusJSONResponse) VisitUpdateCaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCase404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateCase404ApplicationProblemPlusJSONResponse) VisitUpdateCaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ArchiveCaseRequestObject struct {
+	Slug   string `json:"slug"`
+	CaseId string `json:"caseId"`
+}
+
+type ArchiveCaseResponseObject interface {
+	VisitArchiveCaseResponse(w http.ResponseWriter) error
+}
+
+type ArchiveCase204Response struct {
+}
+
+func (response ArchiveCase204Response) VisitArchiveCaseResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ArchiveCase404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response ArchiveCase404ApplicationProblemPlusJSONResponse) VisitArchiveCaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ArchiveCase409ApplicationProblemPlusJSONResponse Problem
+
+func (response ArchiveCase409ApplicationProblemPlusJSONResponse) VisitArchiveCaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCaseCapturesRequestObject struct {
+	Slug   string `json:"slug"`
+	CaseId string `json:"caseId"`
+	Params GetCaseCapturesParams
+}
+
+type GetCaseCapturesResponseObject interface {
+	VisitGetCaseCapturesResponse(w http.ResponseWriter) error
+}
+
+type GetCaseCaptures200JSONResponse Grid
+
+func (response GetCaseCaptures200JSONResponse) VisitGetCaseCapturesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCaseCaptures404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response GetCaseCaptures404ApplicationProblemPlusJSONResponse) VisitGetCaseCapturesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCommentsRequestObject struct {
+	Slug   string `json:"slug"`
+	CaseId string `json:"caseId"`
+}
+
+type ListCommentsResponseObject interface {
+	VisitListCommentsResponse(w http.ResponseWriter) error
+}
+
+type ListComments200JSONResponse []Comment
+
+func (response ListComments200JSONResponse) VisitListCommentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListComments404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response ListComments404ApplicationProblemPlusJSONResponse) VisitListCommentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SaveReviewRequestObject struct {
+	Slug   string `json:"slug"`
+	CaseId string `json:"caseId"`
+	Body   *SaveReviewJSONRequestBody
+}
+
+type SaveReviewResponseObject interface {
+	VisitSaveReviewResponse(w http.ResponseWriter) error
+}
+
+type SaveReview200JSONResponse ReviewOutcome
+
+func (response SaveReview200JSONResponse) VisitSaveReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SaveReview400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response SaveReview400ApplicationProblemPlusJSONResponse) VisitSaveReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SaveReview404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response SaveReview404ApplicationProblemPlusJSONResponse) VisitSaveReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListCategoriesRequestObject struct {
 	Slug string `json:"slug"`
 }
@@ -3179,24 +3239,6 @@ type StrictServerInterface interface {
 	// PutBlob Store content under its address
 	// (PUT /blobs/{hash})
 	PutBlob(ctx context.Context, request PutBlobRequestObject) (PutBlobResponseObject, error)
-	// GetCase Read a case, archived or not
-	// (GET /cases/{caseId})
-	GetCase(ctx context.Context, request GetCaseRequestObject) (GetCaseResponseObject, error)
-	// UpdateCase Change what is mutable about a case
-	// (PATCH /cases/{caseId})
-	UpdateCase(ctx context.Context, request UpdateCaseRequestObject) (UpdateCaseResponseObject, error)
-	// ArchiveCase Take a case out of the catalogue
-	// (POST /cases/{caseId}/archive)
-	ArchiveCase(ctx context.Context, request ArchiveCaseRequestObject) (ArchiveCaseResponseObject, error)
-	// GetCaseCaptures Read the evidence a case is judged from
-	// (GET /cases/{caseId}/captures)
-	GetCaseCaptures(ctx context.Context, request GetCaseCapturesRequestObject) (GetCaseCapturesResponseObject, error)
-	// ListComments Read what has been said about a case
-	// (GET /cases/{caseId}/comments)
-	ListComments(ctx context.Context, request ListCommentsRequestObject) (ListCommentsResponseObject, error)
-	// SaveReview Save what one review session decided
-	// (POST /cases/{caseId}/reviews)
-	SaveReview(ctx context.Context, request SaveReviewRequestObject) (SaveReviewResponseObject, error)
 	// DeleteCategory Remove an empty node
 	// (DELETE /categories/{categoryId})
 	DeleteCategory(ctx context.Context, request DeleteCategoryRequestObject) (DeleteCategoryResponseObject, error)
@@ -3236,6 +3278,24 @@ type StrictServerInterface interface {
 	// CreateCase Open a case and receive its id
 	// (POST /projects/{slug}/cases)
 	CreateCase(ctx context.Context, request CreateCaseRequestObject) (CreateCaseResponseObject, error)
+	// GetCase Read a case, archived or not
+	// (GET /projects/{slug}/cases/{caseId})
+	GetCase(ctx context.Context, request GetCaseRequestObject) (GetCaseResponseObject, error)
+	// UpdateCase Change what is mutable about a case
+	// (PATCH /projects/{slug}/cases/{caseId})
+	UpdateCase(ctx context.Context, request UpdateCaseRequestObject) (UpdateCaseResponseObject, error)
+	// ArchiveCase Take a case out of the catalogue
+	// (POST /projects/{slug}/cases/{caseId}/archive)
+	ArchiveCase(ctx context.Context, request ArchiveCaseRequestObject) (ArchiveCaseResponseObject, error)
+	// GetCaseCaptures Read the evidence a case is judged from
+	// (GET /projects/{slug}/cases/{caseId}/captures)
+	GetCaseCaptures(ctx context.Context, request GetCaseCapturesRequestObject) (GetCaseCapturesResponseObject, error)
+	// ListComments Read what has been said about a case
+	// (GET /projects/{slug}/cases/{caseId}/comments)
+	ListComments(ctx context.Context, request ListCommentsRequestObject) (ListCommentsResponseObject, error)
+	// SaveReview Save what one review session decided
+	// (POST /projects/{slug}/cases/{caseId}/reviews)
+	SaveReview(ctx context.Context, request SaveReviewRequestObject) (SaveReviewResponseObject, error)
 	// ListCategories Read the catalogue tree
 	// (GET /projects/{slug}/categories)
 	ListCategories(ctx context.Context, request ListCategoriesRequestObject) (ListCategoriesResponseObject, error)
@@ -3368,177 +3428,6 @@ func (sh *strictHandler) PutBlob(w http.ResponseWriter, r *http.Request, hash st
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PutBlobResponseObject); ok {
 		if err := validResponse.VisitPutBlobResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// GetCase operation middleware
-func (sh *strictHandler) GetCase(w http.ResponseWriter, r *http.Request, caseId string) {
-	var request GetCaseRequestObject
-
-	request.CaseId = caseId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.GetCase(ctx, request.(GetCaseRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetCase")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(GetCaseResponseObject); ok {
-		if err := validResponse.VisitGetCaseResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// UpdateCase operation middleware
-func (sh *strictHandler) UpdateCase(w http.ResponseWriter, r *http.Request, caseId string) {
-	var request UpdateCaseRequestObject
-
-	request.CaseId = caseId
-
-	var body UpdateCaseJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.UpdateCase(ctx, request.(UpdateCaseRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UpdateCase")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(UpdateCaseResponseObject); ok {
-		if err := validResponse.VisitUpdateCaseResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// ArchiveCase operation middleware
-func (sh *strictHandler) ArchiveCase(w http.ResponseWriter, r *http.Request, caseId string) {
-	var request ArchiveCaseRequestObject
-
-	request.CaseId = caseId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ArchiveCase(ctx, request.(ArchiveCaseRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ArchiveCase")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ArchiveCaseResponseObject); ok {
-		if err := validResponse.VisitArchiveCaseResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// GetCaseCaptures operation middleware
-func (sh *strictHandler) GetCaseCaptures(w http.ResponseWriter, r *http.Request, caseId string, params GetCaseCapturesParams) {
-	var request GetCaseCapturesRequestObject
-
-	request.CaseId = caseId
-	request.Params = params
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.GetCaseCaptures(ctx, request.(GetCaseCapturesRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetCaseCaptures")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(GetCaseCapturesResponseObject); ok {
-		if err := validResponse.VisitGetCaseCapturesResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// ListComments operation middleware
-func (sh *strictHandler) ListComments(w http.ResponseWriter, r *http.Request, caseId string) {
-	var request ListCommentsRequestObject
-
-	request.CaseId = caseId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ListComments(ctx, request.(ListCommentsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ListComments")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ListCommentsResponseObject); ok {
-		if err := validResponse.VisitListCommentsResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// SaveReview operation middleware
-func (sh *strictHandler) SaveReview(w http.ResponseWriter, r *http.Request, caseId string) {
-	var request SaveReviewRequestObject
-
-	request.CaseId = caseId
-
-	var body SaveReviewJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.SaveReview(ctx, request.(SaveReviewRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "SaveReview")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(SaveReviewResponseObject); ok {
-		if err := validResponse.VisitSaveReviewResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -3921,6 +3810,183 @@ func (sh *strictHandler) CreateCase(w http.ResponseWriter, r *http.Request, slug
 	}
 }
 
+// GetCase operation middleware
+func (sh *strictHandler) GetCase(w http.ResponseWriter, r *http.Request, slug string, caseId string) {
+	var request GetCaseRequestObject
+
+	request.Slug = slug
+	request.CaseId = caseId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCase(ctx, request.(GetCaseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCase")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCaseResponseObject); ok {
+		if err := validResponse.VisitGetCaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateCase operation middleware
+func (sh *strictHandler) UpdateCase(w http.ResponseWriter, r *http.Request, slug string, caseId string) {
+	var request UpdateCaseRequestObject
+
+	request.Slug = slug
+	request.CaseId = caseId
+
+	var body UpdateCaseJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateCase(ctx, request.(UpdateCaseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateCase")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateCaseResponseObject); ok {
+		if err := validResponse.VisitUpdateCaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ArchiveCase operation middleware
+func (sh *strictHandler) ArchiveCase(w http.ResponseWriter, r *http.Request, slug string, caseId string) {
+	var request ArchiveCaseRequestObject
+
+	request.Slug = slug
+	request.CaseId = caseId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ArchiveCase(ctx, request.(ArchiveCaseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ArchiveCase")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ArchiveCaseResponseObject); ok {
+		if err := validResponse.VisitArchiveCaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCaseCaptures operation middleware
+func (sh *strictHandler) GetCaseCaptures(w http.ResponseWriter, r *http.Request, slug string, caseId string, params GetCaseCapturesParams) {
+	var request GetCaseCapturesRequestObject
+
+	request.Slug = slug
+	request.CaseId = caseId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCaseCaptures(ctx, request.(GetCaseCapturesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCaseCaptures")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCaseCapturesResponseObject); ok {
+		if err := validResponse.VisitGetCaseCapturesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListComments operation middleware
+func (sh *strictHandler) ListComments(w http.ResponseWriter, r *http.Request, slug string, caseId string) {
+	var request ListCommentsRequestObject
+
+	request.Slug = slug
+	request.CaseId = caseId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListComments(ctx, request.(ListCommentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListComments")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListCommentsResponseObject); ok {
+		if err := validResponse.VisitListCommentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SaveReview operation middleware
+func (sh *strictHandler) SaveReview(w http.ResponseWriter, r *http.Request, slug string, caseId string) {
+	var request SaveReviewRequestObject
+
+	request.Slug = slug
+	request.CaseId = caseId
+
+	var body SaveReviewJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SaveReview(ctx, request.(SaveReviewRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SaveReview")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SaveReviewResponseObject); ok {
+		if err := validResponse.VisitSaveReviewResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListCategories operation middleware
 func (sh *strictHandler) ListCategories(w http.ResponseWriter, r *http.Request, slug string) {
 	var request ListCategoriesRequestObject
@@ -4104,143 +4170,143 @@ func (sh *strictHandler) SignOut(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

@@ -39,11 +39,11 @@ paths:
     $ref: "./paths/editions.yaml"
   /projects/{slug}/categories:
     $ref: "./paths/categories.yaml"
-  /cases/{caseId}:
+  /projects/{slug}/cases/{caseId}:
     $ref: "./paths/case.yaml"
-  /cases/{caseId}/captures:
+  /projects/{slug}/cases/{caseId}/captures:
     $ref: "./paths/case-captures.yaml"
-  /cases/{caseId}/comments:
+  /projects/{slug}/cases/{caseId}/comments:
     $ref: "./paths/case-comments.yaml"
   /comments/{commentId}/reference:
     $ref: "./paths/comment-moves.yaml#/Reference"
@@ -53,19 +53,18 @@ paths:
     $ref: "./paths/comment-moves.yaml#/Delivery"
   /comments/{commentId}/judgment:
     $ref: "./paths/comment-moves.yaml#/Judgment"
-  /cases/{caseId}/reviews:
+  /projects/{slug}/cases/{caseId}/reviews:
     $ref: "./paths/case-reviews.yaml"
-  /cases/{caseId}/archive:
+  /projects/{slug}/cases/{caseId}/archive:
     $ref: "./paths/case-archive.yaml"
   /categories/{categoryId}:
     $ref: "./paths/category.yaml"
 
-# Declared where it is required, never globally. Sixteen of the eighteen
-# operations carry no security today: the web client has no way to prove itself
-# until sign-in exists, and closing its door first would leave an instance
-# nobody can read. An empty default would have said the same thing less
-# visibly — this way, `security` appearing on an operation is a decision
-# somebody made rather than one they forgot.
+# Declared where it is required, never globally. Twenty-six of the twenty-eight
+# operations carry no security today; closing them is #55, and it lands once
+# every address names the project it reaches (#71). An empty default would have
+# said the same thing less visibly — this way, `security` appearing on an
+# operation is a decision somebody made rather than one they forgot.
 components:
   securitySchemes:
     serviceToken:

@@ -15,8 +15,10 @@ import (
 )
 
 // CaseGrid reads one case's evidence at one edition.
-func (r *Repository) CaseGrid(ctx context.Context, caseID string, editionID *string) (evidence.Grid, error) {
-	kase, err := r.q.GetCase(ctx, caseID)
+func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionID *string) (evidence.Grid, error) {
+	// The project is part of the lookup, so a case from elsewhere has no grid
+	// here rather than one somebody may not see (#71).
+	kase, err := r.q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: caseID, Slug: slug})
 	if err != nil {
 		return evidence.Grid{}, translate("reading the case", err)
 	}

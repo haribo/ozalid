@@ -16,7 +16,7 @@ type Comment = components['schemas']['Comment']
  * that one is held, and `resume` sends it once the session is back. It waits
  * seconds, not a session, and closing the tab still loses it.
  */
-export function useReview(caseId: () => string) {
+export function useReview(slug: () => string, caseId: () => string) {
   const grid = ref<Grid | null>(null)
   const comments = ref<Comment[]>([])
   const error = ref('')
@@ -26,8 +26,12 @@ export function useReview(caseId: () => string) {
 
   async function load() {
     const [evidence, said] = await Promise.all([
-      api.GET('/cases/{caseId}/captures', { params: { path: { caseId: caseId() } } }),
-      api.GET('/cases/{caseId}/comments', { params: { path: { caseId: caseId() } } }),
+      api.GET('/projects/{slug}/cases/{caseId}/captures', {
+        params: { path: { slug: slug(), caseId: caseId() } },
+      }),
+      api.GET('/projects/{slug}/cases/{caseId}/comments', {
+        params: { path: { slug: slug(), caseId: caseId() } },
+      }),
     ])
     if (evidence.error) {
       error.value = evidence.error.title
@@ -87,8 +91,8 @@ export function useReview(caseId: () => string) {
 
   async function send(body: components['schemas']['ReviewSave']) {
     saving.value = true
-    const result = await api.POST('/cases/{caseId}/reviews', {
-      params: { path: { caseId: caseId() } },
+    const result = await api.POST('/projects/{slug}/cases/{caseId}/reviews', {
+      params: { path: { slug: slug(), caseId: caseId() } },
       body,
     })
     saving.value = false

@@ -99,7 +99,7 @@ watch(
 
     <template v-else>
       <CategoryTable v-if="children.length" :slug="slug" :categories="children" class="mb-6" />
-      <CaseTable v-if="cases.length" :cases="cases" />
+      <CaseTable v-if="cases.length" :slug="slug" :cases="cases" />
       <p
         v-if="!children.length && !cases.length"
         class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center font-mono text-[12px] text-slate-500 dark:border-slate-600 dark:text-slate-400"

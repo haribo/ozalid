@@ -11,16 +11,55 @@ import (
 
 const archiveCase = `-- name: ArchiveCase :execrows
 UPDATE cases SET archived_at = now(), updated_at = now()
-WHERE id = $1 AND archived_at IS NULL
+WHERE cases.id = $1
+  AND cases.project_id = (SELECT p.id FROM projects p WHERE p.slug = $2)
+  AND cases.archived_at IS NULL
 `
 
+type ArchiveCaseParams struct {
+	ID   string
+	Slug string
+}
+
 // Archived, never deleted (ADR 0014).
-func (q *Queries) ArchiveCase(ctx context.Context, id string) (int64, error) {
-	result, err := q.db.Exec(ctx, archiveCase, id)
+func (q *Queries) ArchiveCase(ctx context.Context, arg ArchiveCaseParams) (int64, error) {
+	result, err := q.db.Exec(ctx, archiveCase, arg.ID, arg.Slug)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const caseInProject = `-- name: CaseInProject :one
+SELECT c.id, c.project_id, c.category_id, c.title, c.description, c.state, c.archived_at, c.created_at, c.updated_at, c.current_edition_id FROM cases c
+JOIN projects p ON p.id = c.project_id
+WHERE c.id = $1 AND p.slug = $2
+`
+
+type CaseInProjectParams struct {
+	ID   string
+	Slug string
+}
+
+// A case, inside the project the caller named. The project is not checked
+// beside the query, it *is* the query: a case from another project returns no
+// row, so there is no consistency check to write, and none to forget (#71).
+func (q *Queries) CaseInProject(ctx context.Context, arg CaseInProjectParams) (Case, error) {
+	row := q.db.QueryRow(ctx, caseInProject, arg.ID, arg.Slug)
+	var i Case
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.CategoryID,
+		&i.Title,
+		&i.Description,
+		&i.State,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CurrentEditionID,
+	)
+	return i, err
 }
 
 const createCase = `-- name: CreateCase :one
@@ -89,6 +128,8 @@ const getCase = `-- name: GetCase :one
 SELECT id, project_id, category_id, title, description, state, archived_at, created_at, updated_at, current_edition_id FROM cases WHERE id = $1
 `
 
+// Unscoped, and the last one left: the comment moves still reach a case
+// without naming its project. It goes when they move under theirs (#71).
 func (q *Queries) GetCase(ctx context.Context, id string) (Case, error) {
 	row := q.db.QueryRow(ctx, getCase, id)
 	var i Case
@@ -187,7 +228,8 @@ func (q *Queries) ListSteps(ctx context.Context, caseID string) ([]Step, error) 
 const updateCaseDetails = `-- name: UpdateCaseDetails :one
 UPDATE cases
 SET title = $2, description = $3, category_id = $4, updated_at = now()
-WHERE id = $1
+WHERE cases.id = $1
+  AND cases.project_id = (SELECT p.id FROM projects p WHERE p.slug = $5)
 RETURNING id, project_id, category_id, title, description, state, archived_at, created_at, updated_at, current_edition_id
 `
 
@@ -196,6 +238,7 @@ type UpdateCaseDetailsParams struct {
 	Title       string
 	Description *string
 	CategoryID  *string
+	Slug        string
 }
 
 func (q *Queries) UpdateCaseDetails(ctx context.Context, arg UpdateCaseDetailsParams) (Case, error) {
@@ -204,6 +247,7 @@ func (q *Queries) UpdateCaseDetails(ctx context.Context, arg UpdateCaseDetailsPa
 		arg.Title,
 		arg.Description,
 		arg.CategoryID,
+		arg.Slug,
 	)
 	var i Case
 	err := row.Scan(

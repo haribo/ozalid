@@ -16,7 +16,7 @@ const gridMarks = (page: Page) => page.locator('table').first().locator('tbody [
 
 test('a case arrives with everything left to judge', async ({ page }) => {
   const seeded = await seed(page)
-  await page.goto(`/cases/${seeded.caseId}`)
+  await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
 
   await expect(
     page.getByRole('heading', { name: 'réinitialiser un mot de passe oublié' }),
@@ -31,7 +31,7 @@ test('a case arrives with everything left to judge', async ({ page }) => {
 
 test('clicking a capture opens the carousel on that exact square', async ({ page }) => {
   const seeded = await seed(page)
-  await page.goto(`/cases/${seeded.caseId}`)
+  await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
   await page.locator('tbody button[aria-label*="dans le carrousel"]').nth(2).click()
 
   const carousel = page.locator('.overflow-hidden.rounded-lg').first()
@@ -41,7 +41,7 @@ test('clicking a capture opens the carousel on that exact square', async ({ page
 
 test('space validates, and the server is what says so', async ({ page }) => {
   const seeded = await seed(page)
-  await page.goto(`/cases/${seeded.caseId}`)
+  await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
   await page.locator('tbody button[aria-label*="dans le carrousel"]').first().click()
   await page.keyboard.press(' ')
 
@@ -55,7 +55,7 @@ test('space validates, and the server is what says so', async ({ page }) => {
 
 test('one defect over two variants is one comment, not two', async ({ page }) => {
   const seeded = await seed(page)
-  await page.goto(`/cases/${seeded.caseId}`)
+  await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
   await page.locator('tbody button[aria-label*="dans le carrousel"]').nth(2).click()
   await page.getByRole('button', { name: 'commenter' }).click()
 
@@ -73,7 +73,7 @@ test('one defect over two variants is one comment, not two', async ({ page }) =>
 test('the recap takes you back to the capture a comment was written on', async ({ page }) => {
   const seeded = await seed(page)
   await commentOnStep(seeded, 1, 'le libellé induit en erreur')
-  await page.goto(`/cases/${seeded.caseId}`)
+  await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
 
   await page.getByRole('link', { name: 'ouvre le lien reçu par e-mail' }).click()
 
@@ -85,7 +85,7 @@ test('the recap takes you back to the capture a comment was written on', async (
 test('a capture that moved comes back asking to be looked at', async ({ page }) => {
   const seeded = await seed(page)
   await validateEverything(seeded)
-  await page.goto(`/cases/${seeded.caseId}`)
+  await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
   await expect(page.locator('table').first().locator('[aria-label="validée"]')).toHaveCount(6)
 
   await moveTheDarkVariant(page, seeded)
@@ -108,7 +108,7 @@ test('every mark the grid draws wears a disc', async ({ page }) => {
   const seeded = await seed(page)
   await validateEverything(seeded)
   await commentOnStep(seeded, 0, 'à revoir')
-  await page.goto(`/cases/${seeded.caseId}`)
+  await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
 
   await expect(gridMarks(page)).toHaveCount(6)
   for (const mark of await gridMarks(page).all()) {

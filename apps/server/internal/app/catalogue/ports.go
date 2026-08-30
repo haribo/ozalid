@@ -18,10 +18,10 @@ type Repository interface {
 	ProjectBySlug(ctx context.Context, slug string) (catalogue.Project, error)
 
 	CreateCase(ctx context.Context, projectID string, categoryID *string, title string, description *string) (catalogue.Case, error)
-	CaseByID(ctx context.Context, id string) (catalogue.Case, error)
+	CaseByID(ctx context.Context, slug, id string) (catalogue.Case, error)
 	ListCases(ctx context.Context, projectID string, state, categoryID *string) ([]catalogue.Case, error)
-	UpdateCase(ctx context.Context, id string, title string, description *string, categoryID *string) (catalogue.Case, error)
-	ArchiveCase(ctx context.Context, id string) (bool, error)
+	UpdateCase(ctx context.Context, slug, id string, title string, description *string, categoryID *string) (catalogue.Case, error)
+	ArchiveCase(ctx context.Context, slug, id string) (bool, error)
 
 	CreateCategory(ctx context.Context, projectID string, parentID *string, name string, position int32) (catalogue.Category, error)
 	ListCategories(ctx context.Context, projectID string) ([]catalogue.Category, error)

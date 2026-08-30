@@ -31,7 +31,9 @@ func (s *stubRepo) CreateCategory(_ context.Context, projectID string, parentID 
 	return catalogue.Category{ID: "cat123456789", Name: name}, nil
 }
 
-func (s *stubRepo) ArchiveCase(context.Context, string) (bool, error) { return s.archiveRows, nil }
+func (s *stubRepo) ArchiveCase(context.Context, string, string) (bool, error) {
+	return s.archiveRows, nil
+}
 
 func (s *stubRepo) DeleteEmptyCategory(context.Context, string) (bool, error) {
 	return s.deleteRows, nil
@@ -65,7 +67,7 @@ func TestSurroundingSpaceIsTrimmedBeforeStoring(t *testing.T) {
 func TestArchivingATwiceArchivedCaseIsReported(t *testing.T) {
 	svc := app.New(&stubRepo{archiveRows: false})
 
-	err := svc.ArchiveCase(context.Background(), "abc")
+	err := svc.ArchiveCase(context.Background(), "atlas", "abc")
 	if !errors.Is(err, catalogue.ErrCaseAlreadyArchived) {
 		t.Errorf("err = %v, want ErrCaseAlreadyArchived", err)
 	}

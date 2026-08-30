@@ -111,7 +111,7 @@ func (s *Server) JudgeComment(ctx context.Context, request openapi.JudgeCommentR
 
 // ListComments returns what has been said about a case, settled included.
 func (s *Server) ListComments(ctx context.Context, request openapi.ListCommentsRequestObject) (openapi.ListCommentsResponseObject, error) {
-	comments, err := s.comment.OfCase(ctx, request.CaseId)
+	comments, err := s.comment.OfCase(ctx, request.Slug, request.CaseId)
 	if errors.Is(err, app.ErrNotFound) {
 		return openapi.ListComments404ApplicationProblemPlusJSONResponse{
 			NotFoundApplicationProblemPlusJSONResponse: notFound("case"),

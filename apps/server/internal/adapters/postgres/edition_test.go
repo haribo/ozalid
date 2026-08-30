@@ -38,9 +38,9 @@ func pushEdition(
 	return hash
 }
 
-func onlyCell(t *testing.T, ctx context.Context, repo *postgres.Repository, caseID string) review.Cell {
+func onlyCell(t *testing.T, ctx context.Context, repo *postgres.Repository, slug, caseID string) review.Cell {
 	t.Helper()
-	grid, err := repo.CaseGrid(ctx, caseID, nil)
+	grid, err := repo.CaseGrid(ctx, slug, caseID, nil)
 	if err != nil {
 		t.Fatalf("reading the grid: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestAnIntakeDoesNotMoveTheBytesUnderAReviewer(t *testing.T) {
 		t.Fatalf("the pointer moved while a reviewer held the case")
 	}
 
-	grid, err := repo.CaseGrid(ctx, kase.ID, nil)
+	grid, err := repo.CaseGrid(ctx, project.Slug, kase.ID, nil)
 	if err != nil {
 		t.Fatalf("reading the grid: %v", err)
 	}
@@ -89,13 +89,13 @@ func TestACaseCatchesUpOnceItsReviewEnds(t *testing.T) {
 	second := pushEdition(t, ctx, repo, project, kase, "the form, second run", "ci")
 
 	// The reviewer judges the edition they opened, and lets go.
-	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Validated: []review.Cell{onlyCell(t, ctx, repo, kase.ID)},
+	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
+		Validated: []review.Cell{onlyCell(t, ctx, repo, project.Slug, kase.ID)},
 	}); err != nil {
 		t.Fatalf("saving the review: %v", err)
 	}
 
-	grid, err := repo.CaseGrid(ctx, kase.ID, nil)
+	grid, err := repo.CaseGrid(ctx, project.Slug, kase.ID, nil)
 	if err != nil {
 		t.Fatalf("reading the grid: %v", err)
 	}

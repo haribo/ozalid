@@ -12,7 +12,7 @@ import (
 
 // GetCaseCaptures returns the grid a case is judged from.
 func (s *Server) GetCaseCaptures(ctx context.Context, request openapi.GetCaseCapturesRequestObject) (openapi.GetCaseCapturesResponseObject, error) {
-	grid, err := s.evidence.Grid(ctx, request.CaseId, request.Params.EditionId)
+	grid, err := s.evidence.Grid(ctx, request.Slug, request.CaseId, request.Params.EditionId)
 	if errors.Is(err, app.ErrNotFound) {
 		return openapi.GetCaseCaptures404ApplicationProblemPlusJSONResponse{
 			NotFoundApplicationProblemPlusJSONResponse: notFound("case"),
