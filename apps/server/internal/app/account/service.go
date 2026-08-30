@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/haribo/ozalid/apps/server/internal/domain/access"
 )
 
 // Account is an account as an administrator sees it.
@@ -19,11 +21,28 @@ type Account struct {
 	CreatedAt     time.Time
 }
 
+// Membership is one holder's place on one project.
+type Membership struct {
+	AccountID string
+	Name      string
+	// Email is empty for a service account, which has no address to reach.
+	Email string
+	// IsPerson is derived from which kind of account holds the membership,
+	// never declared (product.md §8).
+	IsPerson bool
+	Rights   access.Rights
+	AddedAt  time.Time
+}
+
 // Repository stores accounts.
 type Repository interface {
 	CreateAccount(ctx context.Context, name, email string, isAdmin bool) (Account, error)
 	ListAccounts(ctx context.Context) ([]Account, error)
 	DeactivateAccount(ctx context.Context, id string) (bool, error)
+
+	Members(ctx context.Context, slug string) ([]Membership, error)
+	Grant(ctx context.Context, slug, userID string, rights access.Rights) (bool, error)
+	Revoke(ctx context.Context, slug, userID string) error
 }
 
 // Errors the layers above match on.
@@ -36,6 +55,8 @@ var (
 	ErrEmailTaken = errors.New("account: that address already has an account")
 	// ErrNotFound means no account carries that id.
 	ErrNotFound = errors.New("account: no such account")
+	// ErrUnknownRights means the grant named something that is not a right.
+	ErrUnknownRights = errors.New("account: rights are reader or member")
 )
 
 // Service makes and retires accounts.
@@ -87,4 +108,45 @@ func (s *Service) Deactivate(ctx context.Context, id string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// Members returns who reaches a project, people and programs alike.
+func (s *Service) Members(ctx context.Context, slug string) ([]Membership, error) {
+	return s.repo.Members(ctx, slug)
+}
+
+// Grant puts a person on a project, or changes what they may do there.
+//
+// Granting to somebody who already holds a membership changes their rights
+// rather than failing: an administrator who meant to demote somebody said so,
+// and refusing would make them revoke first and risk forgetting the second
+// half.
+func (s *Service) Grant(ctx context.Context, slug, userID string, rights access.Rights) error {
+	switch rights {
+	case access.Reader, access.Member:
+	default:
+		// Two values, and no more (product.md §8.1). A third would be a role
+		// nobody uses and nobody dares remove.
+		return ErrUnknownRights
+	}
+
+	granted, err := s.repo.Grant(ctx, slug, userID, rights)
+	if err != nil {
+		return err
+	}
+	if !granted {
+		// Either the project or the person is not there. Which of the two is
+		// not the caller's business: telling them apart would let somebody map
+		// an instance by watching which refusals differ.
+		return ErrNotFound
+	}
+	return nil
+}
+
+// Revoke takes a person off a project.
+//
+// Idempotent: revoking a membership nobody holds changes nothing. Everything
+// they recorded stays and keeps naming them (product.md §8).
+func (s *Service) Revoke(ctx context.Context, slug, userID string) error {
+	return s.repo.Revoke(ctx, slug, userID)
 }

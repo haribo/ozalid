@@ -14,6 +14,38 @@ RETURNING *;
 INSERT INTO project_members (project_id, user_id, service_account_id, rights)
 VALUES (@project_id, @user_id, @service_account_id, @rights);
 
+-- Granting again changes the rights rather than failing: an administrator who
+-- meant to demote somebody said so, and refusing would make them revoke first.
+-- name: GrantMembership :execrows
+INSERT INTO project_members (project_id, user_id, rights)
+SELECT p.id, u.id, @rights
+FROM projects p, users u
+WHERE p.slug = @slug AND u.id = @user_id
+ON CONFLICT (project_id, user_id) WHERE user_id IS NOT NULL
+DO UPDATE SET rights = excluded.rights;
+
+-- name: RevokeMembership :execrows
+DELETE FROM project_members m
+USING projects p
+WHERE m.project_id = p.id AND p.slug = @slug AND m.user_id = @user_id;
+
+-- Both kinds of holder in one list: a project's members are the people and the
+-- programs that reach it, and hiding either would make the list a lie.
+-- name: ListProjectMembers :many
+SELECT
+    coalesce(u.id, sa.id)     AS account_id,
+    coalesce(u.name, sa.name) AS name,
+    u.email,
+    (m.user_id IS NOT NULL)::boolean AS is_person,
+    m.rights,
+    m.added_at
+FROM project_members m
+JOIN projects p ON p.id = m.project_id
+LEFT JOIN users u ON u.id = m.user_id
+LEFT JOIN service_accounts sa ON sa.id = m.service_account_id
+WHERE p.slug = @slug
+ORDER BY is_person DESC, lower(coalesce(u.name, sa.name));
+
 -- What a person may do on one project: whether they administer the instance,
 -- and what their membership carries. A deactivated account resolves to nothing.
 -- The same two questions, asked by the slug a caller names rather than by an id

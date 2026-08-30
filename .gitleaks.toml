@@ -1,0 +1,18 @@
+# Gitleaks configuration.
+#
+# The default rules, plus one exclusion. Everything else is deliberately left
+# alone: a scanner narrowed to what it currently finds stops finding anything.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "The API document, embedded compressed in generated code"
+# oapi-codegen embeds the whole OpenAPI document gzipped and base64-encoded in
+# this file, and a compressed chunk trips the high-entropy rules. It is the
+# spec, not a credential, and it changes on every regeneration — so pinning a
+# fingerprint would need updating each time the compressed bytes shift.
+#
+# Nothing is lost by excluding it: the file is generated from
+# `apps/server/api/src/`, which is scanned. A credential written into the
+# document would be caught there, where somebody could actually remove it.
+paths = ['''apps/server/internal/ports/http/openapi/server\.gen\.go''']

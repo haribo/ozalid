@@ -1,0 +1,66 @@
+parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
+  - name: accountId
+    in: path
+    required: true
+    schema: { type: string }
+
+put:
+  operationId: grantMembership
+  security:
+    - serviceToken: []
+    - session: []
+  summary: Put a person on a project, or change what they may do
+  description: |
+    An administrator grants memberships — all of them, not only the first
+    (`product.md` §8.2). Granting to somebody who is already a member changes
+    their rights rather than failing: an administrator who meant to demote
+    somebody said so, and refusing would make them revoke first and risk
+    forgetting the second half.
+
+    Names a **person**. A service account's membership is written when it is
+    created and never moved: it belongs to one project, and that is enforced
+    rather than trusted ([ADR 0018](https://github.com/haribo/ozalid/blob/develop/docs/adr/0018-an-actor-is-never-invented.md)).
+  tags: [accounts]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "../components/schemas.yaml#/NewMembership"
+  responses:
+    "204":
+      description: They are a member with those rights.
+    "400":
+      $ref: "../components/responses.yaml#/BadRequest"
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
+
+delete:
+  operationId: revokeMembership
+  security:
+    - serviceToken: []
+    - session: []
+  summary: Take a person off a project
+  description: |
+    They stop reaching it. Everything they recorded stays, and keeps naming
+    them: the journal holds no foreign key to any account table precisely so
+    evidence outlives a membership (`product.md` §8).
+
+    Idempotent: revoking a membership nobody holds changes nothing and answers
+    the same.
+  tags: [accounts]
+  responses:
+    "204":
+      description: They no longer reach this project.
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"

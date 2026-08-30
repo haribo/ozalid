@@ -333,6 +333,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{slug}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Who reaches this project
+         * @description People and programs in one list. A service account holds a membership like
+         *     anyone else ([ADR 0019](https://github.com/haribo/ozalid/blob/develop/docs/adr/0019-two-kinds-of-account-one-set-of-rights.md)),
+         *     and hiding either kind would make the list a lie about who can see the book.
+         *
+         *     Reaching this needs `reader`, not administration: seeing who is on a project
+         *     is seeing, and a reader sees everything (`product.md` §8.1).
+         */
+        get: operations["listMembers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{slug}/members/{accountId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                accountId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put a person on a project, or change what they may do
+         * @description An administrator grants memberships — all of them, not only the first
+         *     (`product.md` §8.2). Granting to somebody who is already a member changes
+         *     their rights rather than failing: an administrator who meant to demote
+         *     somebody said so, and refusing would make them revoke first and risk
+         *     forgetting the second half.
+         *
+         *     Names a **person**. A service account's membership is written when it is
+         *     created and never moved: it belongs to one project, and that is enforced
+         *     rather than trusted ([ADR 0018](https://github.com/haribo/ozalid/blob/develop/docs/adr/0018-an-actor-is-never-invented.md)).
+         */
+        put: operations["grantMembership"];
+        post?: never;
+        /**
+         * Take a person off a project
+         * @description They stop reaching it. Everything they recorded stays, and keeps naming
+         *     them: the journal holds no foreign key to any account table precisely so
+         *     evidence outlives a membership (`product.md` §8).
+         *
+         *     Idempotent: revoking a membership nobody holds changes nothing and answers
+         *     the same.
+         */
+        delete: operations["revokeMembership"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{slug}/categories": {
         parameters: {
             query?: never;
@@ -864,6 +931,33 @@ export interface components {
              *     uploading them again would fix nothing. They have to be re-captured.
              */
             notAPng?: string[];
+        };
+        /**
+         * @description `reader` sees everything and changes nothing; `member` does everything, on
+         *     the projects they belong to. Two, and no more (`product.md` §8.1).
+         * @enum {string}
+         */
+        Rights: "reader" | "member";
+        Membership: {
+            accountId: string;
+            name: string;
+            /**
+             * Format: email
+             * @description Absent for a service account, which has no address to reach.
+             */
+            email?: string;
+            /**
+             * @description Whether this member is a person or a program. Derived from which kind of
+             *     account holds the membership, never declared
+             *     (`product.md` §8).
+             */
+            isPerson: boolean;
+            rights: components["schemas"]["Rights"];
+            /** Format: date-time */
+            addedAt: string;
+        };
+        NewMembership: {
+            rights: components["schemas"]["Rights"];
         };
         /**
          * @description How many cases sit in each state under this node, across its **whole
@@ -1636,6 +1730,82 @@ export interface operations {
                     "application/problem+json": components["schemas"]["IntakeRefused"];
                 };
             };
+        };
+    };
+    listMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The members, people first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Membership"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    grantMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                accountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewMembership"];
+            };
+        };
+        responses: {
+            /** @description They are a member with those rights. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    revokeMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                accountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description They no longer reach this project. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
         };
     };
     listCategories: {
