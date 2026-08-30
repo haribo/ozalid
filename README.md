@@ -52,3 +52,21 @@ or a hosted deployment. ozalid keeps the concept and rebuilds the foundations.
 
 See [ADR 0001](docs/adr/0001-standalone-multi-project-service.md) for the full
 account of what was learned and what it costs.
+
+## License
+
+ozalid is free software under the
+[GNU Affero General Public License v3.0](LICENSE).
+
+    Copyright (C) 2026  Nicolas CHAUVIN
+
+Running it — for yourself, for your team, inside a company — carries no
+obligation. What section 13 adds over the GPL is this: **offer a modified ozalid
+to other people over a network, and you owe them its source.** Self-hosting an
+unmodified copy triggers nothing.
+
+That is the whole reason for this licence rather than a permissive one. ozalid
+is a service somebody could run for others, not a library, and the AGPL is the
+licence written for that shape. It is also the reversible choice: relicensing to
+something permissive later is a decision the copyright holder can still make,
+while a permission already granted cannot be withdrawn.
