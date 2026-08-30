@@ -10,6 +10,10 @@ parameters:
 
 delete:
   operationId: deleteCategory
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
   summary: Remove an empty node
   description: |
     Only an empty one. Deleting a filing drawer must not silently move what was
@@ -20,6 +24,10 @@ delete:
     has to go.
   tags: [categories]
   responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
     "204":
       description: The category is gone.
     "404":

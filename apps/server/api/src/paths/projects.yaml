@@ -1,5 +1,9 @@
 post:
   operationId: createProject
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
   summary: Open a book
   tags: [projects]
   requestBody:
@@ -9,6 +13,10 @@ post:
         schema:
           $ref: "../components/schemas.yaml#/NewProject"
   responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
     "201":
       description: The project is open.
       content:

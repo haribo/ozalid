@@ -51,11 +51,17 @@ test('a token reaching outside its project is refused, and not the same way', as
   expect(elsewhere.status).toBe(403)
 })
 
-test('reading a case still needs nothing, and that is written down', async () => {
-  // Sixteen of the eighteen endpoints carry no security yet: the web client has
-  // no way to prove itself until sign-in exists, and closing its door first
-  // would leave an instance nobody can read. Frozen here so the day it changes
-  // is a decision rather than a surprise.
-  const response = await fetch(`${API}/api/projects/${PROJECT}/cases`)
-  expect(response.status).toBe(200)
+test('reading a project needs a credential, like everything else', async () => {
+  // This asserted the opposite until #55: every endpoint was open, because the
+  // web client had no way to prove itself. It does now, so nothing is public —
+  // reading included (product.md §8.1).
+  const anonymous = await fetch(`${API}/api/projects/${PROJECT}/cases`)
+  expect(anonymous.status).toBe(401)
+
+  // And the same read works with the suite's token, so the refusal above is
+  // about the credential and not about the address.
+  const withToken = await fetch(`${API}/api/projects/${PROJECT}/cases`, {
+    headers: { authorization: `Bearer ${TOKEN}` },
+  })
+  expect(withToken.status).toBe(200)
 })

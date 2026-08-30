@@ -8,6 +8,7 @@ post:
   operationId: createEdition
   security:
     - serviceToken: []
+    - session: []
   summary: Take a run's evidence into the book
   description: |
     Push the complete manifest. Ask `HEAD /blobs/{hash}` first and upload what

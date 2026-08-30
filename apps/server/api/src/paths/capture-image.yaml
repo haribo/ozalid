@@ -12,6 +12,7 @@ get:
   operationId: getCaptureImage
   security:
     - serviceToken: []
+    - session: []
   summary: The image a capture holds
   description: |
     Read through the capture, never through the content address. A hash names

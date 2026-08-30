@@ -6,12 +6,25 @@ import (
 
 	app "github.com/haribo/ozalid/apps/server/internal/app/catalogue"
 	"github.com/haribo/ozalid/apps/server/internal/app/evidence"
+	"net/http"
+
+	"github.com/haribo/ozalid/apps/server/internal/domain/access"
 	"github.com/haribo/ozalid/apps/server/internal/ports/http/openapi"
 	"github.com/haribo/ozalid/internal/contract"
 )
 
 // GetCaseCaptures returns the grid a case is judged from.
 func (s *Server) GetCaseCaptures(ctx context.Context, request openapi.GetCaseCapturesRequestObject) (openapi.GetCaseCapturesResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.ReadProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.GetCaseCaptures401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.GetCaseCaptures403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	grid, err := s.evidence.Grid(ctx, request.Slug, request.CaseId, request.Params.EditionId)
 	if errors.Is(err, app.ErrNotFound) {
 		return openapi.GetCaseCaptures404ApplicationProblemPlusJSONResponse{

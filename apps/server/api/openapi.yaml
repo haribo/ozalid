@@ -104,6 +104,8 @@ paths:
   /me:
     get:
       operationId: whoAmI
+      security:
+        - session: []
       summary: Who this request resolves to
       description: |
         What the client needs to know whether to show a review or a sign-in form.
@@ -154,6 +156,7 @@ paths:
       operationId: headBlob
       security:
         - serviceToken: []
+        - session: []
       summary: Report whether the store already holds this content
       description: |
         Intake calls this before sending bytes: content already held is never
@@ -180,6 +183,7 @@ paths:
       operationId: putBlob
       security:
         - serviceToken: []
+        - session: []
       summary: Store content under its address
       description: |
         Idempotent: storing content that is already held changes nothing. The bytes
@@ -221,6 +225,10 @@ paths:
   /projects:
     post:
       operationId: createProject
+      security:
+        - serviceToken: []
+        - session: []
+        - session: []
       summary: Open a book
       tags:
         - projects
@@ -239,6 +247,10 @@ paths:
                 $ref: '#/components/schemas/Project'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '409':
           description: That slug is taken.
           content:
@@ -254,6 +266,10 @@ paths:
           type: string
     get:
       operationId: getProject
+      security:
+        - serviceToken: []
+        - session: []
+        - session: []
       summary: Read a project
       tags:
         - projects
@@ -264,6 +280,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
   /projects/{slug}/axes:
@@ -275,6 +295,10 @@ paths:
           type: string
     get:
       operationId: listAxes
+      security:
+        - serviceToken: []
+        - session: []
+        - session: []
       summary: Read the project's rendering axes, in their declared order
       tags:
         - projects
@@ -287,10 +311,18 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Axis'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
     put:
       operationId: orderAxes
+      security:
+        - serviceToken: []
+        - session: []
+        - session: []
       summary: Declare the order the axes read in
       description: |
         Only the order. Axes themselves are created by first use at intake —
@@ -333,6 +365,10 @@ paths:
                   $ref: '#/components/schemas/Axis'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
   /projects/{slug}/cases:
@@ -344,6 +380,10 @@ paths:
           type: string
     get:
       operationId: listCases
+      security:
+        - serviceToken: []
+        - session: []
+        - session: []
       summary: List the catalogue
       description: |
         Filters on the stored state, without scanning — which is why the state is
@@ -368,10 +408,18 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Case'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
     post:
       operationId: createCase
+      security:
+        - serviceToken: []
+        - session: []
+        - session: []
       summary: Open a case and receive its id
       description: |
         The id comes back generated; the client stores it and sends it on every
@@ -393,6 +441,10 @@ paths:
                 $ref: '#/components/schemas/Case'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
   /projects/{slug}/editions:
@@ -406,6 +458,7 @@ paths:
       operationId: createEdition
       security:
         - serviceToken: []
+        - session: []
       summary: Take a run's evidence into the book
       description: |
         Push the complete manifest. Ask `HEAD /blobs/{hash}` first and upload what
@@ -454,6 +507,10 @@ paths:
           type: string
     get:
       operationId: listCategories
+      security:
+        - serviceToken: []
+        - session: []
+        - session: []
       summary: Read the catalogue tree
       tags:
         - categories
@@ -466,10 +523,18 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Category'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
     post:
       operationId: createCategory
+      security:
+        - serviceToken: []
+        - session: []
+        - session: []
       summary: Add a node to the tree
       tags:
         - categories
@@ -488,6 +553,10 @@ paths:
                 $ref: '#/components/schemas/Category'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -512,6 +581,7 @@ paths:
       operationId: getCaptureImage
       security:
         - serviceToken: []
+        - session: []
       summary: The image a capture holds
       description: |
         Read through the capture, never through the content address. A hash names
@@ -555,6 +625,7 @@ paths:
       operationId: getRecordingVideo
       security:
         - serviceToken: []
+        - session: []
       summary: The video a recording holds
       description: |
         Read through the recording, for the same reason a capture's image is
@@ -590,6 +661,10 @@ paths:
           type: string
     get:
       operationId: getCase
+      security:
+        - serviceToken: []
+        - session: []
+        - session: []
       summary: Read a case, archived or not
       tags:
         - cases
@@ -600,10 +675,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Case'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
     patch:
       operationId: updateCase
+      security:
+        - serviceToken: []
+        - session: []
+        - session: []
       summary: Change what is mutable about a case
       description: Its id and its state are not part of that.
       tags:
@@ -623,6 +706,10 @@ paths:
                 $ref: '#/components/schemas/Case'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
   /projects/{slug}/cases/{caseId}/captures:
@@ -639,6 +726,10 @@ paths:
           type: string
     get:
       operationId: getCaseCaptures
+      security:
+        - serviceToken: []
+        - session: []
+        - session: []
       summary: Read the evidence a case is judged from
       description: |
         The grid: steps in order, the variants that exist, and the capture sitting
@@ -664,6 +755,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Grid'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
   /projects/{slug}/cases/{caseId}/comments:
@@ -680,6 +775,10 @@ paths:
           type: string
     get:
       operationId: listComments
+      security:
+        - serviceToken: []
+        - session: []
+        - session: []
       summary: Read what has been said about a case
       description: |
         Settled comments included. Nothing is deleted, and a discarded one stays
@@ -696,6 +795,10 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Comment'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
   /projects/{slug}/comments/{commentId}/reference:
@@ -704,6 +807,9 @@ paths:
       - $ref: '#/components/parameters/CommentId'
     post:
       operationId: trackComment
+      security:
+        - serviceToken: []
+        - session: []
       summary: Attach an external issue to a comment
       description: |
         The identifier, the URL and the title are **supplied by the client**.
@@ -723,6 +829,10 @@ paths:
           $ref: '#/components/responses/MoveApplied'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -733,6 +843,9 @@ paths:
       - $ref: '#/components/parameters/CommentId'
     post:
       operationId: discardComment
+      security:
+        - serviceToken: []
+        - session: []
       summary: Set a comment aside
       description: |
         The reason is mandatory, and kept forever with its author. The friction is
@@ -758,6 +871,10 @@ paths:
           $ref: '#/components/responses/MoveApplied'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -768,6 +885,9 @@ paths:
       - $ref: '#/components/parameters/CommentId'
     post:
       operationId: deliverComment
+      security:
+        - serviceToken: []
+        - session: []
       summary: Ask for a judgment on a delivered fix
       description: |
         The dev saying "I finished this, look". Only they know it — captures also
@@ -781,6 +901,10 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/MoveApplied'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -791,6 +915,9 @@ paths:
       - $ref: '#/components/parameters/CommentId'
     post:
       operationId: judgeComment
+      security:
+        - serviceToken: []
+        - session: []
       summary: Accept a delivery, or refuse it
       description: |
         A refusal carries a mandatory remark and is **not** a way to die: the dev
@@ -817,6 +944,10 @@ paths:
           $ref: '#/components/responses/MoveApplied'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -835,6 +966,10 @@ paths:
           type: string
     post:
       operationId: saveReview
+      security:
+        - serviceToken: []
+        - session: []
+        - session: []
       summary: Save what one review session decided
       description: |
         One save carries everything the sitting produced: the squares looked at with
@@ -861,6 +996,10 @@ paths:
                 $ref: '#/components/schemas/ReviewOutcome'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
   /projects/{slug}/cases/{caseId}/archive:
@@ -877,6 +1016,10 @@ paths:
           type: string
     post:
       operationId: archiveCase
+      security:
+        - serviceToken: []
+        - session: []
+        - session: []
       summary: Take a case out of the catalogue
       description: |
         It stops being listed and stops blocking intake, and stays readable with its
@@ -886,6 +1029,10 @@ paths:
       responses:
         '204':
           description: The case is archived.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -908,6 +1055,10 @@ paths:
           type: string
     delete:
       operationId: deleteCategory
+      security:
+        - serviceToken: []
+        - session: []
+        - session: []
       summary: Remove an empty node
       description: |
         Only an empty one. Deleting a filing drawer must not silently move what was
@@ -921,6 +1072,10 @@ paths:
       responses:
         '204':
           description: The category is gone.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -931,6 +1086,14 @@ paths:
                 $ref: '#/components/schemas/problem'
 components:
   securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: ozalid_session
+      description: |
+        The cookie a sign-in opens. `HttpOnly`, so no script reads it; the
+        browser sends it on its own, which is what lets an `<img>` fetch a
+        capture.
     serviceToken:
       type: http
       scheme: bearer

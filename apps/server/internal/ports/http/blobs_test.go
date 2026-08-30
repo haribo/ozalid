@@ -41,6 +41,11 @@ const theProject = "atlas"
 // oneMembership grants write on theProject and nothing anywhere else.
 type oneMembership struct{}
 
+// StandingOf answers about the instance: this account administers nothing.
+func (oneMembership) StandingOf(context.Context, actor.Actor, string) (access.Standing, error) {
+	return access.Standing{}, nil
+}
+
 func (oneMembership) StandingOnSlug(_ context.Context, by actor.Actor, slug string) (access.Standing, error) {
 	if by.Zero() || slug != theProject {
 		return access.Standing{}, nil

@@ -12,6 +12,7 @@ get:
   operationId: getRecordingVideo
   security:
     - serviceToken: []
+    - session: []
   summary: The video a recording holds
   description: |
     Read through the recording, for the same reason a capture's image is

@@ -6,9 +6,17 @@ parameters:
 
 get:
   operationId: listAxes
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
   summary: Read the project's rendering axes, in their declared order
   tags: [projects]
   responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
     "200":
       description: The axes.
       content:
@@ -22,6 +30,10 @@ get:
 
 put:
   operationId: orderAxes
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
   summary: Declare the order the axes read in
   description: |
     Only the order. Axes themselves are created by first use at intake —
@@ -49,6 +61,10 @@ put:
               examples:
                 - [viewport, theme, locale]
   responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
     "200":
       description: The axes in their new order.
       content:

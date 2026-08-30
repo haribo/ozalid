@@ -6,12 +6,23 @@ import (
 	"net/http"
 
 	app "github.com/haribo/ozalid/apps/server/internal/app/catalogue"
+	"github.com/haribo/ozalid/apps/server/internal/domain/access"
 	"github.com/haribo/ozalid/apps/server/internal/domain/catalogue"
 	"github.com/haribo/ozalid/apps/server/internal/ports/http/openapi"
 )
 
 // CreateProject opens a book.
 func (s *Server) CreateProject(ctx context.Context, request openapi.CreateProjectRequestObject) (openapi.CreateProjectResponseObject, error) {
+	if why, no := s.mayNotOnInstance(ctx, access.CreateProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.CreateProject401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.CreateProject403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	policy := catalogue.PolicyPerCase
 	if request.Body.IntakePolicy != nil {
 		policy = catalogue.IntakePolicy(*request.Body.IntakePolicy)
@@ -38,6 +49,16 @@ func (s *Server) CreateProject(ctx context.Context, request openapi.CreateProjec
 
 // GetProject reads a project by slug.
 func (s *Server) GetProject(ctx context.Context, request openapi.GetProjectRequestObject) (openapi.GetProjectResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.ReadProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.GetProject401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.GetProject403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	project, err := s.catalogue.ProjectBySlug(ctx, request.Slug)
 	if errors.Is(err, app.ErrNotFound) {
 		return openapi.GetProject404ApplicationProblemPlusJSONResponse{NotFoundApplicationProblemPlusJSONResponse: notFound("project")}, nil
@@ -50,6 +71,16 @@ func (s *Server) GetProject(ctx context.Context, request openapi.GetProjectReque
 
 // CreateCase opens a case and returns the id the server generated.
 func (s *Server) CreateCase(ctx context.Context, request openapi.CreateCaseRequestObject) (openapi.CreateCaseResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.WriteProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.CreateCase401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.CreateCase403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	project, err := s.catalogue.ProjectBySlug(ctx, request.Slug)
 	if errors.Is(err, app.ErrNotFound) {
 		return openapi.CreateCase404ApplicationProblemPlusJSONResponse{NotFoundApplicationProblemPlusJSONResponse: notFound("project")}, nil
@@ -74,6 +105,16 @@ func (s *Server) CreateCase(ctx context.Context, request openapi.CreateCaseReque
 
 // ListCases returns the catalogue, filtered on the stored state.
 func (s *Server) ListCases(ctx context.Context, request openapi.ListCasesRequestObject) (openapi.ListCasesResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.ReadProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.ListCases401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.ListCases403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	project, err := s.catalogue.ProjectBySlug(ctx, request.Slug)
 	if errors.Is(err, app.ErrNotFound) {
 		return openapi.ListCases404ApplicationProblemPlusJSONResponse{NotFoundApplicationProblemPlusJSONResponse: notFound("project")}, nil
@@ -107,6 +148,16 @@ func (s *Server) ListCases(ctx context.Context, request openapi.ListCasesRequest
 
 // GetCase reads a case, archived or not.
 func (s *Server) GetCase(ctx context.Context, request openapi.GetCaseRequestObject) (openapi.GetCaseResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.ReadProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.GetCase401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.GetCase403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	found, err := s.catalogue.CaseByID(ctx, request.Slug, request.CaseId)
 	if errors.Is(err, app.ErrNotFound) {
 		return openapi.GetCase404ApplicationProblemPlusJSONResponse{NotFoundApplicationProblemPlusJSONResponse: notFound("case")}, nil
@@ -119,6 +170,16 @@ func (s *Server) GetCase(ctx context.Context, request openapi.GetCaseRequestObje
 
 // UpdateCase changes what is mutable about a case.
 func (s *Server) UpdateCase(ctx context.Context, request openapi.UpdateCaseRequestObject) (openapi.UpdateCaseResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.WriteProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.UpdateCase401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.UpdateCase403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	updated, err := s.catalogue.UpdateCase(ctx, request.Slug, request.CaseId, request.Body.Title, request.Body.Description, request.Body.CategoryId)
 	switch {
 	case errors.Is(err, catalogue.ErrTitleRequired):
@@ -137,6 +198,16 @@ func (s *Server) UpdateCase(ctx context.Context, request openapi.UpdateCaseReque
 
 // ArchiveCase takes a case out of the catalogue without destroying it.
 func (s *Server) ArchiveCase(ctx context.Context, request openapi.ArchiveCaseRequestObject) (openapi.ArchiveCaseResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.WriteProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.ArchiveCase401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.ArchiveCase403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	if _, err := s.catalogue.CaseByID(ctx, request.Slug, request.CaseId); errors.Is(err, app.ErrNotFound) {
 		return openapi.ArchiveCase404ApplicationProblemPlusJSONResponse{NotFoundApplicationProblemPlusJSONResponse: notFound("case")}, nil
 	} else if err != nil {
@@ -157,6 +228,16 @@ func (s *Server) ArchiveCase(ctx context.Context, request openapi.ArchiveCaseReq
 
 // ListCategories returns the whole tree.
 func (s *Server) ListCategories(ctx context.Context, request openapi.ListCategoriesRequestObject) (openapi.ListCategoriesResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.ReadProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.ListCategories401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.ListCategories403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	project, err := s.catalogue.ProjectBySlug(ctx, request.Slug)
 	if errors.Is(err, app.ErrNotFound) {
 		return openapi.ListCategories404ApplicationProblemPlusJSONResponse{NotFoundApplicationProblemPlusJSONResponse: notFound("project")}, nil
@@ -178,6 +259,16 @@ func (s *Server) ListCategories(ctx context.Context, request openapi.ListCategor
 
 // CreateCategory adds a node to the tree.
 func (s *Server) CreateCategory(ctx context.Context, request openapi.CreateCategoryRequestObject) (openapi.CreateCategoryResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.WriteProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.CreateCategory401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.CreateCategory403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	project, err := s.catalogue.ProjectBySlug(ctx, request.Slug)
 	if errors.Is(err, app.ErrNotFound) {
 		return openapi.CreateCategory404ApplicationProblemPlusJSONResponse{NotFoundApplicationProblemPlusJSONResponse: notFound("project")}, nil
@@ -211,6 +302,16 @@ func (s *Server) CreateCategory(ctx context.Context, request openapi.CreateCateg
 
 // DeleteCategory removes an empty node.
 func (s *Server) DeleteCategory(ctx context.Context, request openapi.DeleteCategoryRequestObject) (openapi.DeleteCategoryResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.WriteProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.DeleteCategory401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.DeleteCategory403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	err := s.catalogue.DeleteCategory(ctx, request.Slug, request.CategoryId)
 	switch {
 	case errors.Is(err, catalogue.ErrCategoryNotEmpty):
@@ -294,6 +395,16 @@ func toAPISummary(s catalogue.CaseSummary) openapi.Case {
 
 // ListAxes returns the project's rendering axes, in the order they read in.
 func (s *Server) ListAxes(ctx context.Context, request openapi.ListAxesRequestObject) (openapi.ListAxesResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.ReadProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.ListAxes401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.ListAxes403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	project, err := s.catalogue.ProjectBySlug(ctx, request.Slug)
 	if errors.Is(err, app.ErrNotFound) {
 		return openapi.ListAxes404ApplicationProblemPlusJSONResponse{
@@ -313,6 +424,16 @@ func (s *Server) ListAxes(ctx context.Context, request openapi.ListAxesRequestOb
 
 // OrderAxes declares the order axes read in, and relabels what already exists.
 func (s *Server) OrderAxes(ctx context.Context, request openapi.OrderAxesRequestObject) (openapi.OrderAxesResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.WriteProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.OrderAxes401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.OrderAxes403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	project, err := s.catalogue.ProjectBySlug(ctx, request.Slug)
 	if errors.Is(err, app.ErrNotFound) {
 		return openapi.OrderAxes404ApplicationProblemPlusJSONResponse{
