@@ -234,6 +234,166 @@ fe-test-e2e:
       OZALID_E2E_MAILPIT="http://localhost:{{mailpit_port}}" \
       npx playwright test
 
+# --------------------------------------------------------------- restore drill
+
+# The ports and database the drill owns. Off everything else, so it can be run
+# while the development instance and the e2e suite are up.
+drill_port := env_var_or_default("OZALID_DRILL_PORT", "8092")
+drill_dsn := "postgres://ozalid:ozalid@localhost:" + pg_port + "/ozalid_drill?sslmode=disable"
+drill_restored_dsn := "postgres://ozalid:ozalid@localhost:" + pg_port + "/ozalid_drill_restored?sslmode=disable"
+
+# Prove a backup can be restored, and that the wrong order cannot.
+#
+# Runs `docs/backups.md` rather than describing it: the procedure is the recipe,
+# and a procedure nobody has executed is a procedure nobody has checked. It
+# ends by reading a capture's bytes back out of a restored instance, because
+# "the restore finished without an error" is not the same as "the evidence is
+# there".
+restore-drill: db-up
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    say() { printf '\n\033[1m%s\033[0m\n' "$1"; }
+    die() { printf '\n\033[31mFAILED: %s\033[0m\n' "$1" >&2; exit 1; }
+
+    work=$(mktemp -d)
+    trap 'kill $(jobs -p) 2>/dev/null || true; rm -rf "$work"' EXIT
+
+    # Two one-pixel PNGs. Intake refuses anything else, and two colours give two
+    # addresses (product.md §2).
+    red=$(mktemp); blue=$(mktemp)
+    base64 -d > "$red" <<'PNG'
+    iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC
+    PNG
+    base64 -d > "$blue" <<'PNG'
+    iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYPgPAAEDAQAIicLsAAAAAElFTkSuQmCC
+    PNG
+    hash_of() { printf 'sha256:%s' "$(sha256sum "$1" | cut -d' ' -f1)"; }
+
+    go build -o "$work/server" ./apps/server/cmd/server
+
+    # The server refuses to start without somewhere to send a sign-in link. The
+    # drill never sends one — it works with a token, the way a client does — so
+    # this only has to be present, not reachable.
+    export OZALID_SMTP_HOST=localhost OZALID_SMTP_PORT={{smtp_port}} OZALID_SMTP_FROM=drill@ozalid.test
+
+    # ---------------------------------------------------------------- an instance
+    say "an instance with evidence in it"
+    psql "postgres://ozalid:ozalid@localhost:{{pg_port}}/postgres" -v ON_ERROR_STOP=1 \
+      -c 'DROP DATABASE IF EXISTS ozalid_drill' -c 'CREATE DATABASE ozalid_drill' >/dev/null
+    blobs="$work/blobs"
+
+    # The server applies the migrations at boot, so it comes up before anything
+    # tries to write: bootstrap against an empty database has no tables to
+    # write into.
+    OZALID_ADDR=":{{drill_port}}" OZALID_DSN='{{drill_dsn}}' OZALID_BLOB_ROOT="$blobs" \
+      "$work/server" >"$work/server.log" 2>&1 &
+    for _ in $(seq 1 50); do curl -sf "http://localhost:{{drill_port}}/api/health" >/dev/null && break; sleep 0.2; done
+    curl -sf "http://localhost:{{drill_port}}/api/health" >/dev/null || { cat "$work/server.log"; die "the server never came up"; }
+
+    OZALID_DSN='{{drill_dsn}}' "$work/server" bootstrap \
+      -name drill -email drill@ozalid.test -project drill -service-account runner > "$work/boot.txt"
+    token=$(grep -o 'ozp_[A-Za-z0-9_-]*' "$work/boot.txt")
+    [ -n "$token" ] || { cat "$work/boot.txt"; die "bootstrap minted no token"; }
+
+    api() { curl -sS -H "authorization: Bearer $token" "$@"; }
+    push() {
+      api -X PUT --data-binary "@$2" "http://localhost:{{drill_port}}/api/projects/drill/blobs/$(hash_of "$2")" >/dev/null
+      api -X POST -H 'content-type: application/json' \
+        "http://localhost:{{drill_port}}/api/projects/drill/editions" -d @- >/dev/null <<JSON
+    {"cases":[{"id":"$1","steps":[{"name":"the screen","captures":[
+      {"variant":{"theme":"light"},"hash":"$(hash_of "$2")","provenance":{"environmentId":"drill"}}]}]}]}
+    JSON
+    }
+    kase=$(api -X POST -H 'content-type: application/json' \
+      "http://localhost:{{drill_port}}/api/projects/drill/cases" -d '{"title":"the one that must survive"}' \
+      | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+    push "$kase" "$red"
+
+    # ------------------------------------------------------------- the backups
+    # Two pairs are taken, so both orderings can be tried. The rule is: the
+    # database first, the blobs second. The store is append-only, so a later
+    # blob snapshot is a superset of what an earlier dump can reference.
+    # Reversed, the dump names bytes the snapshot does not hold
+    # (docs/backups.md).
+    say "backing up, twice, so both orderings can be tried"
+    tar -C "$blobs" -czf "$work/blobs-early.tar.gz" .
+    pg_dump '{{drill_dsn}}' --format=custom --file="$work/early.dump"
+
+    # A run lands between the two, exactly as one would in production.
+    later=$(api -X POST -H 'content-type: application/json' \
+      "http://localhost:{{drill_port}}/api/projects/drill/cases" -d '{"title":"pushed after the early dump"}' \
+      | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+    push "$later" "$blue"
+
+    tar -C "$blobs" -czf "$work/blobs-late.tar.gz" .
+    pg_dump '{{drill_dsn}}' --format=custom --file="$work/late.dump"
+    kill %1 2>/dev/null || true; wait %1 2>/dev/null || true
+
+    # `early.dump` + `blobs-late.tar.gz` is the database first, the blobs
+    # second. `late.dump` + `blobs-early.tar.gz` is the reverse, and is what
+    # must fail.
+
+    restore() {
+      psql "postgres://ozalid:ozalid@localhost:{{pg_port}}/postgres" -v ON_ERROR_STOP=1 \
+        -c 'DROP DATABASE IF EXISTS ozalid_drill_restored' -c 'CREATE DATABASE ozalid_drill_restored' >/dev/null
+      pg_restore --dbname='{{drill_restored_dsn}}' --no-owner "$1" >/dev/null
+      rm -rf "$work/restored"; mkdir -p "$work/restored"
+      tar -C "$work/restored" -xzf "$2"
+      OZALID_ADDR=":{{drill_port}}" OZALID_DSN='{{drill_restored_dsn}}' OZALID_BLOB_ROOT="$work/restored" \
+        "$work/server" >"$3" 2>&1 &
+      for _ in $(seq 1 50); do curl -sf "http://localhost:{{drill_port}}/api/health" >/dev/null && break; sleep 0.2; done
+      curl -sf "http://localhost:{{drill_port}}/api/health" >/dev/null || { cat "$3"; die "the restored server never came up"; }
+    }
+    captureOf() {
+      api "http://localhost:{{drill_port}}/api/projects/drill/cases/$1/captures" \
+        | python3 -c 'import json,sys; g=json.load(sys.stdin); print(g["steps"][0]["cells"][0]["id"])'
+    }
+    status() { api -o /dev/null -w '%{http_code}' "$1"; }
+
+    # ------------------------------------------------------ the correct order
+    say "restoring the database first, the blobs second"
+    restore "$work/early.dump" "$work/blobs-late.tar.gz" "$work/right.log"
+
+    api -o "$work/back.png" "http://localhost:{{drill_port}}/api/projects/drill/captures/$(captureOf "$kase")"
+    cmp -s "$red" "$work/back.png" || die "the capture that came back is not the capture that went in"
+    echo "  the capture reads back byte for byte"
+
+    # The case pushed after the dump is simply not there. Its bytes are, and
+    # nothing references them: an orphan blob, which is what this ordering
+    # trades for a missing one.
+    [ "$(status "http://localhost:{{drill_port}}/api/projects/drill/cases/$later")" = 404 ] \
+      || die "a case created after the dump came back — the dump is not the restore point it claims to be"
+    echo "  the case pushed after the dump is absent, and its bytes are a harmless orphan"
+    kill %1 2>/dev/null || true; wait %1 2>/dev/null || true
+
+    # ------------------------------------------------------- the wrong order
+    # Not a formality: this is the failure the ordering rule exists to prevent,
+    # and an operator who reverses it will not find out for months.
+    say "restoring the blobs first, the database second — this must break"
+    restore "$work/late.dump" "$work/blobs-early.tar.gz" "$work/wrong.log"
+
+    # The row is there. The bytes are not.
+    [ "$(status "http://localhost:{{drill_port}}/api/projects/drill/cases/$later")" = 200 ] \
+      || die "the later case is missing from the later dump, so this proves nothing"
+    orphaned=$(captureOf "$later")
+    code=$(status "http://localhost:{{drill_port}}/api/projects/drill/captures/$orphaned")
+    [ "$code" = 404 ] || die "a capture whose bytes were not restored answered $code, want 404"
+    echo "  a capture whose bytes are missing answers 404"
+
+    grep -q 'a stored address has no bytes behind it' "$work/wrong.log" \
+      || { cat "$work/wrong.log"; die "the store lost evidence and said nothing in its log"; }
+    echo "  and the log says so, which is the only way an operator ever finds out"
+
+    # The capture from before the snapshot still reads, so the failure above is
+    # about the missing bytes and not about the instance being broken.
+    [ "$(status "http://localhost:{{drill_port}}/api/projects/drill/captures/$(captureOf "$kase")")" = 200 ] \
+      || die "the older capture stopped working too, so the check above proves nothing"
+    echo "  the older capture still reads, so the failure is the missing bytes and nothing else"
+    kill %1 2>/dev/null || true; wait %1 2>/dev/null || true
+
+    say "the drill passed"
+
 # ----------------------------------------------------------------------- both
 
 # Everything a pull request must pass locally.
