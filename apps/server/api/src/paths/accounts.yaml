@@ -1,0 +1,64 @@
+get:
+  operationId: listAccounts
+  security:
+    - serviceToken: []
+    - session: []
+  summary: Every account on this instance
+  description: |
+    Deactivated accounts are listed too, and say so. They are what a name in the
+    journal resolves to, so hiding them would leave a reviewer's name pointing
+    at nothing.
+  tags: [accounts]
+  responses:
+    "200":
+      description: The accounts, by name.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: "../components/schemas.yaml#/Account"
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+
+post:
+  operationId: createAccount
+  security:
+    - serviceToken: []
+    - session: []
+  summary: Make an account for a person
+  description: |
+    There is no open sign-up: an account exists because an administrator made it
+    (`product.md` §8.2). No password is stored — the address is how they sign
+    in, so there is nothing to forget and nothing to reset
+    ([ADR 0019](https://github.com/haribo/ozalid/blob/develop/docs/adr/0019-two-kinds-of-account-one-set-of-rights.md)).
+
+    The new account reaches nothing until somebody grants it a membership.
+  tags: [accounts]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "../components/schemas.yaml#/NewAccount"
+  responses:
+    "201":
+      description: The account.
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/Account"
+    "400":
+      $ref: "../components/responses.yaml#/BadRequest"
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "409":
+      description: That address already has an account.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "../components/problem.yaml"

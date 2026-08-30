@@ -222,6 +222,103 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/problem'
+  /accounts:
+    get:
+      operationId: listAccounts
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Every account on this instance
+      description: |
+        Deactivated accounts are listed too, and say so. They are what a name in the
+        journal resolves to, so hiding them would leave a reviewer's name pointing
+        at nothing.
+      tags:
+        - accounts
+      responses:
+        '200':
+          description: The accounts, by name.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Account'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createAccount
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Make an account for a person
+      description: |
+        There is no open sign-up: an account exists because an administrator made it
+        (`product.md` §8.2). No password is stored — the address is how they sign
+        in, so there is nothing to forget and nothing to reset
+        ([ADR 0019](https://github.com/haribo/ozalid/blob/develop/docs/adr/0019-two-kinds-of-account-one-set-of-rights.md)).
+
+        The new account reaches nothing until somebody grants it a membership.
+      tags:
+        - accounts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewAccount'
+      responses:
+        '201':
+          description: The account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: That address already has an account.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problem'
+  /accounts/{accountId}:
+    parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      operationId: deactivateAccount
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Stop an account from signing in
+      description: |
+        Deactivated, never deleted. Every fact it recorded keeps naming it, and the
+        journal holds no foreign key to the account table precisely so evidence
+        outlives the person ([ADR 0018](https://github.com/haribo/ozalid/blob/develop/docs/adr/0018-an-actor-is-never-invented.md)).
+
+        Idempotent: deactivating an account that is already deactivated changes
+        nothing and answers the same.
+      tags:
+        - accounts
+      responses:
+        '204':
+          description: The account can no longer sign in.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /projects:
     post:
       operationId: createProject
@@ -1131,6 +1228,51 @@ components:
         instance:
           type: string
           format: uri-reference
+    Account:
+      type: object
+      required:
+        - id
+        - name
+        - email
+        - isAdmin
+        - createdAt
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        isAdmin:
+          type: boolean
+          description: Manages accounts and creates projects; reaches no content.
+        deactivatedAt:
+          type: string
+          format: date-time
+          description: |
+            Absent while the account works. An account is deactivated, never
+            deleted: what it reviewed stays readable and the journal keeps naming
+            it (ADR 0018).
+        createdAt:
+          type: string
+          format: date-time
+    NewAccount:
+      type: object
+      required:
+        - name
+        - email
+      properties:
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+          description: Unique, and where the sign-in link is sent. There is no password.
+        isAdmin:
+          type: boolean
+          default: false
     NewProject:
       type: object
       required:

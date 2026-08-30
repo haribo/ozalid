@@ -119,7 +119,7 @@ func TestADeactivatedAccountStandsForNothing(t *testing.T) {
 	gone := person(t, ctx, q, "gone", true)
 	belongs(t, ctx, q, project.ID, gone.ID, access.Member)
 
-	if err := q.DeactivateUser(ctx, gone.ID); err != nil {
+	if _, err := q.DeactivateUser(ctx, gone.ID); err != nil {
 		t.Fatalf("deactivating: %v", err)
 	}
 

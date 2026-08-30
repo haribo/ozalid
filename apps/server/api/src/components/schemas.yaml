@@ -133,3 +133,35 @@ Axis:
     position:
       type: integer
       description: Where it reads in a variant's label. Lower comes first.
+
+Account:
+  type: object
+  required: [id, name, email, isAdmin, createdAt]
+  properties:
+    id: { type: string }
+    name: { type: string }
+    email: { type: string, format: email }
+    isAdmin:
+      type: boolean
+      description: Manages accounts and creates projects; reaches no content.
+    deactivatedAt:
+      type: string
+      format: date-time
+      description: |
+        Absent while the account works. An account is deactivated, never
+        deleted: what it reviewed stays readable and the journal keeps naming
+        it (ADR 0018).
+    createdAt: { type: string, format: date-time }
+
+NewAccount:
+  type: object
+  required: [name, email]
+  properties:
+    name: { type: string, minLength: 1 }
+    email:
+      type: string
+      format: email
+      description: Unique, and where the sign-in link is sent. There is no password.
+    isAdmin:
+      type: boolean
+      default: false

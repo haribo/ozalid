@@ -160,15 +160,20 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
-const deactivateUser = `-- name: DeactivateUser :exec
-UPDATE users SET deactivated_at = now() WHERE id = $1
+const deactivateUser = `-- name: DeactivateUser :execrows
+UPDATE users SET deactivated_at = coalesce(deactivated_at, now()) WHERE id = $1
 `
 
 // An account is deactivated, never deleted: what it reviewed has to stay
 // readable, and the journal names it (ADR 0018).
-func (q *Queries) DeactivateUser(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, deactivateUser, id)
-	return err
+// Idempotent: `deactivated_at` is set once and never moved, so deactivating
+// twice is not two different days.
+func (q *Queries) DeactivateUser(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.Exec(ctx, deactivateUser, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const endSession = `-- name: EndSession :exec
@@ -178,6 +183,37 @@ DELETE FROM sessions WHERE token_hash = $1
 func (q *Queries) EndSession(ctx context.Context, tokenHash string) error {
 	_, err := q.db.Exec(ctx, endSession, tokenHash)
 	return err
+}
+
+const listUsers = `-- name: ListUsers :many
+SELECT id, name, email, is_admin, deactivated_at, created_at FROM users ORDER BY lower(name), id
+`
+
+func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.IsAdmin,
+			&i.DeactivatedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const serviceAccountByTokenHash = `-- name: ServiceAccountByTokenHash :one

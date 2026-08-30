@@ -53,8 +53,13 @@ WHERE s.id = $1;
 
 -- An account is deactivated, never deleted: what it reviewed has to stay
 -- readable, and the journal names it (ADR 0018).
--- name: DeactivateUser :exec
-UPDATE users SET deactivated_at = now() WHERE id = $1;
+-- Idempotent: `deactivated_at` is set once and never moved, so deactivating
+-- twice is not two different days.
+-- name: DeactivateUser :execrows
+UPDATE users SET deactivated_at = coalesce(deactivated_at, now()) WHERE id = $1;
+
+-- name: ListUsers :many
+SELECT * FROM users ORDER BY lower(name), id;
 
 -- name: CreateServiceToken :one
 INSERT INTO service_tokens (service_account_id, label, token_hash)

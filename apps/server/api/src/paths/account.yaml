@@ -1,0 +1,29 @@
+parameters:
+  - name: accountId
+    in: path
+    required: true
+    schema: { type: string }
+
+delete:
+  operationId: deactivateAccount
+  security:
+    - serviceToken: []
+    - session: []
+  summary: Stop an account from signing in
+  description: |
+    Deactivated, never deleted. Every fact it recorded keeps naming it, and the
+    journal holds no foreign key to the account table precisely so evidence
+    outlives the person ([ADR 0018](https://github.com/haribo/ozalid/blob/develop/docs/adr/0018-an-actor-is-never-invented.md)).
+
+    Idempotent: deactivating an account that is already deactivated changes
+    nothing and answers the same.
+  tags: [accounts]
+  responses:
+    "204":
+      description: The account can no longer sign in.
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
