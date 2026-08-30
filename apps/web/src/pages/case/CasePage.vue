@@ -160,6 +160,7 @@ async function refreshCase() {
 
       <CaptureCarousel
         v-if="open && review.grid.value"
+        :slug="slug"
         :grid="review.grid.value"
         :comments="review.comments.value"
         :step-id="open.stepId"
@@ -175,6 +176,7 @@ async function refreshCase() {
 
       <CaseGrid
         v-if="review.grid.value"
+        :slug="slug"
         :grid="review.grid.value"
         :open-cell="open"
         @open="(stepId, variantId) => (open = { stepId, variantId })"

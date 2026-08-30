@@ -115,3 +115,19 @@ test('every mark the grid draws wears a disc', async ({ page }) => {
     await expect(mark).toHaveClass(/rounded-full/)
   }
 })
+
+test('the captures in the grid actually decode, not just point somewhere', async ({ page }) => {
+  // Counting squares passes whether or not the bytes arrive. `naturalWidth` is
+  // zero for an image the browser could not decode, so this is what tells a
+  // broken address apart from a working one (#71).
+  const seeded = await seed(page)
+  await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
+
+  const images = page.locator('tbody img')
+  await expect(images).toHaveCount(6)
+
+  const widths = await images.evaluateAll((nodes) =>
+    nodes.map((n) => (n as HTMLImageElement).naturalWidth),
+  )
+  expect(widths.every((w) => w > 0), `naturalWidth per capture: ${widths}`).toBe(true)
+})

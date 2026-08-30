@@ -15,6 +15,7 @@ type Grid = components['schemas']['Grid']
 type Comment = components['schemas']['Comment']
 
 const props = defineProps<{
+  slug: string
   grid: Grid
   comments: Comment[]
   stepId: string
@@ -259,7 +260,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           >
         </span>
         <img
-          :src="`/api/blobs/${cell.hash}`"
+          :src="`/api/projects/${slug}/captures/${cell.id}`"
           :alt="`${step?.name} — ${variant?.label}`"
           class="max-h-[60vh] border border-slate-300 bg-white object-contain dark:border-slate-600 dark:bg-slate-900"
           :class="[isPortrait ? 'w-[240px]' : 'w-[560px]', judged ? 'opacity-40' : '']"

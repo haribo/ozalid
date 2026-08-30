@@ -18,8 +18,8 @@ const grid: Grid = {
       name: 'ouvre le lien',
       position: 0,
       cells: [
-        { variantId: 'v1', hash: 'sha256:a', status: 'to-review' },
-        { variantId: 'v2', hash: 'sha256:b', status: 'validated' },
+        { id: 'cap1', variantId: 'v1', hash: 'sha256:a', status: 'to-review' },
+        { id: 'cap2', variantId: 'v2', hash: 'sha256:b', status: 'validated' },
       ],
     },
   ],
@@ -28,7 +28,7 @@ const grid: Grid = {
 
 function mountAt(variantId: string, comments: Comment[] = []) {
   return mount(CaptureCarousel, {
-    props: { grid, comments, stepId: 's1', variantId },
+    props: { slug: 'atlas', grid, comments, stepId: 's1', variantId },
   })
 }
 
@@ -61,19 +61,26 @@ describe('CaptureCarousel', () => {
           ...grid.steps[0],
           cells: [
             {
+              id: 'cap6',
               variantId: 'v1',
               hash: 'sha256:a',
               status: 'validated',
               freshness: 'to-re-review',
               movedPixels: 143,
             },
-            { variantId: 'v2', hash: 'sha256:b', status: 'validated', freshness: 'current' },
+            {
+              id: 'cap3',
+              variantId: 'v2',
+              hash: 'sha256:b',
+              status: 'validated',
+              freshness: 'current',
+            },
           ],
         },
       ],
     }
     const w = mount(CaptureCarousel, {
-      props: { grid: moved, comments: [], stepId: 's1', variantId: 'v1' },
+      props: { slug: 'atlas', grid: moved, comments: [], stepId: 's1', variantId: 'v1' },
     })
     expect(w.text()).toContain('a bougé')
     expect(w.text()).toContain('143 px')
@@ -186,14 +193,14 @@ describe('the group shortcuts', () => {
           name: 'ouvre',
           position: 0,
           cells: [
-            { variantId: 'v1', hash: 'sha256:a', status: 'to-review' },
-            { variantId: 'v2', hash: 'sha256:b', status: 'to-review' },
+            { id: 'cap4', variantId: 'v1', hash: 'sha256:a', status: 'to-review' },
+            { id: 'cap5', variantId: 'v2', hash: 'sha256:b', status: 'to-review' },
           ],
         },
       ],
     }
     const w = mount(CaptureCarousel, {
-      props: { grid: withRole, comments: [], stepId: 's1', variantId: 'v1' },
+      props: { slug: 'atlas', grid: withRole, comments: [], stepId: 's1', variantId: 'v1' },
     })
     await w
       .findAll('button')
