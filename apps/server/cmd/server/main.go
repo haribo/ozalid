@@ -15,6 +15,7 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/adapters/blobstore"
 	"github.com/haribo/ozalid/apps/server/internal/adapters/mail"
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres"
+	"github.com/haribo/ozalid/apps/server/internal/app/account"
 	"github.com/haribo/ozalid/apps/server/internal/app/catalogue"
 	"github.com/haribo/ozalid/apps/server/internal/app/comment"
 	"github.com/haribo/ozalid/apps/server/internal/app/evidence"
@@ -119,6 +120,7 @@ func run() error {
 		Version:      version,
 		Blobs:        blobs,
 		BlobRecorder: store,
+		Account:      account.New(store),
 		Catalogue:    catalogue.New(store),
 		Tokens:       store,
 		SignIn:       store,

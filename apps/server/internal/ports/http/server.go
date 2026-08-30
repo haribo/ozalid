@@ -11,6 +11,7 @@ import (
 
 	"github.com/haribo/ozalid/apps/server/internal/adapters/blobstore"
 	"github.com/haribo/ozalid/apps/server/internal/adapters/mail"
+	"github.com/haribo/ozalid/apps/server/internal/app/account"
 	"github.com/haribo/ozalid/apps/server/internal/app/catalogue"
 	"github.com/haribo/ozalid/apps/server/internal/app/comment"
 	"github.com/haribo/ozalid/apps/server/internal/app/evidence"
@@ -35,6 +36,7 @@ type Server struct {
 	signIn       SignIn
 	mail         mail.Sender
 	standings    Standings
+	account      *account.Service
 	catalogue    *catalogue.Service
 	intake       *intake.Service
 	evidence     *evidence.Service
@@ -55,6 +57,7 @@ type Deps struct {
 	SignIn       SignIn
 	Mail         mail.Sender
 	Standings    Standings
+	Account      *account.Service
 	Catalogue    *catalogue.Service
 	Intake       *intake.Service
 	Evidence     *evidence.Service
@@ -72,6 +75,7 @@ func New(deps Deps) *Server {
 		signIn:       deps.SignIn,
 		mail:         deps.Mail,
 		standings:    deps.Standings,
+		account:      deps.Account,
 		catalogue:    deps.Catalogue,
 		intake:       deps.Intake,
 		evidence:     deps.Evidence,
