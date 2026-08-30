@@ -6,9 +6,17 @@ parameters:
 
 get:
   operationId: getProject
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
   summary: Read a project
   tags: [projects]
   responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
     "200":
       description: The project.
       content:

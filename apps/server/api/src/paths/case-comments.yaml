@@ -10,6 +10,10 @@ parameters:
 
 get:
   operationId: listComments
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
   summary: Read what has been said about a case
   description: |
     Settled comments included. Nothing is deleted, and a discarded one stays
@@ -17,6 +21,10 @@ get:
     who removed it?" must always have an answer (ADR 0006).
   tags: [comments]
   responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
     "200":
       description: The comments.
       content:

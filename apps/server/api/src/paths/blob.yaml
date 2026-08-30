@@ -18,6 +18,7 @@ head:
   operationId: headBlob
   security:
     - serviceToken: []
+    - session: []
   summary: Report whether the store already holds this content
   description: |
     Intake calls this before sending bytes: content already held is never
@@ -44,6 +45,7 @@ put:
   operationId: putBlob
   security:
     - serviceToken: []
+    - session: []
   summary: Store content under its address
   description: |
     Idempotent: storing content that is already held changes nothing. The bytes

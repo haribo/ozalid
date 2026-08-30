@@ -10,6 +10,10 @@ parameters:
 
 get:
   operationId: getCaseCaptures
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
   summary: Read the evidence a case is judged from
   description: |
     The grid: steps in order, the variants that exist, and the capture sitting
@@ -27,6 +31,10 @@ get:
       in: query
       schema: { type: string }
   responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
     "200":
       description: The evidence.
       content:

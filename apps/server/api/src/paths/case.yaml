@@ -10,9 +10,17 @@ parameters:
 
 get:
   operationId: getCase
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
   summary: Read a case, archived or not
   tags: [cases]
   responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
     "200":
       description: The case.
       content:
@@ -24,6 +32,10 @@ get:
 
 patch:
   operationId: updateCase
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
   summary: Change what is mutable about a case
   description: Its id and its state are not part of that.
   tags: [cases]
@@ -34,6 +46,10 @@ patch:
         schema:
           $ref: "../components/schemas.yaml#/CaseUpdate"
   responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
     "200":
       description: The updated case.
       content:

@@ -64,13 +64,26 @@ paths:
   /projects/{slug}/categories/{categoryId}:
     $ref: "./paths/category.yaml"
 
-# Declared where it is required, never globally. Twenty-six of the twenty-eight
-# operations carry no security today; closing them is #55, and it lands once
-# every address names the project it reaches (#71). An empty default would have
-# said the same thing less visibly — this way, `security` appearing on an
-# operation is a decision somebody made rather than one they forgot.
+# Declared on every operation, never globally. An empty default would say the
+# same thing less visibly — this way `security` is a decision somebody made
+# rather than one they forgot, and an operation without it stands out.
+#
+# Two credentials, and an operation that accepts both lists both: a person came
+# through a sign-in, a program presented a token, and nothing is forbidden
+# because the caller is a program
+# ([ADR 0019](https://github.com/haribo/ozalid/blob/develop/docs/adr/0019-two-kinds-of-account-one-set-of-rights.md)).
+# What each may do is decided by their membership, not by which door they came
+# through.
 components:
   securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: ozalid_session
+      description: |
+        The cookie a sign-in opens. `HttpOnly`, so no script reads it; the
+        browser sends it on its own, which is what lets an `<img>` fetch a
+        capture.
     serviceToken:
       type: http
       scheme: bearer

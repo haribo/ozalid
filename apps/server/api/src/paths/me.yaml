@@ -1,5 +1,7 @@
 get:
   operationId: whoAmI
+  security:
+    - session: []
   summary: Who this request resolves to
   description: |
     What the client needs to know whether to show a review or a sign-in form.

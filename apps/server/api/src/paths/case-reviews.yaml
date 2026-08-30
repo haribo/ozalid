@@ -10,6 +10,10 @@ parameters:
 
 post:
   operationId: saveReview
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
   summary: Save what one review session decided
   description: |
     One save carries everything the sitting produced: the squares looked at with
@@ -27,6 +31,10 @@ post:
         schema:
           $ref: "../components/review.yaml#/ReviewSave"
   responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
     "200":
       description: What the session amounted to.
       content:

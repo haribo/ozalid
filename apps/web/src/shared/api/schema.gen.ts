@@ -1269,6 +1269,8 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             /** @description That slug is taken. */
             409: {
                 headers: {
@@ -1300,6 +1302,8 @@ export interface operations {
                     "application/json": components["schemas"]["Project"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -1323,6 +1327,8 @@ export interface operations {
                     "application/json": components["schemas"]["Axis"][];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -1361,6 +1367,8 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -1387,6 +1395,8 @@ export interface operations {
                     "application/json": components["schemas"]["Case"][];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -1415,6 +1425,8 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -1480,6 +1492,8 @@ export interface operations {
                     "application/json": components["schemas"]["Category"][];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -1508,6 +1522,8 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             /** @description A sibling already carries that name. */
             409: {
@@ -1593,6 +1609,8 @@ export interface operations {
                     "application/json": components["schemas"]["Case"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -1622,6 +1640,8 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -1648,6 +1668,8 @@ export interface operations {
                     "application/json": components["schemas"]["Grid"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -1672,6 +1694,8 @@ export interface operations {
                     "application/json": components["schemas"]["Comment"][];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -1693,6 +1717,8 @@ export interface operations {
         responses: {
             200: components["responses"]["MoveApplied"];
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["MoveRefused"];
         };
@@ -1717,6 +1743,8 @@ export interface operations {
         responses: {
             200: components["responses"]["MoveApplied"];
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["MoveRefused"];
         };
@@ -1734,6 +1762,8 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["MoveApplied"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["MoveRefused"];
         };
@@ -1760,6 +1790,8 @@ export interface operations {
         responses: {
             200: components["responses"]["MoveApplied"];
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["MoveRefused"];
         };
@@ -1790,6 +1822,8 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -1812,6 +1846,8 @@ export interface operations {
                 };
                 content?: never;
             };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             /** @description The case was already archived. */
             409: {
@@ -1843,6 +1879,8 @@ export interface operations {
                 };
                 content?: never;
             };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             /** @description The category is not empty. */
             409: {
