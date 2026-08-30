@@ -52,6 +52,7 @@ func toAPIGrid(g evidence.Grid) openapi.Grid {
 		}
 		for _, c := range st.Cells {
 			cell := openapi.GridCell{
+				Id:         c.ID,
 				VariantId:  c.VariantID,
 				Hash:       c.Hash,
 				Status:     openapi.GridCellStatus(c.Status),
@@ -70,7 +71,7 @@ func toAPIGrid(g evidence.Grid) openapi.Grid {
 	}
 	for _, r := range g.Recordings {
 		out.Recordings = append(out.Recordings, openapi.GridRecording{
-			VariantId: r.VariantID, Hash: r.Hash,
+			Id: r.ID, VariantId: r.VariantID, Hash: r.Hash,
 		})
 	}
 	return out

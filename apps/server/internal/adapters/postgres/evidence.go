@@ -88,7 +88,7 @@ func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionI
 		}
 
 		cell := evidence.Cell{
-			VariantID: *row.VariantID, Hash: *row.BlobHash,
+			ID: *row.CaptureID, VariantID: *row.VariantID, Hash: *row.BlobHash,
 			Status: row.Status, Provenance: provenance,
 		}
 		if row.Freshness != nil {
@@ -112,7 +112,7 @@ func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionI
 	}
 	for _, rec := range recordings {
 		grid.Recordings = append(grid.Recordings, evidence.Recording{
-			VariantID: rec.VariantID, Hash: rec.BlobHash,
+			ID: rec.RecordingID, VariantID: rec.VariantID, Hash: rec.BlobHash,
 		})
 	}
 
@@ -165,4 +165,27 @@ func sortedVariants(m map[string]evidence.Variant) []evidence.Variant {
 		}
 	}
 	return out
+}
+
+// CaptureBlob answers where one capture's bytes are stored, inside the project
+// the caller named.
+func (r *Repository) CaptureBlob(ctx context.Context, slug, captureID string) (string, error) {
+	hash, err := r.q.CaptureBlobInProject(ctx, sqlcgen.CaptureBlobInProjectParams{
+		ID: captureID, Slug: slug,
+	})
+	if err != nil {
+		return "", translate("reading the capture", err)
+	}
+	return hash, nil
+}
+
+// RecordingBlob does the same for a recording.
+func (r *Repository) RecordingBlob(ctx context.Context, slug, recordingID string) (string, error) {
+	hash, err := r.q.RecordingBlobInProject(ctx, sqlcgen.RecordingBlobInProjectParams{
+		ID: recordingID, Slug: slug,
+	})
+	if err != nil {
+		return "", translate("reading the recording", err)
+	}
+	return hash, nil
 }

@@ -9,6 +9,29 @@ import (
 	"context"
 )
 
+const captureBlobInProject = `-- name: CaptureBlobInProject :one
+SELECT c.blob_hash FROM captures c
+JOIN steps st ON st.id = c.step_id
+JOIN cases k ON k.id = st.case_id
+JOIN projects p ON p.id = k.project_id
+WHERE c.id = $1 AND p.slug = $2
+`
+
+type CaptureBlobInProjectParams struct {
+	ID   string
+	Slug string
+}
+
+// The bytes one capture holds, inside the project the caller named. Reached
+// through the capture's own row, because a content address names no project
+// and cannot be authorised (product.md §8.1).
+func (q *Queries) CaptureBlobInProject(ctx context.Context, arg CaptureBlobInProjectParams) (string, error) {
+	row := q.db.QueryRow(ctx, captureBlobInProject, arg.ID, arg.Slug)
+	var blob_hash string
+	err := row.Scan(&blob_hash)
+	return blob_hash, err
+}
+
 const caseEvidence = `-- name: CaseEvidence :many
 SELECT
     s.id       AS step_id,
@@ -17,6 +40,7 @@ SELECT
     v.id       AS variant_id,
     v.label    AS variant_label,
     v.values   AS variant_values,
+    c.id       AS capture_id,
     c.blob_hash,
     c.provenance,
     c.freshness,
@@ -45,6 +69,7 @@ type CaseEvidenceRow struct {
 	VariantID     *string
 	VariantLabel  *string
 	VariantValues []byte
+	CaptureID     *string
 	BlobHash      *string
 	Provenance    []byte
 	Freshness     *string
@@ -71,6 +96,7 @@ func (q *Queries) CaseEvidence(ctx context.Context, arg CaseEvidenceParams) ([]C
 			&i.VariantID,
 			&i.VariantLabel,
 			&i.VariantValues,
+			&i.CaptureID,
 			&i.BlobHash,
 			&i.Provenance,
 			&i.Freshness,
@@ -88,7 +114,7 @@ func (q *Queries) CaseEvidence(ctx context.Context, arg CaseEvidenceParams) ([]C
 }
 
 const caseRecordings = `-- name: CaseRecordings :many
-SELECT r.blob_hash, v.id AS variant_id, v.label AS variant_label, v.values AS variant_values
+SELECT r.id AS recording_id, r.blob_hash, v.id AS variant_id, v.label AS variant_label, v.values AS variant_values
 FROM recordings r
 JOIN variants v ON v.id = r.variant_id
 WHERE r.case_id = $1 AND r.edition_id = $2
@@ -101,6 +127,7 @@ type CaseRecordingsParams struct {
 }
 
 type CaseRecordingsRow struct {
+	RecordingID   string
 	BlobHash      string
 	VariantID     string
 	VariantLabel  string
@@ -117,6 +144,7 @@ func (q *Queries) CaseRecordings(ctx context.Context, arg CaseRecordingsParams) 
 	for rows.Next() {
 		var i CaseRecordingsRow
 		if err := rows.Scan(
+			&i.RecordingID,
 			&i.BlobHash,
 			&i.VariantID,
 			&i.VariantLabel,
@@ -171,4 +199,23 @@ func (q *Queries) LatestEdition(ctx context.Context, projectID string) (Edition,
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const recordingBlobInProject = `-- name: RecordingBlobInProject :one
+SELECT r.blob_hash FROM recordings r
+JOIN cases k ON k.id = r.case_id
+JOIN projects p ON p.id = k.project_id
+WHERE r.id = $1 AND p.slug = $2
+`
+
+type RecordingBlobInProjectParams struct {
+	ID   string
+	Slug string
+}
+
+func (q *Queries) RecordingBlobInProject(ctx context.Context, arg RecordingBlobInProjectParams) (string, error) {
+	row := q.db.QueryRow(ctx, recordingBlobInProject, arg.ID, arg.Slug)
+	var blob_hash string
+	err := row.Scan(&blob_hash)
+	return blob_hash, err
 }

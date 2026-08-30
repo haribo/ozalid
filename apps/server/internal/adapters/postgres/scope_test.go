@@ -181,3 +181,30 @@ func TestACategoryCannotBeDeletedThroughSomebodyElsesProject(t *testing.T) {
 		t.Errorf("deleting through its own project = %v, %v; want it deleted", deleted, err)
 	}
 }
+
+func TestACapturesBytesAreNotReachableThroughSomebodyElsesProject(t *testing.T) {
+	ctx, repo, blobs, project, kase := freshnessFixture(t)
+	other := neighbour(t, ctx, repo)
+
+	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 0)); err != nil {
+		t.Fatalf("taking the edition in: %v", err)
+	}
+	grid, err := repo.CaseGrid(ctx, project.Slug, kase.ID, nil)
+	if err != nil {
+		t.Fatalf("reading the grid: %v", err)
+	}
+	captureID := grid.Steps[0].Cells[0].ID
+	if captureID == "" {
+		t.Fatal("the grid carries no capture id, so this test proves nothing")
+	}
+
+	// Under its own project the capture resolves to the address its bytes sit
+	// at, which is the whole reason the id is exposed at all.
+	if _, err := repo.CaptureBlob(ctx, project.Slug, captureID); err != nil {
+		t.Fatalf("resolving the capture under its own project: %v", err)
+	}
+
+	if _, err := repo.CaptureBlob(ctx, other.Slug, captureID); !errors.Is(err, app.ErrNotFound) {
+		t.Errorf("CaptureBlob under the wrong project = %v, want ErrNotFound", err)
+	}
+}
