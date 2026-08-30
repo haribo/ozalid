@@ -595,6 +595,212 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/IntakeRefused'
+  /projects/{slug}/service-accounts:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: createServiceAccount
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Make a program an account on this project
+      description: |
+        A service account belongs to exactly one project, and that is enforced by a
+        partial unique index rather than trusted
+        ([ADR 0018](https://github.com/haribo/ozalid/blob/develop/docs/adr/0018-an-actor-is-never-invented.md)).
+        It is created here, with the project, and never moves.
+
+        **Administration, not membership.** Creating one is granting a membership,
+        and an administrator grants memberships (`product.md` §8.2). A member of the
+        project could otherwise mint a credential that keeps working after their own
+        membership is revoked — a program nobody remembers, holding rights nobody
+        reviews.
+
+        The token comes back in the response and nowhere else.
+      tags:
+        - accounts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewServiceAccount'
+      responses:
+        '201':
+          description: The account, and its first token — once.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - account
+                  - token
+                properties:
+                  account:
+                    $ref: '#/components/schemas/ServiceAccount'
+                  token:
+                    $ref: '#/components/schemas/MintedToken'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /projects/{slug}/service-accounts/{serviceAccountId}:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: serviceAccountId
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      operationId: deactivateServiceAccount
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Retire a program
+      description: |
+        Deactivated, never deleted: the journal names it, and evidence has to
+        survive the account that produced it
+        ([ADR 0018](https://github.com/haribo/ozalid/blob/develop/docs/adr/0018-an-actor-is-never-invented.md)).
+        Its tokens stop opening anything at once.
+
+        Idempotent: retiring one already retired changes nothing.
+      tags:
+        - accounts
+      responses:
+        '204':
+          description: It reaches nothing any more.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /projects/{slug}/service-accounts/{serviceAccountId}/tokens:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: serviceAccountId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: listServiceTokens
+      security:
+        - serviceToken: []
+        - session: []
+      summary: What tokens this program holds
+      description: |
+        Their labels and when they were last presented, never the tokens: only a
+        hash was ever stored, so there is nothing here to give back.
+
+        `lastUsedAt` is what makes a rotation finishable — it tells an operator
+        which of the old tokens nothing uses any more.
+      tags:
+        - accounts
+      responses:
+        '200':
+          description: The tokens, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceToken'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      operationId: mintServiceToken
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Mint another token for this program
+      description: |
+        Adds one; it does not retire the others. That is what makes a rotation
+        survivable: deploy the new token, watch `lastUsedAt` on the old one stop
+        moving, then delete it. Retiring on mint would take the pipeline down at the
+        moment somebody was trying to make it safer.
+      tags:
+        - accounts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewToken'
+      responses:
+        '201':
+          description: The token — once.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MintedToken'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /projects/{slug}/service-accounts/{serviceAccountId}/tokens/{tokenId}:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: serviceAccountId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: tokenId
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      operationId: retireServiceToken
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Stop one token working
+      description: |
+        The account keeps its other tokens. This is the second half of a rotation,
+        and the half that is easy to forget — a token nobody retires is a
+        credential nobody is watching.
+
+        Idempotent: retiring one that is already gone changes nothing.
+      tags:
+        - accounts
+      responses:
+        '204':
+          description: That token opens nothing.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /projects/{slug}/members:
     parameters:
       - name: slug
@@ -1659,6 +1865,84 @@ components:
       description: |
         `reader` sees everything and changes nothing; `member` does everything, on
         the projects they belong to. Two, and no more (`product.md` §8.1).
+    NewServiceAccount:
+      type: object
+      required:
+        - name
+        - tokenLabel
+      properties:
+        name:
+          type: string
+          minLength: 1
+        rights:
+          $ref: '#/components/schemas/Rights'
+        tokenLabel:
+          type: string
+          minLength: 1
+          description: What the first token is for, in a human's words.
+    ServiceAccount:
+      type: object
+      required:
+        - id
+        - name
+        - createdAt
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    MintedToken:
+      type: object
+      required:
+        - id
+        - label
+        - token
+        - createdAt
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        token:
+          type: string
+          description: |
+            **Shown once and never again.** Only its hash is stored, so nothing here
+            can give it back — a lost token is replaced, not recovered.
+        createdAt:
+          type: string
+          format: date-time
+    ServiceToken:
+      type: object
+      required:
+        - id
+        - label
+        - createdAt
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+          description: A token nobody can name is a token nobody dares retire.
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: string
+          format: date-time
+          description: |
+            Absent while nothing has ever presented it. It is what tells an operator
+            which tokens are still in use and which can go.
+    NewToken:
+      type: object
+      required:
+        - label
+      properties:
+        label:
+          type: string
+          minLength: 1
     Membership:
       type: object
       required:

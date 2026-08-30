@@ -1,0 +1,72 @@
+parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
+  - name: serviceAccountId
+    in: path
+    required: true
+    schema: { type: string }
+
+get:
+  operationId: listServiceTokens
+  security:
+    - serviceToken: []
+    - session: []
+  summary: What tokens this program holds
+  description: |
+    Their labels and when they were last presented, never the tokens: only a
+    hash was ever stored, so there is nothing here to give back.
+
+    `lastUsedAt` is what makes a rotation finishable — it tells an operator
+    which of the old tokens nothing uses any more.
+  tags: [accounts]
+  responses:
+    "200":
+      description: The tokens, newest first.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: "../components/schemas.yaml#/ServiceToken"
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
+
+post:
+  operationId: mintServiceToken
+  security:
+    - serviceToken: []
+    - session: []
+  summary: Mint another token for this program
+  description: |
+    Adds one; it does not retire the others. That is what makes a rotation
+    survivable: deploy the new token, watch `lastUsedAt` on the old one stop
+    moving, then delete it. Retiring on mint would take the pipeline down at the
+    moment somebody was trying to make it safer.
+  tags: [accounts]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "../components/schemas.yaml#/NewToken"
+  responses:
+    "201":
+      description: The token — once.
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/MintedToken"
+    "400":
+      $ref: "../components/responses.yaml#/BadRequest"
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"

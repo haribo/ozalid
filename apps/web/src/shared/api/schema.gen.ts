@@ -333,6 +333,129 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{slug}/service-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make a program an account on this project
+         * @description A service account belongs to exactly one project, and that is enforced by a
+         *     partial unique index rather than trusted
+         *     ([ADR 0018](https://github.com/haribo/ozalid/blob/develop/docs/adr/0018-an-actor-is-never-invented.md)).
+         *     It is created here, with the project, and never moves.
+         *
+         *     **Administration, not membership.** Creating one is granting a membership,
+         *     and an administrator grants memberships (`product.md` §8.2). A member of the
+         *     project could otherwise mint a credential that keeps working after their own
+         *     membership is revoked — a program nobody remembers, holding rights nobody
+         *     reviews.
+         *
+         *     The token comes back in the response and nowhere else.
+         */
+        post: operations["createServiceAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{slug}/service-accounts/{serviceAccountId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                serviceAccountId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Retire a program
+         * @description Deactivated, never deleted: the journal names it, and evidence has to
+         *     survive the account that produced it
+         *     ([ADR 0018](https://github.com/haribo/ozalid/blob/develop/docs/adr/0018-an-actor-is-never-invented.md)).
+         *     Its tokens stop opening anything at once.
+         *
+         *     Idempotent: retiring one already retired changes nothing.
+         */
+        delete: operations["deactivateServiceAccount"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{slug}/service-accounts/{serviceAccountId}/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                serviceAccountId: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * What tokens this program holds
+         * @description Their labels and when they were last presented, never the tokens: only a
+         *     hash was ever stored, so there is nothing here to give back.
+         *
+         *     `lastUsedAt` is what makes a rotation finishable — it tells an operator
+         *     which of the old tokens nothing uses any more.
+         */
+        get: operations["listServiceTokens"];
+        put?: never;
+        /**
+         * Mint another token for this program
+         * @description Adds one; it does not retire the others. That is what makes a rotation
+         *     survivable: deploy the new token, watch `lastUsedAt` on the old one stop
+         *     moving, then delete it. Retiring on mint would take the pipeline down at the
+         *     moment somebody was trying to make it safer.
+         */
+        post: operations["mintServiceToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{slug}/service-accounts/{serviceAccountId}/tokens/{tokenId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                serviceAccountId: string;
+                tokenId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Stop one token working
+         * @description The account keeps its other tokens. This is the second half of a rotation,
+         *     and the half that is easy to forget — a token nobody retires is a
+         *     credential nobody is watching.
+         *
+         *     Idempotent: retiring one that is already gone changes nothing.
+         */
+        delete: operations["retireServiceToken"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{slug}/members": {
         parameters: {
             query?: never;
@@ -938,6 +1061,45 @@ export interface components {
          * @enum {string}
          */
         Rights: "reader" | "member";
+        NewServiceAccount: {
+            name: string;
+            rights?: components["schemas"]["Rights"];
+            /** @description What the first token is for, in a human's words. */
+            tokenLabel: string;
+        };
+        ServiceAccount: {
+            id: string;
+            name: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        MintedToken: {
+            id: string;
+            label: string;
+            /**
+             * @description **Shown once and never again.** Only its hash is stored, so nothing here
+             *     can give it back — a lost token is replaced, not recovered.
+             */
+            token: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ServiceToken: {
+            id: string;
+            /** @description A token nobody can name is a token nobody dares retire. */
+            label: string;
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Absent while nothing has ever presented it. It is what tells an operator
+             *     which tokens are still in use and which can go.
+             */
+            lastUsedAt?: string;
+        };
+        NewToken: {
+            label: string;
+        };
         Membership: {
             accountId: string;
             name: string;
@@ -1730,6 +1892,144 @@ export interface operations {
                     "application/problem+json": components["schemas"]["IntakeRefused"];
                 };
             };
+        };
+    };
+    createServiceAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewServiceAccount"];
+            };
+        };
+        responses: {
+            /** @description The account, and its first token — once. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        account: components["schemas"]["ServiceAccount"];
+                        token: components["schemas"]["MintedToken"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deactivateServiceAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                serviceAccountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description It reaches nothing any more. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listServiceTokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                serviceAccountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tokens, newest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceToken"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    mintServiceToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                serviceAccountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewToken"];
+            };
+        };
+        responses: {
+            /** @description The token — once. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MintedToken"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    retireServiceToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                serviceAccountId: string;
+                tokenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description That token opens nothing. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
         };
     };
     listMembers: {
