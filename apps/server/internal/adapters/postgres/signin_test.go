@@ -76,7 +76,7 @@ func TestDeactivatingAnAccountShutsItsSessionsAtOnce(t *testing.T) {
 		t.Fatal("the session did not work before deactivation")
 	}
 
-	if err := repo.Queries().DeactivateUser(ctx, gone.ID); err != nil {
+	if _, err := repo.Queries().DeactivateUser(ctx, gone.ID); err != nil {
 		t.Fatalf("deactivating: %v", err)
 	}
 
