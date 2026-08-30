@@ -59,8 +59,8 @@ export function useReview(slug: () => string, caseId: () => string) {
   /** Accept a delivered fix, or refuse it with a remark. */
   async function judge(commentId: string, accept: boolean, remark?: string) {
     saving.value = true
-    const result = await api.POST('/comments/{commentId}/judgment', {
-      params: { path: { commentId } },
+    const result = await api.POST('/projects/{slug}/comments/{commentId}/judgment', {
+      params: { path: { slug: slug(), commentId } },
       body: { accept, remark },
     })
     saving.value = false

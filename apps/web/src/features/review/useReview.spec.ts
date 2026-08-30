@@ -67,16 +67,18 @@ describe('useReview, when the session dies mid-review', () => {
       () => 'atlas',
       () => 'c1',
     )
-    serverSays('/comments/k1/judgment', { status: 401, body: problem(401) })
+    serverSays('/projects/atlas/comments/k1/judgment', { status: 401, body: problem(401) })
 
     await review.judge('k1', true)
     expect(review.held.value).not.toBeNull()
 
-    serverSays('/comments/k1/judgment', { status: 204 })
+    serverSays('/projects/atlas/comments/k1/judgment', { status: 204 })
     await review.resume()
 
     expect(review.held.value).toBeNull()
-    expect(sent.filter((call) => call.path === '/comments/k1/judgment')).toHaveLength(2)
+    expect(
+      sent.filter((call) => call.path === '/projects/atlas/comments/k1/judgment'),
+    ).toHaveLength(2)
   })
 
   it('holds nothing when the refusal is not about the session', async () => {
