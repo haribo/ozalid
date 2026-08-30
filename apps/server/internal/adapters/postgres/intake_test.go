@@ -463,7 +463,7 @@ func TestTheFirstCapturesTakeACaseOutOfTheFunnelsEdgeAndJournalIt(t *testing.T) 
 		t.Fatalf("taking the edition in: %v", err)
 	}
 
-	after, err := repo.Queries().GetCase(ctx, kase.ID)
+	after, err := repo.Queries().CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: kase.ID, Slug: project.Slug})
 	if err != nil {
 		t.Fatalf("re-reading the case: %v", err)
 	}
@@ -522,7 +522,7 @@ func TestASecondEditionDoesNotReopenAJudgedCase(t *testing.T) {
 		t.Fatalf("second edition: %v", err)
 	}
 
-	after, err := repo.Queries().GetCase(ctx, kase.ID)
+	after, err := repo.Queries().CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: kase.ID, Slug: project.Slug})
 	if err != nil {
 		t.Fatalf("re-reading: %v", err)
 	}
@@ -693,7 +693,7 @@ func TestValidatingEverySquareWithNothingToSayClosesTheCase(t *testing.T) {
 		t.Errorf("state = %q, want reviewed", got.State)
 	}
 
-	after, err := repo.Queries().GetCase(ctx, kase.ID)
+	after, err := repo.Queries().CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: kase.ID, Slug: project.Slug})
 	if err != nil {
 		t.Fatalf("re-reading: %v", err)
 	}
@@ -832,9 +832,9 @@ func TestACommentTravelsFromReportToClosureAndTakesTheCaseWithIt(t *testing.T) {
 	id := commentOn(t, ctx, repo, project.Slug, kase.ID, cells[1])
 
 	// Reported, nothing tracked: the dev has to triage it.
-	assertCaseState(t, ctx, repo, kase.ID, review.CaseToFix)
+	assertCaseState(t, ctx, repo, project.Slug, kase.ID, review.CaseToFix)
 
-	out, err := repo.Track(ctx, id, actor.Actor{ID: "dev", Kind: actor.Human}, comment.IssueRef{ID: "142", URL: "https://example.test/142", Title: "Fix the cropped button"})
+	out, err := repo.Track(ctx, project.Slug, id, actor.Actor{ID: "dev", Kind: actor.Human}, comment.IssueRef{ID: "142", URL: "https://example.test/142", Title: "Fix the cropped button"})
 	if err != nil {
 		t.Fatalf("tracking: %v", err)
 	}
@@ -842,7 +842,7 @@ func TestACommentTravelsFromReportToClosureAndTakesTheCaseWithIt(t *testing.T) {
 		t.Errorf("after tracking: %+v, want tracked and the case still with the dev", out)
 	}
 
-	out, err = repo.Deliver(ctx, id, actor.Actor{ID: "ci", Kind: actor.Human})
+	out, err = repo.Deliver(ctx, project.Slug, id, actor.Actor{ID: "ci", Kind: actor.Human})
 	if err != nil {
 		t.Fatalf("delivering: %v", err)
 	}
@@ -851,7 +851,7 @@ func TestACommentTravelsFromReportToClosureAndTakesTheCaseWithIt(t *testing.T) {
 		t.Errorf("after delivery: %+v, want the reviewer to hold the ball", out)
 	}
 
-	out, err = repo.Judge(ctx, id, actor.Actor{ID: "nina", Kind: actor.Human}, true, "")
+	out, err = repo.Judge(ctx, project.Slug, id, actor.Actor{ID: "nina", Kind: actor.Human}, true, "")
 	if err != nil {
 		t.Fatalf("accepting: %v", err)
 	}
@@ -872,14 +872,14 @@ func TestARefusalSendsItBackAndIsKeptForever(t *testing.T) {
 	}
 	id := commentOn(t, ctx, repo, project.Slug, kase.ID, cells[1])
 
-	if _, err := repo.Track(ctx, id, actor.Actor{ID: "dev", Kind: actor.Human}, comment.IssueRef{ID: "142"}); err != nil {
+	if _, err := repo.Track(ctx, project.Slug, id, actor.Actor{ID: "dev", Kind: actor.Human}, comment.IssueRef{ID: "142"}); err != nil {
 		t.Fatalf("tracking: %v", err)
 	}
-	if _, err := repo.Deliver(ctx, id, actor.Actor{ID: "ci", Kind: actor.Human}); err != nil {
+	if _, err := repo.Deliver(ctx, project.Slug, id, actor.Actor{ID: "ci", Kind: actor.Human}); err != nil {
 		t.Fatalf("delivering: %v", err)
 	}
 
-	out, err := repo.Judge(ctx, id, actor.Actor{ID: "nina", Kind: actor.Human}, false, "still cropped on iPhone SE")
+	out, err := repo.Judge(ctx, project.Slug, id, actor.Actor{ID: "nina", Kind: actor.Human}, false, "still cropped on iPhone SE")
 	if err != nil {
 		t.Fatalf("refusing: %v", err)
 	}
@@ -888,10 +888,10 @@ func TestARefusalSendsItBackAndIsKeptForever(t *testing.T) {
 		t.Errorf("after refusing: %+v, want the dev to hold the ball", out)
 	}
 
-	if _, err := repo.Deliver(ctx, id, actor.Actor{ID: "ci", Kind: actor.Human}); err != nil {
+	if _, err := repo.Deliver(ctx, project.Slug, id, actor.Actor{ID: "ci", Kind: actor.Human}); err != nil {
 		t.Fatalf("delivering again: %v", err)
 	}
-	if _, err := repo.Judge(ctx, id, actor.Actor{ID: "nina", Kind: actor.Human}, true, ""); err != nil {
+	if _, err := repo.Judge(ctx, project.Slug, id, actor.Actor{ID: "nina", Kind: actor.Human}, true, ""); err != nil {
 		t.Fatalf("accepting the second try: %v", err)
 	}
 
@@ -917,7 +917,7 @@ func TestADiscardedCommentStopsBlockingAndStaysVisible(t *testing.T) {
 	}
 	id := commentOn(t, ctx, repo, project.Slug, kase.ID, cells[1])
 
-	out, err := repo.Discard(ctx, id, actor.Actor{ID: "nina", Kind: actor.Human}, "agreed it is intentional")
+	out, err := repo.Discard(ctx, project.Slug, id, actor.Actor{ID: "nina", Kind: actor.Human}, "agreed it is intentional")
 	if err != nil {
 		t.Fatalf("discarding: %v", err)
 	}
@@ -948,11 +948,11 @@ func TestAMoveTheStateDoesNotAllowIsRefusedWithoutTouchingAnything(t *testing.T)
 	id := commentOn(t, ctx, repo, project.Slug, kase.ID, cells[1])
 
 	// Nothing can be delivered before it is tracked.
-	if _, err := repo.Deliver(ctx, id, actor.Actor{ID: "ci", Kind: actor.Human}); !errors.Is(err, review.ErrMoveNotAllowed) {
+	if _, err := repo.Deliver(ctx, project.Slug, id, actor.Actor{ID: "ci", Kind: actor.Human}); !errors.Is(err, review.ErrMoveNotAllowed) {
 		t.Errorf("err = %v, want ErrMoveNotAllowed", err)
 	}
 	// Nor judged before it is delivered.
-	if _, err := repo.Judge(ctx, id, actor.Actor{ID: "nina", Kind: actor.Human}, true, ""); !errors.Is(err, review.ErrMoveNotAllowed) {
+	if _, err := repo.Judge(ctx, project.Slug, id, actor.Actor{ID: "nina", Kind: actor.Human}, true, ""); !errors.Is(err, review.ErrMoveNotAllowed) {
 		t.Errorf("err = %v, want ErrMoveNotAllowed", err)
 	}
 
@@ -965,9 +965,9 @@ func TestAMoveTheStateDoesNotAllowIsRefusedWithoutTouchingAnything(t *testing.T)
 	}
 }
 
-func assertCaseState(t *testing.T, ctx context.Context, repo *postgres.Repository, caseID string, want review.CaseState) {
+func assertCaseState(t *testing.T, ctx context.Context, repo *postgres.Repository, slug, caseID string, want review.CaseState) {
 	t.Helper()
-	got, err := repo.Queries().GetCase(ctx, caseID)
+	got, err := repo.Queries().CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: caseID, Slug: slug})
 	if err != nil {
 		t.Fatalf("reading the case: %v", err)
 	}

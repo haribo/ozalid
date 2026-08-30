@@ -36,10 +36,10 @@ type Outcome struct {
 // the result happen together, and the transaction that guarantees it belongs
 // in the adapter (backend ADR 0001).
 type Repository interface {
-	Track(ctx context.Context, commentID string, by actor.Actor, issue IssueRef) (Outcome, error)
-	Discard(ctx context.Context, commentID string, by actor.Actor, reason string) (Outcome, error)
-	Deliver(ctx context.Context, commentID string, by actor.Actor) (Outcome, error)
-	Judge(ctx context.Context, commentID string, by actor.Actor, accept bool, remark string) (Outcome, error)
+	Track(ctx context.Context, slug, commentID string, by actor.Actor, issue IssueRef) (Outcome, error)
+	Discard(ctx context.Context, slug, commentID string, by actor.Actor, reason string) (Outcome, error)
+	Deliver(ctx context.Context, slug, commentID string, by actor.Actor) (Outcome, error)
+	Judge(ctx context.Context, slug, commentID string, by actor.Actor, accept bool, remark string) (Outcome, error)
 	OfCase(ctx context.Context, slug, caseID string) ([]Record, error)
 }
 
@@ -50,34 +50,34 @@ type Service struct{ repo Repository }
 func New(repo Repository) *Service { return &Service{repo: repo} }
 
 // Track attaches an external issue.
-func (s *Service) Track(ctx context.Context, commentID string, by actor.Actor, issue IssueRef) (Outcome, error) {
+func (s *Service) Track(ctx context.Context, slug, commentID string, by actor.Actor, issue IssueRef) (Outcome, error) {
 	issue.ID = strings.TrimSpace(issue.ID)
 	issue.URL = strings.TrimSpace(issue.URL)
 	issue.Title = strings.TrimSpace(issue.Title)
 	if issue.ID == "" {
 		return Outcome{}, ErrIssueRequired
 	}
-	return s.repo.Track(ctx, commentID, by, issue)
+	return s.repo.Track(ctx, slug, commentID, by, issue)
 }
 
 // Discard sets a comment aside. The reason is mandatory and kept forever with
 // its author: "I reported this three months ago, who removed it?" must always
 // have an answer (ADR 0006).
-func (s *Service) Discard(ctx context.Context, commentID string, by actor.Actor, reason string) (Outcome, error) {
-	return s.repo.Discard(ctx, commentID, by, strings.TrimSpace(reason))
+func (s *Service) Discard(ctx context.Context, slug, commentID string, by actor.Actor, reason string) (Outcome, error) {
+	return s.repo.Discard(ctx, slug, commentID, by, strings.TrimSpace(reason))
 }
 
 // Deliver is the dev saying the work is done and asking for a judgment.
 //
 // They may do so without having implemented everything else: one issue can
 // depend on the verdict given on another (ADR 0012).
-func (s *Service) Deliver(ctx context.Context, commentID string, by actor.Actor) (Outcome, error) {
-	return s.repo.Deliver(ctx, commentID, by)
+func (s *Service) Deliver(ctx context.Context, slug, commentID string, by actor.Actor) (Outcome, error) {
+	return s.repo.Deliver(ctx, slug, commentID, by)
 }
 
 // Judge accepts a delivery, or refuses it with a remark.
-func (s *Service) Judge(ctx context.Context, commentID string, by actor.Actor, accept bool, remark string) (Outcome, error) {
-	return s.repo.Judge(ctx, commentID, by, accept, strings.TrimSpace(remark))
+func (s *Service) Judge(ctx context.Context, slug, commentID string, by actor.Actor, accept bool, remark string) (Outcome, error) {
+	return s.repo.Judge(ctx, slug, commentID, by, accept, strings.TrimSpace(remark))
 }
 
 // Record is a comment as the layers above read it: what was said, where it

@@ -97,11 +97,11 @@ func TestASquareThatNobodyLookedAtIsNeverStamped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading the comments: %v", err)
 	}
-	if _, err := repo.Discard(ctx, comments[0].ID, actor.Actor{ID: "nina", Kind: actor.Human}, "intentional"); err != nil {
+	if _, err := repo.Discard(ctx, project.Slug, comments[0].ID, actor.Actor{ID: "nina", Kind: actor.Human}, "intentional"); err != nil {
 		t.Fatalf("discarding: %v", err)
 	}
 
-	after, err := repo.Queries().GetCase(ctx, kase.ID)
+	after, err := repo.Queries().CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: kase.ID, Slug: project.Slug})
 	if err != nil {
 		t.Fatalf("re-reading the case: %v", err)
 	}
@@ -142,10 +142,10 @@ func TestTheJournalRecordsWhatTheActorSaysItIs(t *testing.T) {
 
 	// A person marks the fix delivered, which used to be recorded as a program.
 	byHand := actor.Actor{ID: "dev", Kind: actor.Human}
-	if _, err := repo.Track(ctx, comments[0].ID, byHand, appcomment.IssueRef{ID: "142"}); err != nil {
+	if _, err := repo.Track(ctx, project.Slug, comments[0].ID, byHand, appcomment.IssueRef{ID: "142"}); err != nil {
 		t.Fatalf("tracking: %v", err)
 	}
-	if _, err := repo.Deliver(ctx, comments[0].ID, byHand); err != nil {
+	if _, err := repo.Deliver(ctx, project.Slug, comments[0].ID, byHand); err != nil {
 		t.Fatalf("delivering: %v", err)
 	}
 

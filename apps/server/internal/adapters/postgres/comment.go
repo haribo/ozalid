@@ -12,9 +12,9 @@ import (
 )
 
 func (r *Repository) Track(
-	ctx context.Context, commentID string, by actor.Actor, issue appcomment.IssueRef,
+	ctx context.Context, slug, commentID string, by actor.Actor, issue appcomment.IssueRef,
 ) (appcomment.Outcome, error) {
-	return r.move(ctx, commentID, by, review.MoveTrack, "", func(ctx context.Context, q *sqlcgen.Queries, to review.CommentState) error {
+	return r.move(ctx, slug, commentID, by, review.MoveTrack, "", func(ctx context.Context, q *sqlcgen.Queries, to review.CommentState) error {
 		return q.AttachIssue(ctx, sqlcgen.AttachIssueParams{
 			ID: commentID, State: string(to),
 			IssueRef: &issue.ID, IssueUrl: nonEmpty(issue.URL), IssueTitle: nonEmpty(issue.Title),
@@ -23,9 +23,9 @@ func (r *Repository) Track(
 }
 
 func (r *Repository) Discard(
-	ctx context.Context, commentID string, by actor.Actor, reason string,
+	ctx context.Context, slug, commentID string, by actor.Actor, reason string,
 ) (appcomment.Outcome, error) {
-	return r.move(ctx, commentID, by, review.MoveDiscard, reason, func(ctx context.Context, q *sqlcgen.Queries, to review.CommentState) error {
+	return r.move(ctx, slug, commentID, by, review.MoveDiscard, reason, func(ctx context.Context, q *sqlcgen.Queries, to review.CommentState) error {
 		return q.DiscardComment(ctx, sqlcgen.DiscardCommentParams{
 			ID: commentID, State: string(to), DiscardReason: &reason,
 		})
@@ -33,13 +33,13 @@ func (r *Repository) Discard(
 }
 
 func (r *Repository) Deliver(
-	ctx context.Context, commentID string, by actor.Actor,
+	ctx context.Context, slug, commentID string, by actor.Actor,
 ) (appcomment.Outcome, error) {
-	return r.move(ctx, commentID, by, review.MoveDeliver, "", nil)
+	return r.move(ctx, slug, commentID, by, review.MoveDeliver, "", nil)
 }
 
 func (r *Repository) Judge(
-	ctx context.Context, commentID string, by actor.Actor, accept bool, remark string,
+	ctx context.Context, slug, commentID string, by actor.Actor, accept bool, remark string,
 ) (appcomment.Outcome, error) {
 	move := review.MoveRefuse
 	verdict := "refused"
@@ -47,7 +47,7 @@ func (r *Repository) Judge(
 		move, verdict = review.MoveAccept, "accepted"
 	}
 
-	return r.move(ctx, commentID, by, move, remark, func(ctx context.Context, q *sqlcgen.Queries, to review.CommentState) error {
+	return r.move(ctx, slug, commentID, by, move, remark, func(ctx context.Context, q *sqlcgen.Queries, to review.CommentState) error {
 		if err := q.SetCommentState(ctx, sqlcgen.SetCommentStateParams{ID: commentID, State: string(to)}); err != nil {
 			return err
 		}
@@ -66,6 +66,7 @@ func (r *Repository) Judge(
 // let a comment move without its case following.
 func (r *Repository) move(
 	ctx context.Context,
+	slug string,
 	commentID string,
 	by actor.Actor,
 	m review.Move,
@@ -83,7 +84,9 @@ func (r *Repository) move(
 	}()
 	q := r.q.WithTx(tx)
 
-	comment, err := q.GetComment(ctx, commentID)
+	// Scoped by the project, so a comment belonging to somebody else is not
+	// found rather than moved (#71).
+	comment, err := q.GetComment(ctx, sqlcgen.GetCommentParams{ID: commentID, Slug: slug})
 	if err != nil {
 		return appcomment.Outcome{}, translate("reading the comment", err)
 	}
@@ -104,7 +107,9 @@ func (r *Repository) move(
 		return appcomment.Outcome{}, translate("applying the move", err)
 	}
 
-	kase, err := q.GetCase(ctx, comment.CaseID)
+	// The comment was already proven to belong to this project, so its case
+	// does too.
+	kase, err := q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: comment.CaseID, Slug: slug})
 	if err != nil {
 		return appcomment.Outcome{}, translate("reading the case", err)
 	}

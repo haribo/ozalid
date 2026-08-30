@@ -10,6 +10,7 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres"
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres/sqlcgen"
 	app "github.com/haribo/ozalid/apps/server/internal/app/catalogue"
+	appcomment "github.com/haribo/ozalid/apps/server/internal/app/comment"
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
 	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
 	"github.com/haribo/ozalid/apps/server/internal/domain/review"
@@ -119,5 +120,64 @@ func TestCommentsAreNotReadableThroughSomebodyElsesProject(t *testing.T) {
 
 	if _, err := repo.OfCase(ctx, other.Slug, kase.ID); !errors.Is(err, app.ErrNotFound) {
 		t.Errorf("OfCase under the wrong project = %v, want ErrNotFound", err)
+	}
+}
+
+func TestACommentCannotBeMovedThroughSomebodyElsesProject(t *testing.T) {
+	ctx, repo, blobs, project, kase := freshnessFixture(t)
+	other := neighbour(t, ctx, repo)
+
+	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 0)); err != nil {
+		t.Fatalf("taking the edition in: %v", err)
+	}
+	commentID := commentOn(t, ctx, repo, project.Slug, kase.ID, onlyCell(t, ctx, repo, project.Slug, kase.ID))
+
+	_, err := repo.Track(ctx, other.Slug, commentID, actor.Actor{ID: "dev", Kind: actor.Human},
+		appcomment.IssueRef{ID: "142"})
+	if !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("Track under the wrong project = %v, want ErrNotFound", err)
+	}
+
+	// And the comment did not move: the transaction refused before writing.
+	said, err := repo.OfCase(ctx, project.Slug, kase.ID)
+	if err != nil {
+		t.Fatalf("reading the comments back: %v", err)
+	}
+	if got := said[0].State; got != "to-track" {
+		t.Errorf("state = %q, want it untouched at %q", got, "to-track")
+	}
+
+	// The same move under its own project works, so the refusal above was
+	// about the project and nothing else.
+	if _, err := repo.Track(ctx, project.Slug, commentID, actor.Actor{ID: "dev", Kind: actor.Human},
+		appcomment.IssueRef{ID: "142"}); err != nil {
+		t.Errorf("Track under its own project: %v", err)
+	}
+}
+
+func TestACategoryCannotBeDeletedThroughSomebodyElsesProject(t *testing.T) {
+	ctx, repo, project, _ := intakeFixture(t)
+	other := neighbour(t, ctx, repo)
+
+	category, err := repo.Queries().CreateCategory(ctx, sqlcgen.CreateCategoryParams{
+		ProjectID: project.ID, Name: "the drawer", Position: 0,
+	})
+	if err != nil {
+		t.Fatalf("creating the category: %v", err)
+	}
+
+	deleted, err := repo.DeleteEmptyCategory(ctx, other.Slug, category.ID)
+	if err != nil {
+		t.Fatalf("deleting through the wrong project: %v", err)
+	}
+	if deleted {
+		t.Fatal("the category was deleted through a project it does not belong to")
+	}
+
+	// It is still there, and its own project can delete it — so nothing above
+	// passed because the category was already gone.
+	deleted, err = repo.DeleteEmptyCategory(ctx, project.Slug, category.ID)
+	if err != nil || !deleted {
+		t.Errorf("deleting through its own project = %v, %v; want it deleted", deleted, err)
 	}
 }

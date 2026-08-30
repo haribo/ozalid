@@ -211,7 +211,7 @@ func (s *Server) CreateCategory(ctx context.Context, request openapi.CreateCateg
 
 // DeleteCategory removes an empty node.
 func (s *Server) DeleteCategory(ctx context.Context, request openapi.DeleteCategoryRequestObject) (openapi.DeleteCategoryResponseObject, error) {
-	err := s.catalogue.DeleteCategory(ctx, request.CategoryId)
+	err := s.catalogue.DeleteCategory(ctx, request.Slug, request.CategoryId)
 	switch {
 	case errors.Is(err, catalogue.ErrCategoryNotEmpty):
 		// Deliberately not distinguished from "no such category": both mean

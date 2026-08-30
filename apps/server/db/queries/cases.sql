@@ -5,11 +5,6 @@ INSERT INTO cases (project_id, category_id, title, description)
 VALUES ($1, $2, $3, $4)
 RETURNING *;
 
--- Unscoped, and the last one left: the comment moves still reach a case
--- without naming its project. It goes when they move under theirs (#71).
--- name: GetCase :one
-SELECT * FROM cases WHERE id = $1;
-
 -- A case, inside the project the caller named. The project is not checked
 -- beside the query, it *is* the query: a case from another project returns no
 -- row, so there is no consistency check to write, and none to forget (#71).

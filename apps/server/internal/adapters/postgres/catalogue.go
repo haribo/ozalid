@@ -131,8 +131,8 @@ func (r *Repository) ListCategories(ctx context.Context, projectID string) ([]ca
 	return out, nil
 }
 
-func (r *Repository) DeleteEmptyCategory(ctx context.Context, id string) (bool, error) {
-	rows, err := r.q.DeleteEmptyCategory(ctx, id)
+func (r *Repository) DeleteEmptyCategory(ctx context.Context, slug, id string) (bool, error) {
+	rows, err := r.q.DeleteEmptyCategory(ctx, sqlcgen.DeleteEmptyCategoryParams{ID: id, Slug: slug})
 	if err != nil {
 		return false, translate("deleting the category", err)
 	}

@@ -124,30 +124,6 @@ func (q *Queries) CreateStep(ctx context.Context, arg CreateStepParams) (Step, e
 	return i, err
 }
 
-const getCase = `-- name: GetCase :one
-SELECT id, project_id, category_id, title, description, state, archived_at, created_at, updated_at, current_edition_id FROM cases WHERE id = $1
-`
-
-// Unscoped, and the last one left: the comment moves still reach a case
-// without naming its project. It goes when they move under theirs (#71).
-func (q *Queries) GetCase(ctx context.Context, id string) (Case, error) {
-	row := q.db.QueryRow(ctx, getCase, id)
-	var i Case
-	err := row.Scan(
-		&i.ID,
-		&i.ProjectID,
-		&i.CategoryID,
-		&i.Title,
-		&i.Description,
-		&i.State,
-		&i.ArchivedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.CurrentEditionID,
-	)
-	return i, err
-}
-
 const listCases = `-- name: ListCases :many
 SELECT id, project_id, category_id, title, description, state, archived_at, created_at, updated_at, current_edition_id FROM cases
 WHERE project_id = $1

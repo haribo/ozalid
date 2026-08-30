@@ -106,7 +106,7 @@ func TestArchivingRemovesACaseFromTheCatalogueButNotFromTheBook(t *testing.T) {
 
 	// Archived, never deleted: the captures, comments and journal survive
 	// (ADR 0014).
-	if _, err := q.GetCase(ctx, created.ID); err != nil {
+	if _, err := q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: created.ID, Slug: project.Slug}); err != nil {
 		t.Errorf("an archived case must stay readable: %v", err)
 	}
 }
@@ -127,7 +127,7 @@ func TestACategoryHoldingACaseCannotBeDeleted(t *testing.T) {
 		t.Fatalf("creating the case: %v", err)
 	}
 
-	rows, err := q.DeleteEmptyCategory(ctx, category.ID)
+	rows, err := q.DeleteEmptyCategory(ctx, sqlcgen.DeleteEmptyCategoryParams{ID: category.ID, Slug: project.Slug})
 	if err != nil {
 		t.Fatalf("attempting the deletion: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestAnEmptyCategoryIsDeleted(t *testing.T) {
 		t.Fatalf("creating the category: %v", err)
 	}
 
-	rows, err := q.DeleteEmptyCategory(ctx, category.ID)
+	rows, err := q.DeleteEmptyCategory(ctx, sqlcgen.DeleteEmptyCategoryParams{ID: category.ID, Slug: project.Slug})
 	if err != nil {
 		t.Fatalf("deleting the category: %v", err)
 	}
@@ -198,7 +198,7 @@ func TestACategoryHoldingOnlyAnArchivedCaseStillCannotBeDeleted(t *testing.T) {
 
 	// The case left the catalogue but still records where it was filed, and an
 	// archived case is meant to stay whole (ADR 0014).
-	rows, err := q.DeleteEmptyCategory(ctx, category.ID)
+	rows, err := q.DeleteEmptyCategory(ctx, sqlcgen.DeleteEmptyCategoryParams{ID: category.ID, Slug: project.Slug})
 	if err != nil {
 		t.Fatalf("attempting the deletion: %v", err)
 	}

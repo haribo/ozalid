@@ -56,7 +56,7 @@ func TestAnIntakeDoesNotMoveTheBytesUnderAReviewer(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	first := pushEdition(t, ctx, repo, project, kase, "the form, first run", "ci")
 
-	held, err := repo.Queries().GetCase(ctx, kase.ID)
+	held, err := repo.Queries().CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: kase.ID, Slug: project.Slug})
 	if err != nil {
 		t.Fatalf("reading the case: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestAnIntakeDoesNotMoveTheBytesUnderAReviewer(t *testing.T) {
 
 	pushEdition(t, ctx, repo, project, kase, "the form, second run", "ci")
 
-	after, err := repo.Queries().GetCase(ctx, kase.ID)
+	after, err := repo.Queries().CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: kase.ID, Slug: project.Slug})
 	if err != nil {
 		t.Fatalf("re-reading the case: %v", err)
 	}

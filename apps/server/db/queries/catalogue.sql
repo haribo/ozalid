@@ -32,5 +32,6 @@ SELECT
 -- name: DeleteEmptyCategory :execrows
 DELETE FROM categories c
 WHERE c.id = $1
+  AND c.project_id = (SELECT p.id FROM projects p WHERE p.slug = $2)
   AND NOT EXISTS (SELECT 1 FROM categories s WHERE s.parent_id = c.id)
   AND NOT EXISTS (SELECT 1 FROM cases k WHERE k.category_id = c.id);

@@ -149,8 +149,8 @@ func (s *Service) SummariseCases(ctx context.Context, projectID string, category
 //
 // Only an empty one: deleting a filing drawer must not silently move what was
 // inside it (ADR 0014).
-func (s *Service) DeleteCategory(ctx context.Context, id string) error {
-	deleted, err := s.repo.DeleteEmptyCategory(ctx, id)
+func (s *Service) DeleteCategory(ctx context.Context, slug, id string) error {
+	deleted, err := s.repo.DeleteEmptyCategory(ctx, slug, id)
 	if err != nil {
 		return err
 	}

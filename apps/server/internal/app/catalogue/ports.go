@@ -30,7 +30,7 @@ type Repository interface {
 	Axes(ctx context.Context, projectID string) ([]catalogue.Axis, error)
 	OrderAxes(ctx context.Context, projectID string, order []string) ([]catalogue.Axis, error)
 	SummariseCases(ctx context.Context, projectID string, categoryID *string) ([]catalogue.CaseSummary, error)
-	DeleteEmptyCategory(ctx context.Context, id string) (bool, error)
+	DeleteEmptyCategory(ctx context.Context, slug, id string) (bool, error)
 }
 
 // Actor identifies whoever caused a write. Every recorded fact states one, so
