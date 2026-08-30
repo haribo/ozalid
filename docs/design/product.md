@@ -333,6 +333,22 @@ A service account holds a membership like anyone else. Nothing is forbidden
 because the caller is a program
 ([ADR 0019](../adr/0019-two-kinds-of-account-one-set-of-rights.md)).
 
+**Every address that reaches a project's content names that project.** The
+membership being checked is a membership *on something*, so the something is in
+the address rather than looked up behind it. What this buys is not tidiness: it
+makes the project a required argument of every read, and an endpoint that
+forgets to scope its query stops being possible to write rather than merely
+being forbidden.
+
+**Capture bytes are read through the capture, never through the hash.** A
+content address names no project — identical bytes are stored once for every
+project that references them
+([ADR 0004](../adr/0004-content-addressed-capture-storage.md)) — so a hash
+offers nothing to check a membership against. A capture does: it has a row, a
+case, and therefore one project, which is what turns "may this person see these
+pixels?" into a question with an answer. The hash stays what a client computes
+before uploading; it stops being what a reader fetches with.
+
 ### 8.2 The administrator manages accounts, not content
 
 There is no open sign-up: accounts are made by whoever runs the instance. Since
@@ -378,6 +394,8 @@ POST   /projects/:p/comments/:id/reference    attach an external issue
 POST   /projects/:p/comments/:id/discard      discard with a reason
 POST   /projects/:p/comments/:id/delivery     the dev asks for a judgment
 POST   /projects/:p/comments/:id/judgment     accept or refuse a delivery
+GET    /projects/:p/captures/:id              the bytes of one capture
+GET    /projects/:p/recordings/:id            the bytes of one recording
 GET    /projects/:p/events                    server-sent event stream
 GET    /projects/:p/cases/:id/history         the transition journal
 ```
