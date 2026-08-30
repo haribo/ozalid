@@ -58,8 +58,10 @@ describe('useSession', () => {
 
     // Keyed by the path the browser really asks for; the watcher is handed the
     // template, which is what tells it this endpoint is not exempt.
-    serverSays('/cases/c1', { status: 401, body: problem(401) })
-    await api.GET('/cases/{caseId}', { params: { path: { caseId: 'c1' } } })
+    serverSays('/projects/atlas/cases/c1', { status: 401, body: problem(401) })
+    await api.GET('/projects/{slug}/cases/{caseId}', {
+      params: { path: { slug: 'atlas', caseId: 'c1' } },
+    })
 
     expect(standing.value).toBe('expired')
   })
@@ -69,8 +71,10 @@ describe('useSession', () => {
     const { refresh, standing } = useSession()
     await refresh()
 
-    serverSays('/cases/c1', { status: 401, body: problem(401) })
-    await api.GET('/cases/{caseId}', { params: { path: { caseId: 'c1' } } })
+    serverSays('/projects/atlas/cases/c1', { status: 401, body: problem(401) })
+    await api.GET('/projects/{slug}/cases/{caseId}', {
+      params: { path: { slug: 'atlas', caseId: 'c1' } },
+    })
 
     expect(standing.value).toBe('out')
   })

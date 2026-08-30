@@ -12,7 +12,7 @@ import type { components } from '@/shared/api'
 
 type Case = components['schemas']['Case']
 
-const props = defineProps<{ cases: Case[] }>()
+const props = defineProps<{ slug: string; cases: Case[] }>()
 
 function parts(c: Case) {
   const k = c.captures
@@ -52,7 +52,7 @@ function parts(c: Case) {
           </td>
           <td class="px-3 py-2.5 font-semibold">
             <RouterLink
-              :to="`/cases/${c.id}`"
+              :to="`/projects/${slug}/cases/${c.id}`"
               class="border-b border-slate-300 hover:border-current dark:border-slate-600"
             >
               {{ c.title }}

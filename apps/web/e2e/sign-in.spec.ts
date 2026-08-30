@@ -61,7 +61,7 @@ test('a link nobody issued is refused', async ({ request }) => {
 })
 
 test('a signed-out visitor reaching a case is offered the way in', async ({ page }) => {
-  await page.goto('/cases/00000000-0000-0000-0000-000000000000')
+  await page.goto('/projects/e2e/cases/00000000-0000-0000-0000-000000000000')
 
   await expect(page.getByRole('heading', { name: 'Se connecter' })).toBeVisible()
 })
@@ -71,7 +71,7 @@ test('the link opens in another tab, and the waiting one carries on', async ({ p
   // the link. It is told, and resumes — without this the reviewer is left
   // looking at a sign-in form next to a session that works.
   const seeded = await seed(page)
-  await page.goto(`/cases/${seeded.caseId}`)
+  await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
   await expect(page.getByRole('heading', { name: 'Se connecter' })).toBeVisible()
 
   await page.getByLabel('adresse').fill(REVIEWER)

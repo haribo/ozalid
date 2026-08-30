@@ -17,13 +17,17 @@ import { CommentRecap } from '@/widgets/comment-recap'
 type Case = components['schemas']['Case']
 
 const route = useRoute()
+const slug = computed(() => String(route.params.slug))
 const caseId = computed(() => String(route.params.caseId))
 
 const kase = ref<Case | null>(null)
 const loading = ref(true)
 const open = ref<{ stepId: string; variantId: string } | null>(null)
 
-const review = useReview(() => caseId.value)
+const review = useReview(
+  () => slug.value,
+  () => caseId.value,
+)
 
 // The page is where the two meet: the session knows it came back, the review
 // knows what it was holding, and neither may reach into the other
@@ -39,7 +43,9 @@ watch(
     loading.value = true
     open.value = null
 
-    const detail = await api.GET('/cases/{caseId}', { params: { path: { caseId: id } } })
+    const detail = await api.GET('/projects/{slug}/cases/{caseId}', {
+      params: { path: { slug: slug.value, caseId: id } },
+    })
     if (detail.error) {
       review.error.value = detail.error.title
       loading.value = false
@@ -92,7 +98,9 @@ async function onJudge(commentId: string, accept: boolean, remark: string) {
 /** The case's own state is recomputed by the server on every move, so it is
  * read back rather than guessed here (ADR 0012). */
 async function refreshCase() {
-  const detail = await api.GET('/cases/{caseId}', { params: { path: { caseId: caseId.value } } })
+  const detail = await api.GET('/projects/{slug}/cases/{caseId}', {
+    params: { path: { slug: slug.value, caseId: caseId.value } },
+  })
   if (!detail.error) kase.value = detail.data
 }
 </script>

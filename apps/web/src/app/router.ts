@@ -15,7 +15,7 @@ export const router = createRouter({
     { path: '/', redirect: '/projects/demo' },
     { path: '/projects/:slug', component: CataloguePage },
     { path: '/projects/:slug/categories/:categoryId', component: CataloguePage },
-    { path: '/cases/:caseId', component: CasePage },
+    { path: '/projects/:slug/cases/:caseId', component: CasePage },
     { path: '/sign-in', component: SignInPage, meta: { anonymous: true } },
     { path: '/sign-in/:link', component: ClaimPage, meta: { anonymous: true } },
   ],

@@ -24,8 +24,8 @@ const grid = {
 beforeEach(() => {
   answers.clear()
   sent.length = 0
-  serverSays('/cases/c1/captures', { status: 200, body: grid })
-  serverSays('/cases/c1/comments', { status: 200, body: [] })
+  serverSays('/projects/atlas/cases/c1/captures', { status: 200, body: grid })
+  serverSays('/projects/atlas/cases/c1/comments', { status: 200, body: [] })
 
   vi.stubGlobal('fetch', async (request: Request) => {
     const path = new URL(request.url).pathname.replace(/^\/api/, '')
@@ -41,8 +41,11 @@ beforeEach(() => {
 
 describe('useReview, when the session dies mid-review', () => {
   it('holds the verdict it could not send, and sends it once the session is back', async () => {
-    const review = useReview(() => 'c1')
-    serverSays('/cases/c1/reviews', { status: 401, body: problem(401) })
+    const review = useReview(
+      () => 'atlas',
+      () => 'c1',
+    )
+    serverSays('/projects/atlas/cases/c1/reviews', { status: 401, body: problem(401) })
 
     await review.validate('s1', 'v1')
 
@@ -51,16 +54,19 @@ describe('useReview, when the session dies mid-review', () => {
     // would say the same thing in other words.
     expect(review.error.value).toBe('')
 
-    serverSays('/cases/c1/reviews', { status: 204 })
+    serverSays('/projects/atlas/cases/c1/reviews', { status: 204 })
     await review.resume()
 
     expect(review.held.value).toBeNull()
-    expect(sent.filter((call) => call.path === '/cases/c1/reviews')).toHaveLength(2)
+    expect(sent.filter((call) => call.path === '/projects/atlas/cases/c1/reviews')).toHaveLength(2)
     expect(sent.at(-1)?.body).toEqual({ validated: [{ stepId: 's1', variantId: 'v1' }] })
   })
 
   it('holds a judgment the same way', async () => {
-    const review = useReview(() => 'c1')
+    const review = useReview(
+      () => 'atlas',
+      () => 'c1',
+    )
     serverSays('/comments/k1/judgment', { status: 401, body: problem(401) })
 
     await review.judge('k1', true)
@@ -74,8 +80,11 @@ describe('useReview, when the session dies mid-review', () => {
   })
 
   it('holds nothing when the refusal is not about the session', async () => {
-    const review = useReview(() => 'c1')
-    serverSays('/cases/c1/reviews', { status: 500, body: problem(500) })
+    const review = useReview(
+      () => 'atlas',
+      () => 'c1',
+    )
+    serverSays('/projects/atlas/cases/c1/reviews', { status: 500, body: problem(500) })
 
     await review.validate('s1', 'v1')
 
@@ -84,7 +93,10 @@ describe('useReview, when the session dies mid-review', () => {
   })
 
   it('does nothing when asked to resume with nothing held', async () => {
-    const review = useReview(() => 'c1')
+    const review = useReview(
+      () => 'atlas',
+      () => 'c1',
+    )
 
     await review.resume()
 
