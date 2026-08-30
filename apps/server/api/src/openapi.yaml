@@ -41,6 +41,14 @@ paths:
     $ref: "./paths/cases.yaml"
   /projects/{slug}/editions:
     $ref: "./paths/editions.yaml"
+  /projects/{slug}/service-accounts:
+    $ref: "./paths/service-accounts.yaml"
+  /projects/{slug}/service-accounts/{serviceAccountId}:
+    $ref: "./paths/service-account.yaml"
+  /projects/{slug}/service-accounts/{serviceAccountId}/tokens:
+    $ref: "./paths/service-tokens.yaml"
+  /projects/{slug}/service-accounts/{serviceAccountId}/tokens/{tokenId}:
+    $ref: "./paths/service-token.yaml"
   /projects/{slug}/members:
     $ref: "./paths/members.yaml"
   /projects/{slug}/members/{accountId}:

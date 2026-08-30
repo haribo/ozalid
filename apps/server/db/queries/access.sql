@@ -102,11 +102,13 @@ RETURNING *;
 --
 -- Nothing here compares the token itself: the hash is the key, so a lookup
 -- never carries a secret into a query plan or a slow-query log.
+-- A deactivated service account resolves to nothing, exactly as a deactivated
+-- person does: the token still exists, and stops opening anything.
 -- name: ServiceAccountByTokenHash :one
 SELECT s.id, s.name, t.id AS token_id
 FROM service_tokens t
 JOIN service_accounts s ON s.id = t.service_account_id
-WHERE t.token_hash = $1;
+WHERE t.token_hash = $1 AND s.deactivated_at IS NULL;
 
 -- Read on every accepted call, so an operator can tell which tokens are still
 -- in use and which can go.
@@ -153,3 +155,41 @@ DELETE FROM sessions WHERE token_hash = $1;
 
 -- name: UserByID :one
 SELECT * FROM users WHERE id = $1 AND deactivated_at IS NULL;
+
+-- name: CreateServiceAccountInProject :one
+INSERT INTO service_accounts (name, owner_id)
+SELECT @name, @owner_id
+WHERE EXISTS (SELECT 1 FROM projects WHERE slug = @slug)
+RETURNING *;
+
+-- name: ServiceAccountInProject :one
+SELECT sa.* FROM service_accounts sa
+JOIN project_members m ON m.service_account_id = sa.id
+JOIN projects p ON p.id = m.project_id
+WHERE sa.id = @id AND p.slug = @slug AND sa.deactivated_at IS NULL;
+
+-- Idempotent, like deactivating a person: the day it happened does not move.
+-- name: DeactivateServiceAccount :execrows
+UPDATE service_accounts sa
+SET deactivated_at = coalesce(sa.deactivated_at, now())
+FROM project_members m, projects p
+WHERE sa.id = @id AND m.service_account_id = sa.id
+  AND p.id = m.project_id AND p.slug = @slug;
+
+-- What a token is for and whether anything still uses it. Never the token: only
+-- its hash was ever stored, and a hash is not a credential anyone can present.
+-- name: ListServiceTokens :many
+SELECT t.id, t.label, t.created_at, t.last_used_at
+FROM service_tokens t
+JOIN service_accounts sa ON sa.id = t.service_account_id
+JOIN project_members m ON m.service_account_id = sa.id
+JOIN projects p ON p.id = m.project_id
+WHERE t.service_account_id = @service_account_id AND p.slug = @slug
+ORDER BY t.created_at DESC;
+
+-- name: DeleteServiceToken :execrows
+DELETE FROM service_tokens t
+USING service_accounts sa, project_members m, projects p
+WHERE t.id = @id AND t.service_account_id = @service_account_id
+  AND sa.id = t.service_account_id
+  AND m.service_account_id = sa.id AND p.id = m.project_id AND p.slug = @slug;

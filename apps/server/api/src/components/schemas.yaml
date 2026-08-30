@@ -199,3 +199,58 @@ NewMembership:
   properties:
     rights:
       $ref: "#/Rights"
+
+ServiceAccount:
+  type: object
+  required: [id, name, createdAt]
+  properties:
+    id: { type: string }
+    name: { type: string }
+    createdAt: { type: string, format: date-time }
+
+NewServiceAccount:
+  type: object
+  required: [name, tokenLabel]
+  properties:
+    name: { type: string, minLength: 1 }
+    rights:
+      $ref: "#/Rights"
+    tokenLabel:
+      type: string
+      minLength: 1
+      description: What the first token is for, in a human's words.
+
+MintedToken:
+  type: object
+  required: [id, label, token, createdAt]
+  properties:
+    id: { type: string }
+    label: { type: string }
+    token:
+      type: string
+      description: |
+        **Shown once and never again.** Only its hash is stored, so nothing here
+        can give it back — a lost token is replaced, not recovered.
+    createdAt: { type: string, format: date-time }
+
+ServiceToken:
+  type: object
+  required: [id, label, createdAt]
+  properties:
+    id: { type: string }
+    label:
+      type: string
+      description: A token nobody can name is a token nobody dares retire.
+    createdAt: { type: string, format: date-time }
+    lastUsedAt:
+      type: string
+      format: date-time
+      description: |
+        Absent while nothing has ever presented it. It is what tells an operator
+        which tokens are still in use and which can go.
+
+NewToken:
+  type: object
+  required: [label]
+  properties:
+    label: { type: string, minLength: 1 }

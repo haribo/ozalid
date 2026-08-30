@@ -59,11 +59,16 @@ var (
 	ErrUnknownRights = errors.New("account: rights are reader or member")
 )
 
-// Service makes and retires accounts.
-type Service struct{ repo Repository }
+// Service makes and retires accounts, for people and for programs.
+type Service struct {
+	repo     Repository
+	machines Machines
+}
 
-// New returns a Service backed by repo.
-func New(repo Repository) *Service { return &Service{repo: repo} }
+// New returns a Service backed by repo and machines.
+func New(repo Repository, machines Machines) *Service {
+	return &Service{repo: repo, machines: machines}
+}
 
 // Create makes an account for a person.
 //
