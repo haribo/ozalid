@@ -20,8 +20,8 @@ function grid(over: Partial<Grid> = {}): Grid {
         name: 'opens the form',
         position: 0,
         cells: [
-          { variantId: 'v1', hash: 'sha256:aaa', status: 'validated' },
-          { variantId: 'v2', hash: 'sha256:bbb', status: 'to-fix' },
+          { id: 'cap1', variantId: 'v1', hash: 'sha256:aaa', status: 'validated' },
+          { id: 'cap2', variantId: 'v2', hash: 'sha256:bbb', status: 'to-fix' },
         ],
       },
       // Not every variant exists at every step.
@@ -29,7 +29,7 @@ function grid(over: Partial<Grid> = {}): Grid {
         id: 's2',
         name: 'submits',
         position: 1,
-        cells: [{ variantId: 'v1', hash: 'sha256:ccc', status: 'to-review' }],
+        cells: [{ id: 'cap3', variantId: 'v1', hash: 'sha256:ccc', status: 'to-review' }],
       },
     ],
     recordings: [],
@@ -49,7 +49,15 @@ const oneMoved = (status: 'validated' | 'to-fix') => ({
       id: 's1',
       name: 'opens the form',
       position: 0,
-      cells: [{ variantId: 'v1', hash: 'sha256:aaa', status, freshness: 'to-re-review' as const }],
+      cells: [
+        {
+          id: 'cap4',
+          variantId: 'v1',
+          hash: 'sha256:aaa',
+          status,
+          freshness: 'to-re-review' as const,
+        },
+      ],
     },
   ],
 })
@@ -61,35 +69,44 @@ const oneValidated = (freshness: 'current' | 'to-re-review') => ({
       id: 's1',
       name: 'opens the form',
       position: 0,
-      cells: [{ variantId: 'v1', hash: 'sha256:aaa', status: 'validated' as const, freshness }],
+      cells: [
+        {
+          id: 'cap5',
+          variantId: 'v1',
+          hash: 'sha256:aaa',
+          status: 'validated' as const,
+          freshness,
+        },
+      ],
     },
   ],
 })
 
-
 describe('CaseGrid', () => {
   it('says so plainly when a case has never been captured', () => {
     // Not being instrumented is a legitimate state, not an error (ADR 0012).
-    const w = mount(CaseGrid, { props: { grid: grid({ steps: [], variants: [] }) } })
+    const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid({ steps: [], variants: [] }) } })
     expect(w.text()).toContain('aucune capture')
     expect(w.find('table').exists()).toBe(false)
   })
 
   it('draws one column per variant and one row per step', () => {
-    const w = mount(CaseGrid, { props: { grid: grid() } })
+    const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
     expect(w.findAll('thead th')).toHaveLength(3) // step + 2 variants
     expect(w.findAll('tbody tr')).toHaveLength(2)
   })
 
   it('fetches an image through the API, never from a guessed origin', () => {
-    const w = mount(CaseGrid, { props: { grid: grid() } })
-    expect(w.find('img').attributes('src')).toBe('/api/blobs/sha256:aaa')
+    const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
+    // Through the capture, not the content address: a hash names no project
+    // and cannot be authorised (product.md §8.1, #71).
+    expect(w.find('img').attributes('src')).toBe('/api/projects/atlas/captures/cap1')
   })
 
   it('says where the review stands on each square', () => {
     // Read from the cells, never from the component: the legend below repeats
     // every word, and a check that cannot fail is not a check.
-    const w = mount(CaseGrid, { props: { grid: grid() } })
+    const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
     // The accessible name sits on the disc, and the glyph inside it is
     // decorative — one mark, one name.
     const marks = cells(w).map((c) => c.findAll('[role="img"]')[0]?.attributes('aria-label'))
@@ -105,7 +122,7 @@ describe('CaseGrid', () => {
 
   it('asks to open the carousel rather than editing anything', () => {
     // The grid shows and navigates; judging happens in front of the capture.
-    const w = mount(CaseGrid, { props: { grid: grid() } })
+    const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
     expect(w.find('input').exists()).toBe(false)
 
     w.findAll('button')[0].trigger('click')
@@ -114,7 +131,7 @@ describe('CaseGrid', () => {
 
   it('marks the capture currently open, so returning to the grid finds it', () => {
     const w = mount(CaseGrid, {
-      props: { grid: grid(), openCell: { stepId: 's1', variantId: 'v2' } },
+      props: { slug: 'atlas', grid: grid(), openCell: { stepId: 's1', variantId: 'v2' } },
     })
     const marked = w.findAll('button').filter((b) => b.classes().includes('ring-2'))
     expect(marked).toHaveLength(1)
@@ -122,14 +139,14 @@ describe('CaseGrid', () => {
   })
 
   it('gives every capture an alt naming its step and variant', () => {
-    const w = mount(CaseGrid, { props: { grid: grid() } })
+    const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
     expect(w.find('img').attributes('alt')).toBe('opens the form — desktop·light')
   })
 
   it('keeps a portrait variant portrait', () => {
     // The size now lives on the button that frames the image, since the button
     // is what the reviewer aims at.
-    const w = mount(CaseGrid, { props: { grid: grid() } })
+    const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
     const frames = w.findAll('button')
     expect(frames[0].classes().join(' ')).toContain('w-[116px]')
     expect(frames[1].classes().join(' ')).toContain('w-[60px]')
@@ -138,7 +155,7 @@ describe('CaseGrid', () => {
   it('marks a missing capture as an anomaly, never as a neutral blank', () => {
     // A case is meant to be complete: a step missing a variant its siblings
     // carry is a failed run, and drawing it neutrally would hide it (ADR 0016).
-    const w = mount(CaseGrid, { props: { grid: grid() } })
+    const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
     const hole = cells(w)[3]
     expect(hole.find('img').exists()).toBe(false)
     expect(hole.find('[aria-label="manquante"]').exists()).toBe(true)
@@ -148,7 +165,7 @@ describe('CaseGrid', () => {
   it('rings each capture with its own verdict, and tints no cell behind it', () => {
     // The colour belongs to the capture, not to the ground around it: this
     // interface frames someone else's product.
-    const w = mount(CaseGrid, { props: { grid: grid() } })
+    const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
     const frames = w.findAll('button')
     expect(frames[0].classes().join(' ')).toContain('border-emerald-600')
     expect(frames[1].classes().join(' ')).toContain('border-amber-600')
@@ -159,7 +176,7 @@ describe('CaseGrid', () => {
   })
 
   it('steps a judged capture back, and leaves what needs eyes at full strength', () => {
-    const w = mount(CaseGrid, { props: { grid: grid() } })
+    const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
     const images = w.findAll('img')
     expect(images[0].classes()).toContain('opacity-40') // validated
     expect(images[1].classes()).toContain('opacity-40') // commented
@@ -169,9 +186,12 @@ describe('CaseGrid', () => {
   it('leaves the recording without a verdict ring, since nothing judges it', () => {
     // A recording is not comparable, so it carries no state (ADR 0013).
     const w = mount(CaseGrid, {
-      props: { grid: grid({ recordings: [{ variantId: 'v1', hash: 'sha256:vid' }] }) },
+      props: {
+        slug: 'atlas',
+        grid: grid({ recordings: [{ id: 'rec1', variantId: 'v1', hash: 'sha256:vid' }] }),
+      },
     })
-    const link = w.find('a[href="/api/blobs/sha256:vid"]')
+    const link = w.find('a[href="/api/projects/atlas/recordings/rec1"]')
     const classes = link.classes().join(' ')
     expect(classes).not.toContain('emerald')
     expect(classes).not.toContain('amber')
@@ -180,7 +200,9 @@ describe('CaseGrid', () => {
   it('renders a capture that moved as one to judge, carrying why it came back', () => {
     // For the only question the grid asks, it has not been validated — not the
     // bytes on display (frontend ADR 0003).
-    const w = mount(CaseGrid, { props: { grid: grid(oneValidated('to-re-review')) } })
+    const w = mount(CaseGrid, {
+      props: { slug: 'atlas', grid: grid(oneValidated('to-re-review')) },
+    })
     const cell = cells(w)[0]
 
     expect(cell.find('img').classes()).not.toContain('opacity-40')
@@ -193,14 +215,18 @@ describe('CaseGrid', () => {
   it('reads a moved capture the same whatever verdict it used to carry', () => {
     // Validated-and-moved and commented-and-moved are one cell: what separated
     // them is what the grid stopped reporting (frontend ADR 0003).
-    const fromValidated = mount(CaseGrid, { props: { grid: grid(oneMoved('validated')) } })
-    const fromCommented = mount(CaseGrid, { props: { grid: grid(oneMoved('to-fix')) } })
+    const fromValidated = mount(CaseGrid, {
+      props: { slug: 'atlas', grid: grid(oneMoved('validated')) },
+    })
+    const fromCommented = mount(CaseGrid, {
+      props: { slug: 'atlas', grid: grid(oneMoved('to-fix')) },
+    })
     expect(cells(fromValidated)[0].html()).toBe(cells(fromCommented)[0].html())
   })
 
   it('says nothing about freshness when there is nothing to compare against', () => {
     // Absent is a third answer, not "unchanged" (ADR 0017).
-    const w = mount(CaseGrid, { props: { grid: grid() } })
+    const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
     for (const cell of cells(w)) {
       expect(cell.find('[aria-label="a bougé"]').exists()).toBe(false)
     }
@@ -209,14 +235,16 @@ describe('CaseGrid', () => {
   it('puts every status on a disc, and no action on one', () => {
     // A status is a glyph on a disc; a gesture is not (frontend ADR 0003). The
     // grid shows only statuses, so every mark it draws wears one.
-    const w = mount(CaseGrid, { props: { grid: grid() } })
+    const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
     for (const mark of w.findAll('tbody [role="img"]')) {
       expect(mark.classes()).toContain('rounded-full')
     }
   })
 
   it('gives freshness its own shape, never a state icon', () => {
-    const w = mount(CaseGrid, { props: { grid: grid(oneValidated('to-re-review')) } })
+    const w = mount(CaseGrid, {
+      props: { slug: 'atlas', grid: grid(oneValidated('to-re-review')) },
+    })
     const cell = cells(w)[0]
     const mark = cell.find('[role="img"]')
     expect(mark.attributes('aria-label')).toBe('a bougé')
@@ -227,11 +255,14 @@ describe('CaseGrid', () => {
   })
 
   it('only shows the recording row when a recording exists', () => {
-    const without = mount(CaseGrid, { props: { grid: grid() } })
+    const without = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
     expect(without.text()).not.toContain('enregistrement')
 
     const withOne = mount(CaseGrid, {
-      props: { grid: grid({ recordings: [{ variantId: 'v1', hash: 'sha256:vid' }] }) },
+      props: {
+        slug: 'atlas',
+        grid: grid({ recordings: [{ id: 'cap7', variantId: 'v1', hash: 'sha256:vid' }] }),
+      },
     })
     expect(withOne.text()).toContain('enregistrement')
   })

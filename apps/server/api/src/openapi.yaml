@@ -25,7 +25,7 @@ paths:
     $ref: "./paths/sign-out.yaml"
   /me:
     $ref: "./paths/me.yaml"
-  /blobs/{hash}:
+  /projects/{slug}/blobs/{hash}:
     $ref: "./paths/blob.yaml"
   /projects:
     $ref: "./paths/projects.yaml"
@@ -39,6 +39,10 @@ paths:
     $ref: "./paths/editions.yaml"
   /projects/{slug}/categories:
     $ref: "./paths/categories.yaml"
+  /projects/{slug}/captures/{captureId}:
+    $ref: "./paths/capture-image.yaml"
+  /projects/{slug}/recordings/{recordingId}:
+    $ref: "./paths/recording-video.yaml"
   /projects/{slug}/cases/{caseId}:
     $ref: "./paths/case.yaml"
   /projects/{slug}/cases/{caseId}/captures:

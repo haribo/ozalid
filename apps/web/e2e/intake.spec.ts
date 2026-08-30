@@ -64,7 +64,7 @@ test('a client is told what to upload, uploads it, and is accepted', async ({ pa
   expect(problem.missingContent).toEqual([hash])
 
   // 2. Upload exactly what was named.
-  const uploaded = await api(`/blobs/${hash}`, { method: 'PUT', body: new Uint8Array(bytes) })
+  const uploaded = await api(`/projects/${PROJECT}/blobs/${hash}`, { method: 'PUT', body: new Uint8Array(bytes) })
   expect(uploaded.status).toBe(201)
 
   // 3. The same manifest, unchanged, is now accepted.

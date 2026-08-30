@@ -20,7 +20,11 @@ import { hasMoved, type Tone } from '@/shared/lib'
 type Grid = components['schemas']['Grid']
 type Cell = Grid['steps'][number]['cells'][number]
 
-const props = defineProps<{ grid: Grid; openCell?: { stepId: string; variantId: string } | null }>()
+const props = defineProps<{
+  slug: string
+  grid: Grid
+  openCell?: { stepId: string; variantId: string } | null
+}>()
 const emit = defineEmits<{ open: [stepId: string, variantId: string] }>()
 
 const variants = computed(() => props.grid.variants)
@@ -136,7 +140,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
                    would invent a state the server does not compute. -->
               <a
                 v-if="recordingOf(v.id)"
-                :href="`/api/blobs/${recordingOf(v.id)!.hash}`"
+                :href="`/api/projects/${slug}/recordings/${recordingOf(v.id)!.id}`"
                 class="inline-grid place-items-center border-2 border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
                 :class="isPortrait(v.values) ? SIZE.tall : SIZE.wide"
               >
@@ -184,7 +188,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
                     @click="emit('open', step.id, v.id)"
                   >
                     <img
-                      :src="`/api/blobs/${cellOf(step, v.id)!.hash}`"
+                      :src="`/api/projects/${slug}/captures/${cellOf(step, v.id)!.id}`"
                       :alt="`${step.name} — ${v.label}`"
                       loading="lazy"
                       class="block h-full w-full bg-slate-100 object-cover dark:bg-slate-900"

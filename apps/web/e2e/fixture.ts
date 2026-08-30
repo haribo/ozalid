@@ -65,7 +65,7 @@ async function screen(page: Page, left: number): Promise<Buffer> {
 
 async function upload(bytes: Buffer): Promise<string> {
   const hash = `sha256:${createHash('sha256').update(bytes).digest('hex')}`
-  await call(`/blobs/${hash}`, { method: 'PUT', body: new Uint8Array(bytes) })
+  await call(`/projects/${PROJECT}/blobs/${hash}`, { method: 'PUT', body: new Uint8Array(bytes) })
   return hash
 }
 

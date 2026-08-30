@@ -1,0 +1,40 @@
+parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
+  - name: captureId
+    in: path
+    required: true
+    schema: { type: string }
+
+get:
+  operationId: getCaptureImage
+  security:
+    - serviceToken: []
+  summary: The image a capture holds
+  description: |
+    Read through the capture, never through the content address. A hash names
+    no project — identical bytes are stored once for every project that
+    references them
+    ([ADR 0004](https://github.com/haribo/ozalid/blob/develop/docs/adr/0004-content-addressed-capture-storage.md)) —
+    so there is nothing there to check a membership against. A capture has a
+    row, a case and therefore one project (`product.md` §8.1).
+
+    The response is immutable: a capture's bytes never change, because a new
+    run produces a new capture rather than overwriting one.
+  tags: [blobs]
+  responses:
+    "200":
+      description: The image.
+      content:
+        image/png:
+          schema:
+            type: string
+            format: binary
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"

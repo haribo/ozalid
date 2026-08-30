@@ -1,4 +1,8 @@
 parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
   - name: hash
     in: path
     required: true
@@ -12,35 +16,29 @@ parameters:
 
 head:
   operationId: headBlob
+  security:
+    - serviceToken: []
   summary: Report whether the store already holds this content
   description: |
     Intake calls this before sending bytes: content already held is never
     uploaded again, which is what makes a full visual history affordable.
+
+    Answered for the project the caller is pushing to. The store itself is
+    shared across projects — identical bytes are held once
+    ([ADR 0004](https://github.com/haribo/ozalid/blob/develop/docs/adr/0004-content-addressed-capture-storage.md)) —
+    so this says what intake needs to know and nothing about who else holds it.
   tags: [blobs]
   responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
     "200":
       description: The store holds this content.
     "400":
       $ref: "../components/responses.yaml#/BadRequest"
     "404":
       description: The store does not hold this content.
-
-get:
-  operationId: getBlob
-  summary: Download the content at this address
-  tags: [blobs]
-  responses:
-    "200":
-      description: The content.
-      content:
-        application/octet-stream:
-          schema:
-            type: string
-            format: binary
-    "400":
-      $ref: "../components/responses.yaml#/BadRequest"
-    "404":
-      $ref: "../components/responses.yaml#/NotFound"
 
 put:
   operationId: putBlob

@@ -19,6 +19,7 @@ SELECT
     v.id       AS variant_id,
     v.label    AS variant_label,
     v.values   AS variant_values,
+    c.id       AS capture_id,
     c.blob_hash,
     c.provenance,
     c.freshness,
@@ -35,8 +36,24 @@ WHERE s.case_id = $1
 ORDER BY s.position, v.label;
 
 -- name: CaseRecordings :many
-SELECT r.blob_hash, v.id AS variant_id, v.label AS variant_label, v.values AS variant_values
+SELECT r.id AS recording_id, r.blob_hash, v.id AS variant_id, v.label AS variant_label, v.values AS variant_values
 FROM recordings r
 JOIN variants v ON v.id = r.variant_id
 WHERE r.case_id = $1 AND r.edition_id = $2
 ORDER BY v.label;
+
+-- The bytes one capture holds, inside the project the caller named. Reached
+-- through the capture's own row, because a content address names no project
+-- and cannot be authorised (product.md §8.1).
+-- name: CaptureBlobInProject :one
+SELECT c.blob_hash FROM captures c
+JOIN steps st ON st.id = c.step_id
+JOIN cases k ON k.id = st.case_id
+JOIN projects p ON p.id = k.project_id
+WHERE c.id = $1 AND p.slug = $2;
+
+-- name: RecordingBlobInProject :one
+SELECT r.blob_hash FROM recordings r
+JOIN cases k ON k.id = r.case_id
+JOIN projects p ON p.id = k.project_id
+WHERE r.id = $1 AND p.slug = $2;
