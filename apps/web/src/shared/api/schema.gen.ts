@@ -290,11 +290,12 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/cases/{caseId}": {
+    "/projects/{slug}/cases/{caseId}": {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                slug: string;
                 caseId: string;
             };
             cookie?: never;
@@ -313,11 +314,12 @@ export interface paths {
         patch: operations["updateCase"];
         trace?: never;
     };
-    "/cases/{caseId}/captures": {
+    "/projects/{slug}/cases/{caseId}/captures": {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                slug: string;
                 caseId: string;
             };
             cookie?: never;
@@ -343,11 +345,12 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/cases/{caseId}/comments": {
+    "/projects/{slug}/cases/{caseId}/comments": {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                slug: string;
                 caseId: string;
             };
             cookie?: never;
@@ -468,11 +471,12 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/cases/{caseId}/reviews": {
+    "/projects/{slug}/cases/{caseId}/reviews": {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                slug: string;
                 caseId: string;
             };
             cookie?: never;
@@ -496,11 +500,12 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/cases/{caseId}/archive": {
+    "/projects/{slug}/cases/{caseId}/archive": {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                slug: string;
                 caseId: string;
             };
             cookie?: never;
@@ -1463,6 +1468,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                slug: string;
                 caseId: string;
             };
             cookie?: never;
@@ -1486,6 +1492,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                slug: string;
                 caseId: string;
             };
             cookie?: never;
@@ -1516,6 +1523,7 @@ export interface operations {
             };
             header?: never;
             path: {
+                slug: string;
                 caseId: string;
             };
             cookie?: never;
@@ -1539,6 +1547,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                slug: string;
                 caseId: string;
             };
             cookie?: never;
@@ -1647,6 +1656,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                slug: string;
                 caseId: string;
             };
             cookie?: never;
@@ -1675,6 +1685,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                slug: string;
                 caseId: string;
             };
             cookie?: never;

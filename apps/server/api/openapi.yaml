@@ -497,8 +497,13 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/problem'
-  /cases/{caseId}:
+  /projects/{slug}/cases/{caseId}:
     parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
       - name: caseId
         in: path
         required: true
@@ -541,8 +546,13 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
-  /cases/{caseId}/captures:
+  /projects/{slug}/cases/{caseId}/captures:
     parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
       - name: caseId
         in: path
         required: true
@@ -577,8 +587,13 @@ paths:
                 $ref: '#/components/schemas/Grid'
         '404':
           $ref: '#/components/responses/NotFound'
-  /cases/{caseId}/comments:
+  /projects/{slug}/cases/{caseId}/comments:
     parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
       - name: caseId
         in: path
         required: true
@@ -723,8 +738,13 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MoveRefused'
-  /cases/{caseId}/reviews:
+  /projects/{slug}/cases/{caseId}/reviews:
     parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
       - name: caseId
         in: path
         required: true
@@ -760,8 +780,13 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
-  /cases/{caseId}/archive:
+  /projects/{slug}/cases/{caseId}/archive:
     parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
       - name: caseId
         in: path
         required: true
