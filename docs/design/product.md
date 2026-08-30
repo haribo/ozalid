@@ -359,8 +359,8 @@ project.
 
 That power is a single flag on a user, not a hierarchy.
 
-An administrator **creates and deactivates accounts, creates a project and names
-its first member**.
+An administrator **creates and deactivates accounts, creates a project, and
+names its members** — all of them, not only the first.
 
 An administrator **cannot read or write the content of a project they are not a
 member of**.
@@ -374,6 +374,27 @@ be handed to someone without handing them everything.
 When an administrator does need to see a project, they are added to it as a
 member. That leaves a trace, which is exactly what an exceptional access should
 do.
+
+Granting a membership is not reading content, so the two lines do not collide:
+an administrator who adds somebody to a project learns that the project exists
+and who is on it, which they knew already, and learns nothing about what is
+inside it.
+
+**A member does not manage the membership of their own project.** Delegating it
+would be a fourth thing to model — who may grant, whether they may grant more
+than they hold, whether they may remove the person who added them — and §8.1
+already refuses to invent roles before meeting the need. One authority is the
+smaller thing that works.
+
+The cost is a queue: every arrival waits for one person. That is why larger
+tools delegate, and it is the trigger for changing this — **when waiting to be
+added becomes a complaint rather than a formality, membership moves to the
+`member` right**. Written down so the day it changes is a decision rather than a
+surprise.
+
+The consequence to accept today: **a second administrator stops being
+optional.** An instance with one loses the ability to add anybody the day that
+one loses their access.
 
 ## 9. API shape
 
