@@ -129,5 +129,8 @@ test('the captures in the grid actually decode, not just point somewhere', async
   const widths = await images.evaluateAll((nodes) =>
     nodes.map((n) => (n as HTMLImageElement).naturalWidth),
   )
-  expect(widths.every((w) => w > 0), `naturalWidth per capture: ${widths}`).toBe(true)
+  expect(
+    widths.every((w) => w > 0),
+    `naturalWidth per capture: ${widths}`,
+  ).toBe(true)
 })

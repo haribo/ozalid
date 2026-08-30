@@ -11,7 +11,9 @@ const MAILPIT = process.env.OZALID_E2E_MAILPIT ?? 'http://localhost:8045'
 
 /** The link in the newest message sent to an address. */
 export async function linkSentTo(address: string): Promise<string> {
-  const listed = await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent('to:' + address)}`)
+  const listed = await fetch(
+    `${MAILPIT}/api/v1/search?query=${encodeURIComponent('to:' + address)}`,
+  )
   const { messages } = (await listed.json()) as { messages: { ID: string }[] }
   expect(messages.length, `no message reached ${address}`).toBeGreaterThan(0)
 

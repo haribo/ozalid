@@ -149,9 +149,11 @@ fe-dev:
 fe-build:
     cd {{web}} && npm run build
 
-# Typecheck and lint the web client. FSD violations fail here (frontend ADR 0002).
+# Typecheck, lint and check the formatting of the web client. FSD violations
+# fail here (frontend ADR 0002), and so does an unformatted file: a convention a
+# tool can enforce is a tool's job, not a reviewer's (ADR 0009).
 fe-check:
-    cd {{web}} && npm run typecheck && npm run lint
+    cd {{web}} && npm run typecheck && npm run lint && npm run format:check
 
 # Run the web unit tests.
 fe-test:

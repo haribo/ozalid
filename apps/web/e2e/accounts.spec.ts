@@ -31,7 +31,9 @@ test('an administrator makes an account, and it is listed', async ({ request }) 
 test('the same address twice is refused, and says which way to fix it', async ({ request }) => {
   const email = anAddress()
 
-  expect((await request.post(`${API}/api/accounts`, { data: { name: 'nina', email } })).status()).toBe(201)
+  expect(
+    (await request.post(`${API}/api/accounts`, { data: { name: 'nina', email } })).status(),
+  ).toBe(201)
 
   const again = await request.post(`${API}/api/accounts`, { data: { name: 'nina again', email } })
   expect(again.status()).toBe(409)
@@ -39,7 +41,9 @@ test('the same address twice is refused, and says which way to fix it', async ({
 })
 
 test('an account without a name or an address is refused', async ({ request }) => {
-  const blank = await request.post(`${API}/api/accounts`, { data: { name: '  ', email: anAddress() } })
+  const blank = await request.post(`${API}/api/accounts`, {
+    data: { name: '  ', email: anAddress() },
+  })
   expect(blank.status()).toBe(400)
 
   const noAddress = await request.post(`${API}/api/accounts`, { data: { name: 'nina', email: '' } })
@@ -47,7 +51,9 @@ test('an account without a name or an address is refused', async ({ request }) =
 })
 
 test('a deactivated account is still listed, and still says who it was', async ({ request }) => {
-  const made = await request.post(`${API}/api/accounts`, { data: { name: 'leaving', email: anAddress() } })
+  const made = await request.post(`${API}/api/accounts`, {
+    data: { name: 'leaving', email: anAddress() },
+  })
   const account = await made.json()
 
   expect((await request.delete(`${API}/api/accounts/${account.id}`)).status()).toBe(204)

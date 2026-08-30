@@ -3,3 +3,7 @@
 # diff in gen-check.
 src/shared/api/schema.gen.ts
 dist
+
+# The session the end-to-end suite signs into. Minted per run, never committed,
+# and not ours to format.
+e2e/.auth
