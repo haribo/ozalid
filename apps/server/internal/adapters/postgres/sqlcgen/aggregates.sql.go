@@ -96,10 +96,16 @@ SELECT c.id, c.step_id, c.kind, c.body, c.state, c.issue_ref, c.issue_url,
        array_remove(array_agg(cv.variant_id), NULL)::text[] AS variant_ids
 FROM comments c
 LEFT JOIN comment_variants cv ON cv.comment_id = c.id
-WHERE c.case_id = $1
+JOIN cases k ON k.id = c.case_id
+WHERE c.case_id = $1 AND k.project_id = $2
 GROUP BY c.id
 ORDER BY c.created_at
 `
+
+type CaseCommentsParams struct {
+	CaseID    string
+	ProjectID string
+}
 
 type CaseCommentsRow struct {
 	ID            string
@@ -117,8 +123,10 @@ type CaseCommentsRow struct {
 	VariantIds    []string
 }
 
-func (q *Queries) CaseComments(ctx context.Context, caseID string) ([]CaseCommentsRow, error) {
-	rows, err := q.db.Query(ctx, caseComments, caseID)
+// Scoped by the project, not merely filtered by the case: a case id from
+// another project returns nothing rather than someone else's remarks (#71).
+func (q *Queries) CaseComments(ctx context.Context, arg CaseCommentsParams) ([]CaseCommentsRow, error) {
+	rows, err := q.db.Query(ctx, caseComments, arg.CaseID, arg.ProjectID)
 	if err != nil {
 		return nil, err
 	}

@@ -5,8 +5,18 @@ INSERT INTO cases (project_id, category_id, title, description)
 VALUES ($1, $2, $3, $4)
 RETURNING *;
 
+-- Unscoped, and the last one left: the comment moves still reach a case
+-- without naming its project. It goes when they move under theirs (#71).
 -- name: GetCase :one
 SELECT * FROM cases WHERE id = $1;
+
+-- A case, inside the project the caller named. The project is not checked
+-- beside the query, it *is* the query: a case from another project returns no
+-- row, so there is no consistency check to write, and none to forget (#71).
+-- name: CaseInProject :one
+SELECT c.* FROM cases c
+JOIN projects p ON p.id = c.project_id
+WHERE c.id = $1 AND p.slug = $2;
 
 -- Filters on the stored state, no scan: that is why the state is stored at all
 -- (ADR 0002).
@@ -21,13 +31,16 @@ ORDER BY title;
 -- name: UpdateCaseDetails :one
 UPDATE cases
 SET title = $2, description = $3, category_id = $4, updated_at = now()
-WHERE id = $1
+WHERE cases.id = $1
+  AND cases.project_id = (SELECT p.id FROM projects p WHERE p.slug = $5)
 RETURNING *;
 
 -- Archived, never deleted (ADR 0014).
 -- name: ArchiveCase :execrows
 UPDATE cases SET archived_at = now(), updated_at = now()
-WHERE id = $1 AND archived_at IS NULL;
+WHERE cases.id = $1
+  AND cases.project_id = (SELECT p.id FROM projects p WHERE p.slug = $2)
+  AND cases.archived_at IS NULL;
 
 -- name: CreateStep :one
 INSERT INTO steps (case_id, name, position)

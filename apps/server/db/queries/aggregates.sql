@@ -78,7 +78,10 @@ SELECT c.id, c.step_id, c.kind, c.body, c.state, c.issue_ref, c.issue_url,
        array_remove(array_agg(cv.variant_id), NULL)::text[] AS variant_ids
 FROM comments c
 LEFT JOIN comment_variants cv ON cv.comment_id = c.id
-WHERE c.case_id = $1
+-- Scoped by the project, not merely filtered by the case: a case id from
+-- another project returns nothing rather than someone else's remarks (#71).
+JOIN cases k ON k.id = c.case_id
+WHERE c.case_id = $1 AND k.project_id = $2
 GROUP BY c.id
 ORDER BY c.created_at;
 

@@ -54,7 +54,7 @@ type Result struct {
 // verdict they cover and moving the case happen together or not at all, and
 // the transaction that guarantees it belongs in the adapter (backend ADR 0001).
 type Repository interface {
-	SaveReview(ctx context.Context, caseID string, by actor.Actor, save Save) (Result, error)
+	SaveReview(ctx context.Context, slug, caseID string, by actor.Actor, save Save) (Result, error)
 }
 
 // Service saves review sessions.
@@ -67,7 +67,7 @@ func New(repo Repository) *Service { return &Service{repo: repo} }
 //
 // Validation happens before anything is written: a session carrying one
 // unusable comment is refused whole, rather than half-saved.
-func (s *Service) Save(ctx context.Context, caseID string, by actor.Actor, save Save) (Result, error) {
+func (s *Service) Save(ctx context.Context, slug, caseID string, by actor.Actor, save Save) (Result, error) {
 	cleaned := make([]NewComment, 0, len(save.Comments))
 	for _, c := range save.Comments {
 		body := strings.TrimSpace(c.Body)
@@ -86,5 +86,5 @@ func (s *Service) Save(ctx context.Context, caseID string, by actor.Actor, save 
 	}
 	save.Comments = cleaned
 
-	return s.repo.SaveReview(ctx, caseID, by, save)
+	return s.repo.SaveReview(ctx, slug, caseID, by, save)
 }

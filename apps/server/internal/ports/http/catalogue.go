@@ -107,7 +107,7 @@ func (s *Server) ListCases(ctx context.Context, request openapi.ListCasesRequest
 
 // GetCase reads a case, archived or not.
 func (s *Server) GetCase(ctx context.Context, request openapi.GetCaseRequestObject) (openapi.GetCaseResponseObject, error) {
-	found, err := s.catalogue.CaseByID(ctx, request.CaseId)
+	found, err := s.catalogue.CaseByID(ctx, request.Slug, request.CaseId)
 	if errors.Is(err, app.ErrNotFound) {
 		return openapi.GetCase404ApplicationProblemPlusJSONResponse{NotFoundApplicationProblemPlusJSONResponse: notFound("case")}, nil
 	}
@@ -119,7 +119,7 @@ func (s *Server) GetCase(ctx context.Context, request openapi.GetCaseRequestObje
 
 // UpdateCase changes what is mutable about a case.
 func (s *Server) UpdateCase(ctx context.Context, request openapi.UpdateCaseRequestObject) (openapi.UpdateCaseResponseObject, error) {
-	updated, err := s.catalogue.UpdateCase(ctx, request.CaseId, request.Body.Title, request.Body.Description, request.Body.CategoryId)
+	updated, err := s.catalogue.UpdateCase(ctx, request.Slug, request.CaseId, request.Body.Title, request.Body.Description, request.Body.CategoryId)
 	switch {
 	case errors.Is(err, catalogue.ErrTitleRequired):
 		return openapi.UpdateCase400ApplicationProblemPlusJSONResponse{
@@ -137,13 +137,13 @@ func (s *Server) UpdateCase(ctx context.Context, request openapi.UpdateCaseReque
 
 // ArchiveCase takes a case out of the catalogue without destroying it.
 func (s *Server) ArchiveCase(ctx context.Context, request openapi.ArchiveCaseRequestObject) (openapi.ArchiveCaseResponseObject, error) {
-	if _, err := s.catalogue.CaseByID(ctx, request.CaseId); errors.Is(err, app.ErrNotFound) {
+	if _, err := s.catalogue.CaseByID(ctx, request.Slug, request.CaseId); errors.Is(err, app.ErrNotFound) {
 		return openapi.ArchiveCase404ApplicationProblemPlusJSONResponse{NotFoundApplicationProblemPlusJSONResponse: notFound("case")}, nil
 	} else if err != nil {
 		return nil, err
 	}
 
-	err := s.catalogue.ArchiveCase(ctx, request.CaseId)
+	err := s.catalogue.ArchiveCase(ctx, request.Slug, request.CaseId)
 	switch {
 	case errors.Is(err, catalogue.ErrCaseAlreadyArchived):
 		return openapi.ArchiveCase409ApplicationProblemPlusJSONResponse(

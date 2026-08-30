@@ -48,9 +48,12 @@ func (s *Service) CreateCase(ctx context.Context, projectID string, categoryID *
 	return s.repo.CreateCase(ctx, projectID, categoryID, cleaned, description)
 }
 
-// CaseByID reads a case, archived or not.
-func (s *Service) CaseByID(ctx context.Context, id string) (catalogue.Case, error) {
-	return s.repo.CaseByID(ctx, id)
+// CaseByID reads a case, archived or not, inside the project the caller named.
+//
+// The project is not a filter applied afterwards — it is part of the lookup,
+// so a case belonging to somebody else is simply not there (product.md §8.1).
+func (s *Service) CaseByID(ctx context.Context, slug, id string) (catalogue.Case, error) {
+	return s.repo.CaseByID(ctx, slug, id)
 }
 
 // ListCases returns the catalogue, optionally filtered on the stored state.
@@ -63,18 +66,18 @@ func (s *Service) ListCases(ctx context.Context, projectID string, state, catego
 
 // UpdateCase changes what is mutable about a case. Its id and its state are
 // not part of that.
-func (s *Service) UpdateCase(ctx context.Context, id, title string, description, categoryID *string) (catalogue.Case, error) {
+func (s *Service) UpdateCase(ctx context.Context, slug, id, title string, description, categoryID *string) (catalogue.Case, error) {
 	cleaned, err := catalogue.CleanTitle(title)
 	if err != nil {
 		return catalogue.Case{}, err
 	}
-	return s.repo.UpdateCase(ctx, id, cleaned, description, categoryID)
+	return s.repo.UpdateCase(ctx, slug, id, cleaned, description, categoryID)
 }
 
 // ArchiveCase takes a case out of the catalogue without destroying it: its
 // captures, comments and journal survive (ADR 0014).
-func (s *Service) ArchiveCase(ctx context.Context, id string) error {
-	archived, err := s.repo.ArchiveCase(ctx, id)
+func (s *Service) ArchiveCase(ctx context.Context, slug, id string) error {
+	archived, err := s.repo.ArchiveCase(ctx, slug, id)
 	if err != nil {
 		return err
 	}

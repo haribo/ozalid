@@ -92,7 +92,7 @@ func TestArchivingRemovesACaseFromTheCatalogueButNotFromTheBook(t *testing.T) {
 		t.Fatalf("creating the case: %v", err)
 	}
 
-	if _, err := q.ArchiveCase(ctx, created.ID); err != nil {
+	if _, err := q.ArchiveCase(ctx, sqlcgen.ArchiveCaseParams{ID: created.ID, Slug: project.Slug}); err != nil {
 		t.Fatalf("archiving the case: %v", err)
 	}
 
@@ -192,7 +192,7 @@ func TestACategoryHoldingOnlyAnArchivedCaseStillCannotBeDeleted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("creating the case: %v", err)
 	}
-	if _, err := q.ArchiveCase(ctx, created.ID); err != nil {
+	if _, err := q.ArchiveCase(ctx, sqlcgen.ArchiveCaseParams{ID: created.ID, Slug: project.Slug}); err != nil {
 		t.Fatalf("archiving the case: %v", err)
 	}
 

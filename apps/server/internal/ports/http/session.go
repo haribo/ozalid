@@ -15,7 +15,7 @@ import (
 func (s *Server) SaveReview(ctx context.Context, request openapi.SaveReviewRequestObject) (openapi.SaveReviewResponseObject, error) {
 	save := toSave(*request.Body)
 
-	result, err := s.session.Save(ctx, request.CaseId, actorFrom(ctx), save)
+	result, err := s.session.Save(ctx, request.Slug, request.CaseId, actorFrom(ctx), save)
 	switch {
 	case errors.Is(err, session.ErrEmptyBody):
 		return badReview("empty-comment", "A comment needs a body",

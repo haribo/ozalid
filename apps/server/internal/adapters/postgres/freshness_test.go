@@ -94,9 +94,9 @@ func takeIn(
 	return err
 }
 
-func freshnessOf(t *testing.T, ctx context.Context, repo *postgres.Repository, caseID string) (string, *int) {
+func freshnessOf(t *testing.T, ctx context.Context, repo *postgres.Repository, slug, caseID string) (string, *int) {
 	t.Helper()
-	grid, err := repo.CaseGrid(ctx, caseID, nil)
+	grid, err := repo.CaseGrid(ctx, slug, caseID, nil)
 	if err != nil {
 		t.Fatalf("reading the grid: %v", err)
 	}
@@ -104,13 +104,13 @@ func freshnessOf(t *testing.T, ctx context.Context, repo *postgres.Repository, c
 	return cell.Freshness, cell.MovedPixels
 }
 
-func validateOnly(t *testing.T, ctx context.Context, repo *postgres.Repository, caseID string) {
+func validateOnly(t *testing.T, ctx context.Context, repo *postgres.Repository, slug, caseID string) {
 	t.Helper()
-	grid, err := repo.CaseGrid(ctx, caseID, nil)
+	grid, err := repo.CaseGrid(ctx, slug, caseID, nil)
 	if err != nil {
 		t.Fatalf("reading the grid: %v", err)
 	}
-	if _, err := repo.SaveReview(ctx, caseID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
+	if _, err := repo.SaveReview(ctx, slug, caseID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Validated: []review.Cell{{
 			StepID: grid.Steps[0].ID, VariantID: grid.Steps[0].Cells[0].VariantID,
 		}},
@@ -127,7 +127,7 @@ func TestACaptureNobodyApprovedSaysNothingAboutItsFreshness(t *testing.T) {
 		t.Fatalf("taking the edition in: %v", err)
 	}
 
-	state, moved := freshnessOf(t, ctx, repo, kase.ID)
+	state, moved := freshnessOf(t, ctx, repo, project.Slug, kase.ID)
 	if state != "" {
 		t.Errorf("freshness = %q, want nothing — no reference exists", state)
 	}
@@ -142,13 +142,13 @@ func TestTheSameBytesComeBackCurrentWithoutBeingCompared(t *testing.T) {
 	if err := takeIn(t, ctx, repo, blobs, project, kase, same); err != nil {
 		t.Fatalf("taking the first edition in: %v", err)
 	}
-	validateOnly(t, ctx, repo, kase.ID)
+	validateOnly(t, ctx, repo, project.Slug, kase.ID)
 
 	if err := takeIn(t, ctx, repo, blobs, project, kase, same); err != nil {
 		t.Fatalf("taking the second edition in: %v", err)
 	}
 
-	state, moved := freshnessOf(t, ctx, repo, kase.ID)
+	state, moved := freshnessOf(t, ctx, repo, project.Slug, kase.ID)
 	if state != string(freshness.Current) {
 		t.Errorf("freshness = %q, want current", state)
 	}
@@ -164,13 +164,13 @@ func TestAnImageThatMovedIsMarkedAndCounted(t *testing.T) {
 	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 0)); err != nil {
 		t.Fatalf("taking the first edition in: %v", err)
 	}
-	validateOnly(t, ctx, repo, kase.ID)
+	validateOnly(t, ctx, repo, project.Slug, kase.ID)
 
 	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 4)); err != nil {
 		t.Fatalf("taking the second edition in: %v", err)
 	}
 
-	state, moved := freshnessOf(t, ctx, repo, kase.ID)
+	state, moved := freshnessOf(t, ctx, repo, project.Slug, kase.ID)
 	if state != string(freshness.ToReReview) {
 		t.Errorf("freshness = %q, want to-re-review", state)
 	}
@@ -194,14 +194,14 @@ func TestNoiseUnderTheProjectsThresholdSummonsNobody(t *testing.T) {
 	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 0)); err != nil {
 		t.Fatalf("taking the first edition in: %v", err)
 	}
-	validateOnly(t, ctx, repo, kase.ID)
+	validateOnly(t, ctx, repo, project.Slug, kase.ID)
 
 	// Four differing pixels, on a project that calls ten of them noise.
 	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 4)); err != nil {
 		t.Fatalf("taking the second edition in: %v", err)
 	}
 
-	state, moved := freshnessOf(t, ctx, repo, kase.ID)
+	state, moved := freshnessOf(t, ctx, repo, project.Slug, kase.ID)
 	if state != string(freshness.Current) {
 		t.Errorf("freshness = %q, want current — four pixels under a threshold of ten", state)
 	}
@@ -227,7 +227,7 @@ func TestACaptureThatIsNotAPNGIsRefused(t *testing.T) {
 	}
 
 	// Refused before anything is written, like every other refusal.
-	grid, err := repo.CaseGrid(ctx, kase.ID, nil)
+	grid, err := repo.CaseGrid(ctx, project.Slug, kase.ID, nil)
 	if err != nil {
 		t.Fatalf("reading the grid: %v", err)
 	}

@@ -166,8 +166,18 @@ func nonEmpty(s string) *string {
 }
 
 // OfCase reads every comment on a case, with its variants and its judgments.
-func (r *Repository) OfCase(ctx context.Context, caseID string) ([]appcomment.Record, error) {
-	rows, err := r.q.CaseComments(ctx, caseID)
+//
+// Scoped by the project: a case id from elsewhere reads as a case with no
+// comments, never as somebody else's remarks (#71).
+func (r *Repository) OfCase(ctx context.Context, slug, caseID string) ([]appcomment.Record, error) {
+	kase, err := r.q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: caseID, Slug: slug})
+	if err != nil {
+		return nil, translate("reading the case", err)
+	}
+
+	rows, err := r.q.CaseComments(ctx, sqlcgen.CaseCommentsParams{
+		CaseID: caseID, ProjectID: kase.ProjectID,
+	})
 	if err != nil {
 		return nil, translate("reading the comments", err)
 	}

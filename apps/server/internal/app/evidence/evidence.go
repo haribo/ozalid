@@ -67,7 +67,7 @@ type Grid struct {
 
 // Repository is the outbound port this package needs.
 type Repository interface {
-	CaseGrid(ctx context.Context, caseID string, editionID *string) (Grid, error)
+	CaseGrid(ctx context.Context, slug, caseID string, editionID *string) (Grid, error)
 }
 
 // Service reads evidence.
@@ -81,6 +81,6 @@ func New(repo Repository) *Service { return &Service{repo: repo} }
 //
 // A case with no capture answers with an empty grid rather than an error: not
 // being instrumented is a legitimate state, not a failure (ADR 0012).
-func (s *Service) Grid(ctx context.Context, caseID string, editionID *string) (Grid, error) {
-	return s.repo.CaseGrid(ctx, caseID, editionID)
+func (s *Service) Grid(ctx context.Context, slug, caseID string, editionID *string) (Grid, error) {
+	return s.repo.CaseGrid(ctx, slug, caseID, editionID)
 }

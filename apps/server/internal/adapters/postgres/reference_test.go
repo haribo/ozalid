@@ -3,6 +3,7 @@ package postgres_test
 import (
 	"testing"
 
+	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres/sqlcgen"
 	appcomment "github.com/haribo/ozalid/apps/server/internal/app/comment"
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
 	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
@@ -12,9 +13,9 @@ import (
 func TestValidatingASquareRemembersTheBytesThatWereApproved(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	hash := pushEdition(t, ctx, repo, project, kase, "the form on ci", "ci")
-	cell := onlyCell(t, ctx, repo, kase.ID)
+	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
 
-	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
+	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Validated: []review.Cell{cell},
 	}); err != nil {
 		t.Fatalf("saving the review: %v", err)
@@ -45,15 +46,15 @@ func TestEachEnvironmentKeepsItsOwnReference(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 
 	fromCI := pushEdition(t, ctx, repo, project, kase, "the form on ci", "ci")
-	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Validated: []review.Cell{onlyCell(t, ctx, repo, kase.ID)},
+	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
+		Validated: []review.Cell{onlyCell(t, ctx, repo, project.Slug, kase.ID)},
 	}); err != nil {
 		t.Fatalf("saving the first review: %v", err)
 	}
 
 	fromLaptop := pushEdition(t, ctx, repo, project, kase, "the form on a laptop", "laptop")
-	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Validated: []review.Cell{onlyCell(t, ctx, repo, kase.ID)},
+	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
+		Validated: []review.Cell{onlyCell(t, ctx, repo, project.Slug, kase.ID)},
 	}); err != nil {
 		t.Fatalf("saving the second review: %v", err)
 	}
@@ -82,9 +83,9 @@ func TestASquareThatNobodyLookedAtIsNeverStamped(t *testing.T) {
 	// approved those bytes, so nothing is remembered about them.
 	ctx, repo, project, kase := intakeFixture(t)
 	pushEdition(t, ctx, repo, project, kase, "the form on ci", "ci")
-	cell := onlyCell(t, ctx, repo, kase.ID)
+	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
 
-	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
+	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Comments: []session.NewComment{{
 			StepID: cell.StepID, Kind: "defect", Body: "the button is cropped",
 			VariantIDs: []string{cell.VariantID},
@@ -92,7 +93,7 @@ func TestASquareThatNobodyLookedAtIsNeverStamped(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("saving the review: %v", err)
 	}
-	comments, err := repo.Queries().CaseComments(ctx, kase.ID)
+	comments, err := repo.Queries().CaseComments(ctx, sqlcgen.CaseCommentsParams{CaseID: kase.ID, ProjectID: project.ID})
 	if err != nil {
 		t.Fatalf("reading the comments: %v", err)
 	}
@@ -124,9 +125,9 @@ func TestTheJournalRecordsWhatTheActorSaysItIs(t *testing.T) {
 	// is, and nothing guesses (ADR 0018).
 	ctx, repo, project, kase := intakeFixture(t)
 	pushEdition(t, ctx, repo, project, kase, "the form on ci", "ci")
-	cell := onlyCell(t, ctx, repo, kase.ID)
+	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
 
-	if _, err := repo.SaveReview(ctx, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
+	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Comments: []session.NewComment{{
 			StepID: cell.StepID, Kind: "defect", Body: "the button is cropped",
 			VariantIDs: []string{cell.VariantID},
@@ -134,7 +135,7 @@ func TestTheJournalRecordsWhatTheActorSaysItIs(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("saving the review: %v", err)
 	}
-	comments, err := repo.Queries().CaseComments(ctx, kase.ID)
+	comments, err := repo.Queries().CaseComments(ctx, sqlcgen.CaseCommentsParams{CaseID: kase.ID, ProjectID: project.ID})
 	if err != nil {
 		t.Fatalf("reading the comments: %v", err)
 	}

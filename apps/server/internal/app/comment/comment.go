@@ -40,7 +40,7 @@ type Repository interface {
 	Discard(ctx context.Context, commentID string, by actor.Actor, reason string) (Outcome, error)
 	Deliver(ctx context.Context, commentID string, by actor.Actor) (Outcome, error)
 	Judge(ctx context.Context, commentID string, by actor.Actor, accept bool, remark string) (Outcome, error)
-	OfCase(ctx context.Context, caseID string) ([]Record, error)
+	OfCase(ctx context.Context, slug, caseID string) ([]Record, error)
 }
 
 // Service moves comments along.
@@ -107,6 +107,6 @@ type Judgment struct {
 // OfCase returns what has been said about a case, settled comments included:
 // nothing is deleted, and a discarded one stays visible with its reason
 // (ADR 0006).
-func (s *Service) OfCase(ctx context.Context, caseID string) ([]Record, error) {
-	return s.repo.OfCase(ctx, caseID)
+func (s *Service) OfCase(ctx context.Context, slug, caseID string) ([]Record, error) {
+	return s.repo.OfCase(ctx, slug, caseID)
 }
