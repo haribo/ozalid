@@ -72,7 +72,9 @@ const groups = computed(() => {
  * against, so the reviewer lands on what is being talked about. */
 function entryVariant(items: Comment[]) {
   const known = new Set(props.grid.variants.map((v) => v.id))
-  return items.flatMap((c) => c.variantIds).find((id) => known.has(id)) ?? props.grid.variants[0]?.id
+  return (
+    items.flatMap((c) => c.variantIds).find((id) => known.has(id)) ?? props.grid.variants[0]?.id
+  )
 }
 
 /** The last refusal's remark: it is what the dev has to read, not the state. */
@@ -176,7 +178,11 @@ function lastRefusal(c: Comment) {
                   <ActionIcon name="refuse" :size="12" label="refusé" />{{ lastRefusal(c) }}
                 </span>
               </td>
-              <td v-for="v in grid.variants" :key="v.id" class="px-1 py-2.5 text-center align-middle">
+              <td
+                v-for="v in grid.variants"
+                :key="v.id"
+                class="px-1 py-2.5 text-center align-middle"
+              >
                 <ActionIcon
                   v-if="c.variantIds.includes(v.id)"
                   name="check"

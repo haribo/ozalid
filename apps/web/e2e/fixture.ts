@@ -38,7 +38,9 @@ async function call(path: string, init?: RequestInit) {
     headers: { ...init?.headers, ...(TOKEN ? { authorization: `Bearer ${TOKEN}` } : {}) },
   })
   if (!response.ok) {
-    throw new Error(`${init?.method ?? 'GET'} ${path} — ${response.status} ${await response.text()}`)
+    throw new Error(
+      `${init?.method ?? 'GET'} ${path} — ${response.status} ${await response.text()}`,
+    )
   }
   return response
 }
@@ -122,8 +124,14 @@ export async function moveTheDarkVariant(page: Page, seeded: Seeded): Promise<vo
 }
 
 /** Report one defect over every variant of one step, through the API. */
-export async function commentOnStep(seeded: Seeded, stepIndex: number, body: string): Promise<void> {
-  const grid = (await (await call(`/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)).json()) as {
+export async function commentOnStep(
+  seeded: Seeded,
+  stepIndex: number,
+  body: string,
+): Promise<void> {
+  const grid = (await (
+    await call(`/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)
+  ).json()) as {
     steps: { id: string; cells: { variantId: string }[] }[]
   }
   const step = grid.steps[stepIndex]
@@ -144,7 +152,9 @@ export async function commentOnStep(seeded: Seeded, stepIndex: number, body: str
 
 /** Validate every square, the way a reviewer who had nothing to say would. */
 export async function validateEverything(seeded: Seeded): Promise<void> {
-  const grid = (await (await call(`/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)).json()) as {
+  const grid = (await (
+    await call(`/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)
+  ).json()) as {
     steps: { id: string; cells: { variantId: string }[] }[]
   }
   await call(

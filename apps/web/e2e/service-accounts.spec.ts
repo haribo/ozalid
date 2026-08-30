@@ -15,9 +15,11 @@ const unique = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
 /** What a token can reach: the project's catalogue, and nothing outside it. */
 const reads = async (token: string) =>
-  (await fetch(`${API}/api/projects/${PROJECT}/cases`, {
-    headers: { authorization: `Bearer ${token}` },
-  })).status
+  (
+    await fetch(`${API}/api/projects/${PROJECT}/cases`, {
+      headers: { authorization: `Bearer ${token}` },
+    })
+  ).status
 
 test('a program is given an account, a token, and the token works', async ({ request }) => {
   const made = await request.post(`${API}/api/projects/${PROJECT}/service-accounts`, {
@@ -31,7 +33,9 @@ test('a program is given an account, a token, and the token works', async ({ req
   expect(await reads(token.token)).toBe(200)
 
   // Shown once: what comes back afterwards is the label, never the token.
-  const listed = await request.get(`${API}/api/projects/${PROJECT}/service-accounts/${account.id}/tokens`)
+  const listed = await request.get(
+    `${API}/api/projects/${PROJECT}/service-accounts/${account.id}/tokens`,
+  )
   expect(listed.status()).toBe(200)
   const tokens = await listed.json()
   expect(tokens).toHaveLength(1)
@@ -47,9 +51,12 @@ test('minting a second token leaves the first one working', async ({ request }) 
   })
   const { account, token: first } = await made.json()
 
-  const minted = await request.post(`${API}/api/projects/${PROJECT}/service-accounts/${account.id}/tokens`, {
-    data: { label: 'the new one' },
-  })
+  const minted = await request.post(
+    `${API}/api/projects/${PROJECT}/service-accounts/${account.id}/tokens`,
+    {
+      data: { label: 'the new one' },
+    },
+  )
   expect(minted.status()).toBe(201)
   const second = await minted.json()
   expect(second.token).not.toBe(first.token)
@@ -60,9 +67,17 @@ test('minting a second token leaves the first one working', async ({ request }) 
   expect(await reads(second.token)).toBe(200)
 
   // Then the old one goes, and only the old one.
-  const tokens = await (await request.get(`${API}/api/projects/${PROJECT}/service-accounts/${account.id}/tokens`)).json()
+  const tokens = await (
+    await request.get(`${API}/api/projects/${PROJECT}/service-accounts/${account.id}/tokens`)
+  ).json()
   const old = tokens.find((t: { label: string }) => t.label === 'the old one')
-  expect((await request.delete(`${API}/api/projects/${PROJECT}/service-accounts/${account.id}/tokens/${old.id}`)).status()).toBe(204)
+  expect(
+    (
+      await request.delete(
+        `${API}/api/projects/${PROJECT}/service-accounts/${account.id}/tokens/${old.id}`,
+      )
+    ).status(),
+  ).toBe(204)
 
   expect(await reads(first.token)).toBe(401)
   expect(await reads(second.token)).toBe(200)
@@ -73,14 +88,24 @@ test('retiring the account stops every token it held', async ({ request }) => {
     data: { name: `leaving ${unique()}`, tokenLabel: 'first' },
   })
   const { account, token } = await made.json()
-  const other = await (await request.post(`${API}/api/projects/${PROJECT}/service-accounts/${account.id}/tokens`, {
-    data: { label: 'second' },
-  })).json()
+  const other = await (
+    await request.post(`${API}/api/projects/${PROJECT}/service-accounts/${account.id}/tokens`, {
+      data: { label: 'second' },
+    })
+  ).json()
 
-  expect((await request.delete(`${API}/api/projects/${PROJECT}/service-accounts/${account.id}`)).status()).toBe(204)
+  expect(
+    (
+      await request.delete(`${API}/api/projects/${PROJECT}/service-accounts/${account.id}`)
+    ).status(),
+  ).toBe(204)
   // Idempotent, like retiring a person: the day it happened does not move, and
   // asking twice is not an error.
-  expect((await request.delete(`${API}/api/projects/${PROJECT}/service-accounts/${account.id}`)).status()).toBe(204)
+  expect(
+    (
+      await request.delete(`${API}/api/projects/${PROJECT}/service-accounts/${account.id}`)
+    ).status(),
+  ).toBe(204)
 
   expect(await reads(token.token)).toBe(401)
   expect(await reads(other.token)).toBe(401)
@@ -106,7 +131,9 @@ test('a program cannot make itself another program', async () => {
   expect(refused.status).toBe(403)
 })
 
-test('a service account belongs to one project and is not reachable from another', async ({ request }) => {
+test('a service account belongs to one project and is not reachable from another', async ({
+  request,
+}) => {
   const slug = `elsewhere-${unique()}`
   await request.post(`${API}/api/projects`, { data: { slug, name: 'another team' } })
 
@@ -116,6 +143,12 @@ test('a service account belongs to one project and is not reachable from another
   const { account } = await made.json()
 
   // Named under a project it does not belong to, it is simply not there.
-  expect((await request.get(`${API}/api/projects/${slug}/service-accounts/${account.id}/tokens`)).status()).toBe(404)
-  expect((await request.delete(`${API}/api/projects/${slug}/service-accounts/${account.id}`)).status()).toBe(404)
+  expect(
+    (
+      await request.get(`${API}/api/projects/${slug}/service-accounts/${account.id}/tokens`)
+    ).status(),
+  ).toBe(404)
+  expect(
+    (await request.delete(`${API}/api/projects/${slug}/service-accounts/${account.id}`)).status(),
+  ).toBe(404)
 })

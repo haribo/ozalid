@@ -15,7 +15,9 @@ const TOKEN = process.env.OZALID_E2E_TOKEN ?? ''
 
 const unique = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
-async function anAccount(request: { post: (url: string, o: object) => Promise<{ json: () => Promise<{ id: string }> }> }) {
+async function anAccount(request: {
+  post: (url: string, o: object) => Promise<{ json: () => Promise<{ id: string }> }>
+}) {
   const made = await request.post(`${API}/api/accounts`, {
     data: { name: `hired ${unique()}`, email: `member-${unique()}@example.test` },
   })
@@ -25,9 +27,13 @@ async function anAccount(request: { post: (url: string, o: object) => Promise<{ 
 test('a person is granted, listed, promoted and taken off again', async ({ request }) => {
   const accountId = await anAccount(request)
 
-  expect((await request.put(`${API}/api/projects/${PROJECT}/members/${accountId}`, {
-    data: { rights: 'reader' },
-  })).status()).toBe(204)
+  expect(
+    (
+      await request.put(`${API}/api/projects/${PROJECT}/members/${accountId}`, {
+        data: { rights: 'reader' },
+      })
+    ).status(),
+  ).toBe(204)
 
   const listed = await request.get(`${API}/api/projects/${PROJECT}/members`)
   expect(listed.status()).toBe(200)
@@ -38,18 +44,30 @@ test('a person is granted, listed, promoted and taken off again', async ({ reque
 
   // Granting again changes the rights rather than failing: revoking first would
   // be two calls, and forgetting the second is how somebody loses their access.
-  expect((await request.put(`${API}/api/projects/${PROJECT}/members/${accountId}`, {
-    data: { rights: 'member' },
-  })).status()).toBe(204)
+  expect(
+    (
+      await request.put(`${API}/api/projects/${PROJECT}/members/${accountId}`, {
+        data: { rights: 'member' },
+      })
+    ).status(),
+  ).toBe(204)
   const promoted = await request.get(`${API}/api/projects/${PROJECT}/members`)
-  expect((await promoted.json()).find((m: { accountId: string }) => m.accountId === accountId).rights).toBe('member')
+  expect(
+    (await promoted.json()).find((m: { accountId: string }) => m.accountId === accountId).rights,
+  ).toBe('member')
 
-  expect((await request.delete(`${API}/api/projects/${PROJECT}/members/${accountId}`)).status()).toBe(204)
+  expect(
+    (await request.delete(`${API}/api/projects/${PROJECT}/members/${accountId}`)).status(),
+  ).toBe(204)
   // Idempotent: they wanted them off, and they are.
-  expect((await request.delete(`${API}/api/projects/${PROJECT}/members/${accountId}`)).status()).toBe(204)
+  expect(
+    (await request.delete(`${API}/api/projects/${PROJECT}/members/${accountId}`)).status(),
+  ).toBe(204)
 
   const after = await request.get(`${API}/api/projects/${PROJECT}/members`)
-  expect((await after.json()).some((m: { accountId: string }) => m.accountId === accountId)).toBe(false)
+  expect((await after.json()).some((m: { accountId: string }) => m.accountId === accountId)).toBe(
+    false,
+  )
 })
 
 test('the list holds programs as well as people', async ({ request }) => {
@@ -58,7 +76,10 @@ test('the list holds programs as well as people', async ({ request }) => {
   // can see the book.
   const listed = await request.get(`${API}/api/projects/${PROJECT}/members`)
   const programs = (await listed.json()).filter((m: { isPerson: boolean }) => !m.isPerson)
-  expect(programs.length, 'no service account listed, though one pushes this suite').toBeGreaterThan(0)
+  expect(
+    programs.length,
+    'no service account listed, though one pushes this suite',
+  ).toBeGreaterThan(0)
   expect(programs[0].email).toBeUndefined()
 })
 
@@ -102,9 +123,13 @@ test('a service account grants nothing, however good its token', async () => {
 
 test('an administrator grants on a project they still cannot read', async ({ request }) => {
   const slug = `outsiders-${unique()}`
-  expect((await request.post(`${API}/api/projects`, {
-    data: { slug, name: 'a team the administrator is not on' },
-  })).status()).toBe(201)
+  expect(
+    (
+      await request.post(`${API}/api/projects`, {
+        data: { slug, name: 'a team the administrator is not on' },
+      })
+    ).status(),
+  ).toBe(201)
 
   // Creating it does not join it. This is the line §8.2 turns on: an
   // administrator who could read every project would see every team's work.
@@ -114,9 +139,13 @@ test('an administrator grants on a project they still cannot read', async ({ req
   // And they can still put somebody on it, which is the whole point of the
   // separation: administering is not reading.
   const accountId = await anAccount(request)
-  expect((await request.put(`${API}/api/projects/${slug}/members/${accountId}`, {
-    data: { rights: 'member' },
-  })).status()).toBe(204)
+  expect(
+    (
+      await request.put(`${API}/api/projects/${slug}/members/${accountId}`, {
+        data: { rights: 'member' },
+      })
+    ).status(),
+  ).toBe(204)
 
   // Still not theirs to read, membership granted or not.
   expect((await request.get(`${API}/api/projects/${slug}/cases`)).status()).toBe(403)
