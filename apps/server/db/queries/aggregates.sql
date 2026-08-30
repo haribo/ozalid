@@ -106,8 +106,14 @@ DO UPDATE SET status = EXCLUDED.status, updated_at = now();
 -- name: SetCaseState :exec
 UPDATE cases SET state = $2, updated_at = now() WHERE id = $1;
 
+-- A comment, inside the project the caller named. Reached through its case,
+-- which is what carries the project: the comment table names no project of its
+-- own (#71).
 -- name: GetComment :one
-SELECT * FROM comments WHERE id = $1;
+SELECT c.* FROM comments c
+JOIN cases k ON k.id = c.case_id
+JOIN projects p ON p.id = k.project_id
+WHERE c.id = $1 AND p.slug = $2;
 
 -- The state is written by the server as a consequence of a recorded move,
 -- never received as an argument (ADR 0002).

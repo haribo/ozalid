@@ -489,11 +489,22 @@ func (q *Queries) DiscardComment(ctx context.Context, arg DiscardCommentParams) 
 }
 
 const getComment = `-- name: GetComment :one
-SELECT id, case_id, step_id, kind, body, state, issue_ref, issue_url, issue_title, discard_reason, author_id, created_at, updated_at FROM comments WHERE id = $1
+SELECT c.id, c.case_id, c.step_id, c.kind, c.body, c.state, c.issue_ref, c.issue_url, c.issue_title, c.discard_reason, c.author_id, c.created_at, c.updated_at FROM comments c
+JOIN cases k ON k.id = c.case_id
+JOIN projects p ON p.id = k.project_id
+WHERE c.id = $1 AND p.slug = $2
 `
 
-func (q *Queries) GetComment(ctx context.Context, id string) (Comment, error) {
-	row := q.db.QueryRow(ctx, getComment, id)
+type GetCommentParams struct {
+	ID   string
+	Slug string
+}
+
+// A comment, inside the project the caller named. Reached through its case,
+// which is what carries the project: the comment table names no project of its
+// own (#71).
+func (q *Queries) GetComment(ctx context.Context, arg GetCommentParams) (Comment, error) {
+	row := q.db.QueryRow(ctx, getComment, arg.ID, arg.Slug)
 	var i Comment
 	err := row.Scan(
 		&i.ID,

@@ -97,12 +97,18 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 const deleteEmptyCategory = `-- name: DeleteEmptyCategory :execrows
 DELETE FROM categories c
 WHERE c.id = $1
+  AND c.project_id = (SELECT p.id FROM projects p WHERE p.slug = $2)
   AND NOT EXISTS (SELECT 1 FROM categories s WHERE s.parent_id = c.id)
   AND NOT EXISTS (SELECT 1 FROM cases k WHERE k.category_id = c.id)
 `
 
-func (q *Queries) DeleteEmptyCategory(ctx context.Context, id string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteEmptyCategory, id)
+type DeleteEmptyCategoryParams struct {
+	ID   string
+	Slug string
+}
+
+func (q *Queries) DeleteEmptyCategory(ctx context.Context, arg DeleteEmptyCategoryParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteEmptyCategory, arg.ID, arg.Slug)
 	if err != nil {
 		return 0, err
 	}

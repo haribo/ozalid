@@ -35,7 +35,7 @@ func (s *stubRepo) ArchiveCase(context.Context, string, string) (bool, error) {
 	return s.archiveRows, nil
 }
 
-func (s *stubRepo) DeleteEmptyCategory(context.Context, string) (bool, error) {
+func (s *stubRepo) DeleteEmptyCategory(context.Context, string, string) (bool, error) {
 	return s.deleteRows, nil
 }
 
@@ -79,7 +79,7 @@ func TestDeletingANonEmptyCategoryIsReportedRatherThanSilentlyIgnored(t *testing
 	// there (ADR 0014).
 	svc := app.New(&stubRepo{deleteRows: false})
 
-	err := svc.DeleteCategory(context.Background(), "cat")
+	err := svc.DeleteCategory(context.Background(), "atlas", "cat")
 	if !errors.Is(err, catalogue.ErrCategoryNotEmpty) {
 		t.Errorf("err = %v, want ErrCategoryNotEmpty", err)
 	}
