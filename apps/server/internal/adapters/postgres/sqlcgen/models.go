@@ -149,10 +149,11 @@ type Recording struct {
 }
 
 type ServiceAccount struct {
-	ID        string
-	Name      string
-	OwnerID   string
-	CreatedAt pgtype.Timestamptz
+	ID            string
+	Name          string
+	OwnerID       string
+	CreatedAt     pgtype.Timestamptz
+	DeactivatedAt pgtype.Timestamptz
 }
 
 type ServiceToken struct {

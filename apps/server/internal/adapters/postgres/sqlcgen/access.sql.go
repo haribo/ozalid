@@ -55,7 +55,7 @@ func (q *Queries) ClaimSignInLink(ctx context.Context, linkHash string) (string,
 const createServiceAccount = `-- name: CreateServiceAccount :one
 INSERT INTO service_accounts (name, owner_id)
 VALUES ($1, $2)
-RETURNING id, name, owner_id, created_at
+RETURNING id, name, owner_id, created_at, deactivated_at
 `
 
 type CreateServiceAccountParams struct {
@@ -71,6 +71,33 @@ func (q *Queries) CreateServiceAccount(ctx context.Context, arg CreateServiceAcc
 		&i.Name,
 		&i.OwnerID,
 		&i.CreatedAt,
+		&i.DeactivatedAt,
+	)
+	return i, err
+}
+
+const createServiceAccountInProject = `-- name: CreateServiceAccountInProject :one
+INSERT INTO service_accounts (name, owner_id)
+SELECT $1, $2
+WHERE EXISTS (SELECT 1 FROM projects WHERE slug = $3)
+RETURNING id, name, owner_id, created_at, deactivated_at
+`
+
+type CreateServiceAccountInProjectParams struct {
+	Name    string
+	OwnerID string
+	Slug    string
+}
+
+func (q *Queries) CreateServiceAccountInProject(ctx context.Context, arg CreateServiceAccountInProjectParams) (ServiceAccount, error) {
+	row := q.db.QueryRow(ctx, createServiceAccountInProject, arg.Name, arg.OwnerID, arg.Slug)
+	var i ServiceAccount
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.OwnerID,
+		&i.CreatedAt,
+		&i.DeactivatedAt,
 	)
 	return i, err
 }
@@ -162,6 +189,28 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const deactivateServiceAccount = `-- name: DeactivateServiceAccount :execrows
+UPDATE service_accounts sa
+SET deactivated_at = coalesce(sa.deactivated_at, now())
+FROM project_members m, projects p
+WHERE sa.id = $1 AND m.service_account_id = sa.id
+  AND p.id = m.project_id AND p.slug = $2
+`
+
+type DeactivateServiceAccountParams struct {
+	ID   string
+	Slug string
+}
+
+// Idempotent, like deactivating a person: the day it happened does not move.
+func (q *Queries) DeactivateServiceAccount(ctx context.Context, arg DeactivateServiceAccountParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deactivateServiceAccount, arg.ID, arg.Slug)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deactivateUser = `-- name: DeactivateUser :execrows
 UPDATE users SET deactivated_at = coalesce(deactivated_at, now()) WHERE id = $1
 `
@@ -172,6 +221,28 @@ UPDATE users SET deactivated_at = coalesce(deactivated_at, now()) WHERE id = $1
 // twice is not two different days.
 func (q *Queries) DeactivateUser(ctx context.Context, id string) (int64, error) {
 	result, err := q.db.Exec(ctx, deactivateUser, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteServiceToken = `-- name: DeleteServiceToken :execrows
+DELETE FROM service_tokens t
+USING service_accounts sa, project_members m, projects p
+WHERE t.id = $1 AND t.service_account_id = $2
+  AND sa.id = t.service_account_id
+  AND m.service_account_id = sa.id AND p.id = m.project_id AND p.slug = $3
+`
+
+type DeleteServiceTokenParams struct {
+	ID               string
+	ServiceAccountID string
+	Slug             string
+}
+
+func (q *Queries) DeleteServiceToken(ctx context.Context, arg DeleteServiceTokenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteServiceToken, arg.ID, arg.ServiceAccountID, arg.Slug)
 	if err != nil {
 		return 0, err
 	}
@@ -266,6 +337,55 @@ func (q *Queries) ListProjectMembers(ctx context.Context, slug string) ([]ListPr
 	return items, nil
 }
 
+const listServiceTokens = `-- name: ListServiceTokens :many
+SELECT t.id, t.label, t.created_at, t.last_used_at
+FROM service_tokens t
+JOIN service_accounts sa ON sa.id = t.service_account_id
+JOIN project_members m ON m.service_account_id = sa.id
+JOIN projects p ON p.id = m.project_id
+WHERE t.service_account_id = $1 AND p.slug = $2
+ORDER BY t.created_at DESC
+`
+
+type ListServiceTokensParams struct {
+	ServiceAccountID string
+	Slug             string
+}
+
+type ListServiceTokensRow struct {
+	ID         string
+	Label      string
+	CreatedAt  pgtype.Timestamptz
+	LastUsedAt pgtype.Timestamptz
+}
+
+// What a token is for and whether anything still uses it. Never the token: only
+// its hash was ever stored, and a hash is not a credential anyone can present.
+func (q *Queries) ListServiceTokens(ctx context.Context, arg ListServiceTokensParams) ([]ListServiceTokensRow, error) {
+	rows, err := q.db.Query(ctx, listServiceTokens, arg.ServiceAccountID, arg.Slug)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListServiceTokensRow{}
+	for rows.Next() {
+		var i ListServiceTokensRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Label,
+			&i.CreatedAt,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUsers = `-- name: ListUsers :many
 SELECT id, name, email, is_admin, deactivated_at, created_at FROM users ORDER BY lower(name), id
 `
@@ -320,7 +440,7 @@ const serviceAccountByTokenHash = `-- name: ServiceAccountByTokenHash :one
 SELECT s.id, s.name, t.id AS token_id
 FROM service_tokens t
 JOIN service_accounts s ON s.id = t.service_account_id
-WHERE t.token_hash = $1
+WHERE t.token_hash = $1 AND s.deactivated_at IS NULL
 `
 
 type ServiceAccountByTokenHashRow struct {
@@ -333,10 +453,37 @@ type ServiceAccountByTokenHashRow struct {
 //
 // Nothing here compares the token itself: the hash is the key, so a lookup
 // never carries a secret into a query plan or a slow-query log.
+// A deactivated service account resolves to nothing, exactly as a deactivated
+// person does: the token still exists, and stops opening anything.
 func (q *Queries) ServiceAccountByTokenHash(ctx context.Context, tokenHash string) (ServiceAccountByTokenHashRow, error) {
 	row := q.db.QueryRow(ctx, serviceAccountByTokenHash, tokenHash)
 	var i ServiceAccountByTokenHashRow
 	err := row.Scan(&i.ID, &i.Name, &i.TokenID)
+	return i, err
+}
+
+const serviceAccountInProject = `-- name: ServiceAccountInProject :one
+SELECT sa.id, sa.name, sa.owner_id, sa.created_at, sa.deactivated_at FROM service_accounts sa
+JOIN project_members m ON m.service_account_id = sa.id
+JOIN projects p ON p.id = m.project_id
+WHERE sa.id = $1 AND p.slug = $2 AND sa.deactivated_at IS NULL
+`
+
+type ServiceAccountInProjectParams struct {
+	ID   string
+	Slug string
+}
+
+func (q *Queries) ServiceAccountInProject(ctx context.Context, arg ServiceAccountInProjectParams) (ServiceAccount, error) {
+	row := q.db.QueryRow(ctx, serviceAccountInProject, arg.ID, arg.Slug)
+	var i ServiceAccount
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.OwnerID,
+		&i.CreatedAt,
+		&i.DeactivatedAt,
+	)
 	return i, err
 }
 
