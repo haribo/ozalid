@@ -120,7 +120,7 @@ func run() error {
 		Version:      version,
 		Blobs:        blobs,
 		BlobRecorder: store,
-		Account:      account.New(store),
+		Account:      account.New(store, store),
 		Catalogue:    catalogue.New(store),
 		Tokens:       store,
 		SignIn:       store,
