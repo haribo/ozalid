@@ -7,12 +7,23 @@ import (
 
 	app "github.com/haribo/ozalid/apps/server/internal/app/catalogue"
 	"github.com/haribo/ozalid/apps/server/internal/app/comment"
+	"github.com/haribo/ozalid/apps/server/internal/domain/access"
 	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"github.com/haribo/ozalid/apps/server/internal/ports/http/openapi"
 )
 
 // TrackComment attaches an external issue.
 func (s *Server) TrackComment(ctx context.Context, request openapi.TrackCommentRequestObject) (openapi.TrackCommentResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.WriteProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.TrackComment401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.TrackComment403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	issue := comment.IssueRef{ID: request.Body.Id}
 	if request.Body.Url != nil {
 		issue.URL = *request.Body.Url
@@ -44,6 +55,16 @@ func (s *Server) TrackComment(ctx context.Context, request openapi.TrackCommentR
 
 // DiscardComment sets a comment aside, with its reason.
 func (s *Server) DiscardComment(ctx context.Context, request openapi.DiscardCommentRequestObject) (openapi.DiscardCommentResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.WriteProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.DiscardComment401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.DiscardComment403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	out, err := s.comment.Discard(ctx, request.Slug, request.CommentId, actorFrom(ctx), request.Body.Reason)
 	switch {
 	case errors.Is(err, review.ErrReasonRequired):
@@ -67,6 +88,16 @@ func (s *Server) DiscardComment(ctx context.Context, request openapi.DiscardComm
 
 // DeliverComment is the dev asking for a judgment.
 func (s *Server) DeliverComment(ctx context.Context, request openapi.DeliverCommentRequestObject) (openapi.DeliverCommentResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.WriteProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.DeliverComment401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.DeliverComment403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	out, err := s.comment.Deliver(ctx, request.Slug, request.CommentId, actorFrom(ctx))
 	switch {
 	case errors.Is(err, app.ErrNotFound):
@@ -83,6 +114,16 @@ func (s *Server) DeliverComment(ctx context.Context, request openapi.DeliverComm
 
 // JudgeComment accepts a delivery, or refuses it with a remark.
 func (s *Server) JudgeComment(ctx context.Context, request openapi.JudgeCommentRequestObject) (openapi.JudgeCommentResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.WriteProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.JudgeComment401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.JudgeComment403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	remark := ""
 	if request.Body.Remark != nil {
 		remark = *request.Body.Remark
@@ -111,6 +152,16 @@ func (s *Server) JudgeComment(ctx context.Context, request openapi.JudgeCommentR
 
 // ListComments returns what has been said about a case, settled included.
 func (s *Server) ListComments(ctx context.Context, request openapi.ListCommentsRequestObject) (openapi.ListCommentsResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.ReadProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.ListComments401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.ListComments403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	comments, err := s.comment.OfCase(ctx, request.Slug, request.CaseId)
 	if errors.Is(err, app.ErrNotFound) {
 		return openapi.ListComments404ApplicationProblemPlusJSONResponse{

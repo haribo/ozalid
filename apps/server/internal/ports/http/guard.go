@@ -12,6 +12,9 @@ import (
 // Standings reads what an actor may do on the project a caller named.
 type Standings interface {
 	StandingOnSlug(ctx context.Context, by actor.Actor, slug string) (access.Standing, error)
+	// StandingOf answers about the instance rather than a project. Pass an
+	// empty project id: only `Admin` carries an answer.
+	StandingOf(ctx context.Context, by actor.Actor, projectID string) (access.Standing, error)
 }
 
 // unknownCaller reports that nothing usable was presented.
@@ -58,6 +61,19 @@ func (s *Server) mayNot(ctx context.Context, slug string, a access.Action) (open
 		// A lookup that failed and a caller who is not allowed give the same
 		// answer. Anything else would let someone map an instance by watching
 		// which refusals differ.
+		return refused(), true
+	}
+	return openapi.Problem{}, false
+}
+
+// mayNotOnInstance is mayNot for the powers that belong to no project —
+// creating one, managing accounts (product.md §8.2).
+func (s *Server) mayNotOnInstance(ctx context.Context, a access.Action) (openapi.Problem, bool) {
+	if !isKnown(ctx) {
+		return unknownCaller(), true
+	}
+	standing, err := s.standings.StandingOf(ctx, actorFrom(ctx), "")
+	if err != nil || !access.Allows(standing, a) {
 		return refused(), true
 	}
 	return openapi.Problem{}, false

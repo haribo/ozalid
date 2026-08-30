@@ -7,12 +7,23 @@ import (
 
 	app "github.com/haribo/ozalid/apps/server/internal/app/catalogue"
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
+	"github.com/haribo/ozalid/apps/server/internal/domain/access"
 	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"github.com/haribo/ozalid/apps/server/internal/ports/http/openapi"
 )
 
 // SaveReview records what one review session decided.
 func (s *Server) SaveReview(ctx context.Context, request openapi.SaveReviewRequestObject) (openapi.SaveReviewResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.WriteProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.SaveReview401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.SaveReview403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
 	save := toSave(*request.Body)
 
 	result, err := s.session.Save(ctx, request.Slug, request.CaseId, actorFrom(ctx), save)
