@@ -110,18 +110,18 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/blobs/{hash}": {
+    "/projects/{slug}/blobs/{hash}": {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                slug: string;
                 /** @description The content address, as `sha256:` followed by 64 lowercase hex characters. */
                 hash: string;
             };
             cookie?: never;
         };
-        /** Download the content at this address */
-        get: operations["getBlob"];
+        get?: never;
         /**
          * Store content under its address
          * @description Idempotent: storing content that is already held changes nothing. The bytes
@@ -143,6 +143,11 @@ export interface paths {
          * Report whether the store already holds this content
          * @description Intake calls this before sending bytes: content already held is never
          *     uploaded again, which is what makes a full visual history affordable.
+         *
+         *     Answered for the project the caller is pushing to. The store itself is
+         *     shared across projects — identical bytes are held once
+         *     ([ADR 0004](https://github.com/haribo/ozalid/blob/develop/docs/adr/0004-content-addressed-capture-storage.md)) —
+         *     so this says what intake needs to know and nothing about who else holds it.
          */
         head: operations["headBlob"];
         patch?: never;
@@ -284,6 +289,62 @@ export interface paths {
         put?: never;
         /** Add a node to the tree */
         post: operations["createCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{slug}/captures/{captureId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                captureId: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * The image a capture holds
+         * @description Read through the capture, never through the content address. A hash names
+         *     no project — identical bytes are stored once for every project that
+         *     references them
+         *     ([ADR 0004](https://github.com/haribo/ozalid/blob/develop/docs/adr/0004-content-addressed-capture-storage.md)) —
+         *     so there is nothing there to check a membership against. A capture has a
+         *     row, a case and therefore one project (`product.md` §8.1).
+         *
+         *     The response is immutable: a capture's bytes never change, because a new
+         *     run produces a new capture rather than overwriting one.
+         */
+        get: operations["getCaptureImage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{slug}/recordings/{recordingId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                recordingId: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * The video a recording holds
+         * @description Read through the recording, for the same reason a capture's image is
+         *     (`product.md` §8.1). A recording is a supporting exhibit: never
+         *     byte-compared, never a source of state (ADR 0013).
+         */
+        get: operations["getRecordingVideo"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -759,8 +820,17 @@ export interface components {
             };
         };
         GridCell: {
+            /**
+             * @description The capture. Fetch its image at
+             *     `/projects/{slug}/captures/{captureId}` — the hash names no project and
+             *     cannot be authorised (`product.md` §8.1).
+             */
+            id: string;
             variantId: string;
-            /** @description Fetch the image at `/blobs/{hash}`. */
+            /**
+             * @description The content address these bytes are stored under. What a client
+             *     computes before uploading, not what a reader fetches with.
+             */
             hash: string;
             /**
              * @description Where this square stands. Computed by the server from the comments
@@ -797,6 +867,8 @@ export interface components {
             cells: components["schemas"]["GridCell"][];
         };
         GridRecording: {
+            /** @description Fetch the video at `/projects/{slug}/recordings/{recordingId}`. */
+            id: string;
             variantId: string;
             hash: string;
         };
@@ -923,8 +995,8 @@ export interface components {
                 "application/problem+json": components["schemas"]["problem"];
             };
         };
-        /** @description No such resource. */
-        NotFound: {
+        /** @description The caller is known and not allowed to do this. */
+        Forbidden: {
             headers: {
                 [name: string]: unknown;
             };
@@ -932,8 +1004,8 @@ export interface components {
                 "application/problem+json": components["schemas"]["problem"];
             };
         };
-        /** @description The caller is known and not allowed to do this. */
-        Forbidden: {
+        /** @description No such resource. */
+        NotFound: {
             headers: {
                 [name: string]: unknown;
             };
@@ -1097,36 +1169,12 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
         };
     };
-    getBlob: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The content address, as `sha256:` followed by 64 lowercase hex characters. */
-                hash: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The content. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/octet-stream": string;
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            404: components["responses"]["NotFound"];
-        };
-    };
     putBlob: {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                slug: string;
                 /** @description The content address, as `sha256:` followed by 64 lowercase hex characters. */
                 hash: string;
             };
@@ -1171,6 +1219,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                slug: string;
                 /** @description The content address, as `sha256:` followed by 64 lowercase hex characters. */
                 hash: string;
             };
@@ -1186,6 +1235,8 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             /** @description The store does not hold this content. */
             404: {
                 headers: {
@@ -1467,6 +1518,58 @@ export interface operations {
                     "application/problem+json": components["schemas"]["problem"];
                 };
             };
+        };
+    };
+    getCaptureImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                captureId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The image. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getRecordingVideo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                recordingId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The video. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     getCase: {

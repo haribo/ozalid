@@ -133,8 +133,13 @@ paths:
                     description: Manages accounts and creates projects; reaches no content.
         '401':
           $ref: '#/components/responses/Unauthenticated'
-  /blobs/{hash}:
+  /projects/{slug}/blobs/{hash}:
     parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
       - name: hash
         in: path
         required: true
@@ -147,10 +152,17 @@ paths:
             value: sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
     head:
       operationId: headBlob
+      security:
+        - serviceToken: []
       summary: Report whether the store already holds this content
       description: |
         Intake calls this before sending bytes: content already held is never
         uploaded again, which is what makes a full visual history affordable.
+
+        Answered for the project the caller is pushing to. The store itself is
+        shared across projects — identical bytes are held once
+        ([ADR 0004](https://github.com/haribo/ozalid/blob/develop/docs/adr/0004-content-addressed-capture-storage.md)) —
+        so this says what intake needs to know and nothing about who else holds it.
       tags:
         - blobs
       responses:
@@ -158,25 +170,12 @@ paths:
           description: The store holds this content.
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           description: The store does not hold this content.
-    get:
-      operationId: getBlob
-      summary: Download the content at this address
-      tags:
-        - blobs
-      responses:
-        '200':
-          description: The content.
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
     put:
       operationId: putBlob
       security:
@@ -497,6 +496,86 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/problem'
+  /projects/{slug}/captures/{captureId}:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: captureId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getCaptureImage
+      security:
+        - serviceToken: []
+      summary: The image a capture holds
+      description: |
+        Read through the capture, never through the content address. A hash names
+        no project — identical bytes are stored once for every project that
+        references them
+        ([ADR 0004](https://github.com/haribo/ozalid/blob/develop/docs/adr/0004-content-addressed-capture-storage.md)) —
+        so there is nothing there to check a membership against. A capture has a
+        row, a case and therefore one project (`product.md` §8.1).
+
+        The response is immutable: a capture's bytes never change, because a new
+        run produces a new capture rather than overwriting one.
+      tags:
+        - blobs
+      responses:
+        '200':
+          description: The image.
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /projects/{slug}/recordings/{recordingId}:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: recordingId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getRecordingVideo
+      security:
+        - serviceToken: []
+      summary: The video a recording holds
+      description: |
+        Read through the recording, for the same reason a capture's image is
+        (`product.md` §8.1). A recording is a supporting exhibit: never
+        byte-compared, never a source of state (ADR 0013).
+      tags:
+        - blobs
+      responses:
+        '200':
+          description: The video.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /projects/{slug}/cases/{caseId}:
     parameters:
       - name: slug
@@ -1252,15 +1331,24 @@ components:
     GridCell:
       type: object
       required:
+        - id
         - variantId
         - hash
         - status
       properties:
+        id:
+          type: string
+          description: |
+            The capture. Fetch its image at
+            `/projects/{slug}/captures/{captureId}` — the hash names no project and
+            cannot be authorised (`product.md` §8.1).
         variantId:
           type: string
         hash:
           type: string
-          description: Fetch the image at `/blobs/{hash}`.
+          description: |
+            The content address these bytes are stored under. What a client
+            computes before uploading, not what a reader fetches with.
         status:
           type: string
           enum:
@@ -1316,9 +1404,13 @@ components:
     GridRecording:
       type: object
       required:
+        - id
         - variantId
         - hash
       properties:
+        id:
+          type: string
+          description: Fetch the video at `/projects/{slug}/recordings/{recordingId}`.
         variantId:
           type: string
         hash:
@@ -1559,14 +1651,14 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/problem'
-    NotFound:
-      description: No such resource.
+    Forbidden:
+      description: The caller is known and not allowed to do this.
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/problem'
-    Forbidden:
-      description: The caller is known and not allowed to do this.
+    NotFound:
+      description: No such resource.
       content:
         application/problem+json:
           schema:

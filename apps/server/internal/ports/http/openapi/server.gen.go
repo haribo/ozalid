@@ -397,8 +397,14 @@ type GridCell struct {
 	// move stays `reviewed` until its reviewer says otherwise.
 	Freshness *GridCellFreshness `json:"freshness,omitempty"`
 
-	// Hash Fetch the image at `/blobs/{hash}`.
+	// Hash The content address these bytes are stored under. What a client
+	// computes before uploading, not what a reader fetches with.
 	Hash string `json:"hash"`
+
+	// Id The capture. Fetch its image at
+	// `/projects/{slug}/captures/{captureId}` — the hash names no project and
+	// cannot be authorised (`product.md` §8.1).
+	Id string `json:"id"`
 
 	// MovedPixels How many pixels differed by more than the fixed per-channel tolerance.
 	// Recorded so a project can judge its threshold rather than guess it.
@@ -432,7 +438,10 @@ type GridCellStatus string
 
 // GridRecording defines model for GridRecording.
 type GridRecording struct {
-	Hash      string `json:"hash"`
+	Hash string `json:"hash"`
+
+	// Id Fetch the video at `/projects/{slug}/recordings/{recordingId}`.
+	Id        string `json:"id"`
 	VariantId string `json:"variantId"`
 }
 
@@ -804,15 +813,6 @@ type ClaimSignInJSONRequestBody ClaimSignInJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// GetBlob Download the content at this address
-	// (GET /blobs/{hash})
-	GetBlob(w http.ResponseWriter, r *http.Request, hash string)
-	// HeadBlob Report whether the store already holds this content
-	// (HEAD /blobs/{hash})
-	HeadBlob(w http.ResponseWriter, r *http.Request, hash string)
-	// PutBlob Store content under its address
-	// (PUT /blobs/{hash})
-	PutBlob(w http.ResponseWriter, r *http.Request, hash string)
 	// GetHealth Report whether the service is able to serve
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -831,6 +831,15 @@ type ServerInterface interface {
 	// OrderAxes Declare the order the axes read in
 	// (PUT /projects/{slug}/axes)
 	OrderAxes(w http.ResponseWriter, r *http.Request, slug string)
+	// HeadBlob Report whether the store already holds this content
+	// (HEAD /projects/{slug}/blobs/{hash})
+	HeadBlob(w http.ResponseWriter, r *http.Request, slug string, hash string)
+	// PutBlob Store content under its address
+	// (PUT /projects/{slug}/blobs/{hash})
+	PutBlob(w http.ResponseWriter, r *http.Request, slug string, hash string)
+	// GetCaptureImage The image a capture holds
+	// (GET /projects/{slug}/captures/{captureId})
+	GetCaptureImage(w http.ResponseWriter, r *http.Request, slug string, captureId string)
 	// ListCases List the catalogue
 	// (GET /projects/{slug}/cases)
 	ListCases(w http.ResponseWriter, r *http.Request, slug string, params ListCasesParams)
@@ -879,6 +888,9 @@ type ServerInterface interface {
 	// CreateEdition Take a run's evidence into the book
 	// (POST /projects/{slug}/editions)
 	CreateEdition(w http.ResponseWriter, r *http.Request, slug string)
+	// GetRecordingVideo The video a recording holds
+	// (GET /projects/{slug}/recordings/{recordingId})
+	GetRecordingVideo(w http.ResponseWriter, r *http.Request, slug string, recordingId string)
 	// RequestSignIn Ask for a sign-in link
 	// (POST /sign-in)
 	RequestSignIn(w http.ResponseWriter, r *http.Request)
@@ -898,84 +910,6 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
-
-// GetBlob operation middleware
-func (siw *ServerInterfaceWrapper) GetBlob(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "hash" -------------
-	var hash string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "hash", r.PathValue("hash"), &hash, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "hash", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetBlob(w, r, hash)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// HeadBlob operation middleware
-func (siw *ServerInterfaceWrapper) HeadBlob(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "hash" -------------
-	var hash string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "hash", r.PathValue("hash"), &hash, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "hash", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.HeadBlob(w, r, hash)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// PutBlob operation middleware
-func (siw *ServerInterfaceWrapper) PutBlob(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "hash" -------------
-	var hash string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "hash", r.PathValue("hash"), &hash, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "hash", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PutBlob(w, r, hash)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
 
 // GetHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Request) {
@@ -1088,6 +1022,111 @@ func (siw *ServerInterfaceWrapper) OrderAxes(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.OrderAxes(w, r, slug)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// HeadBlob operation middleware
+func (siw *ServerInterfaceWrapper) HeadBlob(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "hash" -------------
+	var hash string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "hash", r.PathValue("hash"), &hash, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "hash", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.HeadBlob(w, r, slug, hash)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutBlob operation middleware
+func (siw *ServerInterfaceWrapper) PutBlob(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "hash" -------------
+	var hash string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "hash", r.PathValue("hash"), &hash, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "hash", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutBlob(w, r, slug, hash)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCaptureImage operation middleware
+func (siw *ServerInterfaceWrapper) GetCaptureImage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "captureId" -------------
+	var captureId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "captureId", r.PathValue("captureId"), &captureId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "captureId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCaptureImage(w, r, slug, captureId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1657,6 +1696,41 @@ func (siw *ServerInterfaceWrapper) CreateEdition(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// GetRecordingVideo operation middleware
+func (siw *ServerInterfaceWrapper) GetRecordingVideo(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "recordingId" -------------
+	var recordingId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "recordingId", r.PathValue("recordingId"), &recordingId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "recordingId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRecordingVideo(w, r, slug, recordingId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // RequestSignIn operation middleware
 func (siw *ServerInterfaceWrapper) RequestSignIn(w http.ResponseWriter, r *http.Request) {
 
@@ -1824,9 +1898,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/sign-in/claim", wrapper.ClaimSignIn)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/sign-out", wrapper.SignOut)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/me", wrapper.WhoAmI)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/blobs/{hash}", wrapper.GetBlob)
-	m.HandleFunc(http.MethodHead+" "+options.BaseURL+"/blobs/{hash}", wrapper.HeadBlob)
-	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/blobs/{hash}", wrapper.PutBlob)
+	m.HandleFunc(http.MethodHead+" "+options.BaseURL+"/projects/{slug}/blobs/{hash}", wrapper.HeadBlob)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/projects/{slug}/blobs/{hash}", wrapper.PutBlob)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects", wrapper.CreateProject)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}", wrapper.GetProject)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/axes", wrapper.ListAxes)
@@ -1836,6 +1909,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/editions", wrapper.CreateEdition)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/categories", wrapper.ListCategories)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/categories", wrapper.CreateCategory)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/captures/{captureId}", wrapper.GetCaptureImage)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/recordings/{recordingId}", wrapper.GetRecordingVideo)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}", wrapper.GetCase)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}", wrapper.UpdateCase)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}/captures", wrapper.GetCaseCaptures)
@@ -1862,193 +1937,6 @@ type MoveRefusedApplicationProblemPlusJSONResponse Problem
 type NotFoundApplicationProblemPlusJSONResponse Problem
 
 type UnauthenticatedApplicationProblemPlusJSONResponse Problem
-
-type GetBlobRequestObject struct {
-	Hash string `json:"hash"`
-}
-
-type GetBlobResponseObject interface {
-	VisitGetBlobResponse(w http.ResponseWriter) error
-}
-
-type GetBlob200ApplicationoctetStreamResponse struct {
-	Body          io.Reader
-	ContentLength int64
-}
-
-func (response GetBlob200ApplicationoctetStreamResponse) VisitGetBlobResponse(w http.ResponseWriter) error {
-
-	w.Header().Set("Content-Type", "application/octet-stream")
-	if response.ContentLength != 0 {
-		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
-	}
-	w.WriteHeader(200)
-
-	if closer, ok := response.Body.(io.ReadCloser); ok {
-		defer closer.Close()
-	}
-	_, err := io.Copy(w, response.Body)
-	return err
-}
-
-type GetBlob400ApplicationProblemPlusJSONResponse struct {
-	BadRequestApplicationProblemPlusJSONResponse
-}
-
-func (response GetBlob400ApplicationProblemPlusJSONResponse) VisitGetBlobResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetBlob404ApplicationProblemPlusJSONResponse struct {
-	NotFoundApplicationProblemPlusJSONResponse
-}
-
-func (response GetBlob404ApplicationProblemPlusJSONResponse) VisitGetBlobResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type HeadBlobRequestObject struct {
-	Hash string `json:"hash"`
-}
-
-type HeadBlobResponseObject interface {
-	VisitHeadBlobResponse(w http.ResponseWriter) error
-}
-
-type HeadBlob200Response struct {
-}
-
-func (response HeadBlob200Response) VisitHeadBlobResponse(w http.ResponseWriter) error {
-	w.WriteHeader(200)
-	return nil
-}
-
-type HeadBlob400ApplicationProblemPlusJSONResponse struct {
-	BadRequestApplicationProblemPlusJSONResponse
-}
-
-func (response HeadBlob400ApplicationProblemPlusJSONResponse) VisitHeadBlobResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type HeadBlob404Response struct {
-}
-
-func (response HeadBlob404Response) VisitHeadBlobResponse(w http.ResponseWriter) error {
-	w.WriteHeader(404)
-	return nil
-}
-
-type PutBlobRequestObject struct {
-	Hash string `json:"hash"`
-	Body io.Reader
-}
-
-type PutBlobResponseObject interface {
-	VisitPutBlobResponse(w http.ResponseWriter) error
-}
-
-type PutBlob201Response struct {
-}
-
-func (response PutBlob201Response) VisitPutBlobResponse(w http.ResponseWriter) error {
-	w.WriteHeader(201)
-	return nil
-}
-
-type PutBlob204Response struct {
-}
-
-func (response PutBlob204Response) VisitPutBlobResponse(w http.ResponseWriter) error {
-	w.WriteHeader(204)
-	return nil
-}
-
-type PutBlob400ApplicationProblemPlusJSONResponse struct {
-	BadRequestApplicationProblemPlusJSONResponse
-}
-
-func (response PutBlob400ApplicationProblemPlusJSONResponse) VisitPutBlobResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PutBlob401ApplicationProblemPlusJSONResponse struct {
-	UnauthenticatedApplicationProblemPlusJSONResponse
-}
-
-func (response PutBlob401ApplicationProblemPlusJSONResponse) VisitPutBlobResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(401)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PutBlob403ApplicationProblemPlusJSONResponse struct {
-	ForbiddenApplicationProblemPlusJSONResponse
-}
-
-func (response PutBlob403ApplicationProblemPlusJSONResponse) VisitPutBlobResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(403)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PutBlob422ApplicationProblemPlusJSONResponse Problem
-
-func (response PutBlob422ApplicationProblemPlusJSONResponse) VisitPutBlobResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(422)
-	_, err := buf.WriteTo(w)
-	return err
-}
 
 type GetHealthRequestObject struct {
 }
@@ -2294,6 +2182,244 @@ type OrderAxes404ApplicationProblemPlusJSONResponse struct {
 }
 
 func (response OrderAxes404ApplicationProblemPlusJSONResponse) VisitOrderAxesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type HeadBlobRequestObject struct {
+	Slug string `json:"slug"`
+	Hash string `json:"hash"`
+}
+
+type HeadBlobResponseObject interface {
+	VisitHeadBlobResponse(w http.ResponseWriter) error
+}
+
+type HeadBlob200Response struct {
+}
+
+func (response HeadBlob200Response) VisitHeadBlobResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
+type HeadBlob400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response HeadBlob400ApplicationProblemPlusJSONResponse) VisitHeadBlobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type HeadBlob401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response HeadBlob401ApplicationProblemPlusJSONResponse) VisitHeadBlobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type HeadBlob403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response HeadBlob403ApplicationProblemPlusJSONResponse) VisitHeadBlobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type HeadBlob404Response struct {
+}
+
+func (response HeadBlob404Response) VisitHeadBlobResponse(w http.ResponseWriter) error {
+	w.WriteHeader(404)
+	return nil
+}
+
+type PutBlobRequestObject struct {
+	Slug string `json:"slug"`
+	Hash string `json:"hash"`
+	Body io.Reader
+}
+
+type PutBlobResponseObject interface {
+	VisitPutBlobResponse(w http.ResponseWriter) error
+}
+
+type PutBlob201Response struct {
+}
+
+func (response PutBlob201Response) VisitPutBlobResponse(w http.ResponseWriter) error {
+	w.WriteHeader(201)
+	return nil
+}
+
+type PutBlob204Response struct {
+}
+
+func (response PutBlob204Response) VisitPutBlobResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PutBlob400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response PutBlob400ApplicationProblemPlusJSONResponse) VisitPutBlobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutBlob401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response PutBlob401ApplicationProblemPlusJSONResponse) VisitPutBlobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutBlob403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response PutBlob403ApplicationProblemPlusJSONResponse) VisitPutBlobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutBlob422ApplicationProblemPlusJSONResponse Problem
+
+func (response PutBlob422ApplicationProblemPlusJSONResponse) VisitPutBlobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCaptureImageRequestObject struct {
+	Slug      string `json:"slug"`
+	CaptureId string `json:"captureId"`
+}
+
+type GetCaptureImageResponseObject interface {
+	VisitGetCaptureImageResponse(w http.ResponseWriter) error
+}
+
+type GetCaptureImage200ImagepngResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetCaptureImage200ImagepngResponse) VisitGetCaptureImageResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "image/png")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetCaptureImage401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response GetCaptureImage401ApplicationProblemPlusJSONResponse) VisitGetCaptureImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCaptureImage403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response GetCaptureImage403ApplicationProblemPlusJSONResponse) VisitGetCaptureImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCaptureImage404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response GetCaptureImage404ApplicationProblemPlusJSONResponse) VisitGetCaptureImageResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -3202,6 +3328,83 @@ func (response CreateEdition409ApplicationProblemPlusJSONResponse) VisitCreateEd
 	return err
 }
 
+type GetRecordingVideoRequestObject struct {
+	Slug        string `json:"slug"`
+	RecordingId string `json:"recordingId"`
+}
+
+type GetRecordingVideoResponseObject interface {
+	VisitGetRecordingVideoResponse(w http.ResponseWriter) error
+}
+
+type GetRecordingVideo200ApplicationoctetStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetRecordingVideo200ApplicationoctetStreamResponse) VisitGetRecordingVideoResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetRecordingVideo401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response GetRecordingVideo401ApplicationProblemPlusJSONResponse) VisitGetRecordingVideoResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRecordingVideo403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response GetRecordingVideo403ApplicationProblemPlusJSONResponse) VisitGetRecordingVideoResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRecordingVideo404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response GetRecordingVideo404ApplicationProblemPlusJSONResponse) VisitGetRecordingVideoResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RequestSignInRequestObject struct {
 	Body *RequestSignInJSONRequestBody
 }
@@ -3283,15 +3486,6 @@ func (response SignOut204Response) VisitSignOutResponse(w http.ResponseWriter) e
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
-	// GetBlob Download the content at this address
-	// (GET /blobs/{hash})
-	GetBlob(ctx context.Context, request GetBlobRequestObject) (GetBlobResponseObject, error)
-	// HeadBlob Report whether the store already holds this content
-	// (HEAD /blobs/{hash})
-	HeadBlob(ctx context.Context, request HeadBlobRequestObject) (HeadBlobResponseObject, error)
-	// PutBlob Store content under its address
-	// (PUT /blobs/{hash})
-	PutBlob(ctx context.Context, request PutBlobRequestObject) (PutBlobResponseObject, error)
 	// GetHealth Report whether the service is able to serve
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
@@ -3310,6 +3504,15 @@ type StrictServerInterface interface {
 	// OrderAxes Declare the order the axes read in
 	// (PUT /projects/{slug}/axes)
 	OrderAxes(ctx context.Context, request OrderAxesRequestObject) (OrderAxesResponseObject, error)
+	// HeadBlob Report whether the store already holds this content
+	// (HEAD /projects/{slug}/blobs/{hash})
+	HeadBlob(ctx context.Context, request HeadBlobRequestObject) (HeadBlobResponseObject, error)
+	// PutBlob Store content under its address
+	// (PUT /projects/{slug}/blobs/{hash})
+	PutBlob(ctx context.Context, request PutBlobRequestObject) (PutBlobResponseObject, error)
+	// GetCaptureImage The image a capture holds
+	// (GET /projects/{slug}/captures/{captureId})
+	GetCaptureImage(ctx context.Context, request GetCaptureImageRequestObject) (GetCaptureImageResponseObject, error)
 	// ListCases List the catalogue
 	// (GET /projects/{slug}/cases)
 	ListCases(ctx context.Context, request ListCasesRequestObject) (ListCasesResponseObject, error)
@@ -3358,6 +3561,9 @@ type StrictServerInterface interface {
 	// CreateEdition Take a run's evidence into the book
 	// (POST /projects/{slug}/editions)
 	CreateEdition(ctx context.Context, request CreateEditionRequestObject) (CreateEditionResponseObject, error)
+	// GetRecordingVideo The video a recording holds
+	// (GET /projects/{slug}/recordings/{recordingId})
+	GetRecordingVideo(ctx context.Context, request GetRecordingVideoRequestObject) (GetRecordingVideoResponseObject, error)
 	// RequestSignIn Ask for a sign-in link
 	// (POST /sign-in)
 	RequestSignIn(ctx context.Context, request RequestSignInRequestObject) (RequestSignInResponseObject, error)
@@ -3406,86 +3612,6 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
-}
-
-// GetBlob operation middleware
-func (sh *strictHandler) GetBlob(w http.ResponseWriter, r *http.Request, hash string) {
-	var request GetBlobRequestObject
-
-	request.Hash = hash
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.GetBlob(ctx, request.(GetBlobRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetBlob")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(GetBlobResponseObject); ok {
-		if err := validResponse.VisitGetBlobResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// HeadBlob operation middleware
-func (sh *strictHandler) HeadBlob(w http.ResponseWriter, r *http.Request, hash string) {
-	var request HeadBlobRequestObject
-
-	request.Hash = hash
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.HeadBlob(ctx, request.(HeadBlobRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "HeadBlob")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(HeadBlobResponseObject); ok {
-		if err := validResponse.VisitHeadBlobResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// PutBlob operation middleware
-func (sh *strictHandler) PutBlob(w http.ResponseWriter, r *http.Request, hash string) {
-	var request PutBlobRequestObject
-
-	request.Hash = hash
-
-	request.Body = r.Body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.PutBlob(ctx, request.(PutBlobRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "PutBlob")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(PutBlobResponseObject); ok {
-		if err := validResponse.VisitPutBlobResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
 }
 
 // GetHealth operation middleware
@@ -3645,6 +3771,89 @@ func (sh *strictHandler) OrderAxes(w http.ResponseWriter, r *http.Request, slug 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(OrderAxesResponseObject); ok {
 		if err := validResponse.VisitOrderAxesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// HeadBlob operation middleware
+func (sh *strictHandler) HeadBlob(w http.ResponseWriter, r *http.Request, slug string, hash string) {
+	var request HeadBlobRequestObject
+
+	request.Slug = slug
+	request.Hash = hash
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.HeadBlob(ctx, request.(HeadBlobRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "HeadBlob")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(HeadBlobResponseObject); ok {
+		if err := validResponse.VisitHeadBlobResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutBlob operation middleware
+func (sh *strictHandler) PutBlob(w http.ResponseWriter, r *http.Request, slug string, hash string) {
+	var request PutBlobRequestObject
+
+	request.Slug = slug
+	request.Hash = hash
+
+	request.Body = r.Body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutBlob(ctx, request.(PutBlobRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutBlob")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutBlobResponseObject); ok {
+		if err := validResponse.VisitPutBlobResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCaptureImage operation middleware
+func (sh *strictHandler) GetCaptureImage(w http.ResponseWriter, r *http.Request, slug string, captureId string) {
+	var request GetCaptureImageRequestObject
+
+	request.Slug = slug
+	request.CaptureId = captureId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCaptureImage(ctx, request.(GetCaptureImageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCaptureImage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCaptureImageResponseObject); ok {
+		if err := validResponse.VisitGetCaptureImageResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -4137,6 +4346,33 @@ func (sh *strictHandler) CreateEdition(w http.ResponseWriter, r *http.Request, s
 	}
 }
 
+// GetRecordingVideo operation middleware
+func (sh *strictHandler) GetRecordingVideo(w http.ResponseWriter, r *http.Request, slug string, recordingId string) {
+	var request GetRecordingVideoRequestObject
+
+	request.Slug = slug
+	request.RecordingId = recordingId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetRecordingVideo(ctx, request.(GetRecordingVideoRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetRecordingVideo")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetRecordingVideoResponseObject); ok {
+		if err := validResponse.VisitGetRecordingVideoResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // RequestSignIn operation middleware
 func (sh *strictHandler) RequestSignIn(w http.ResponseWriter, r *http.Request) {
 	var request RequestSignInRequestObject
@@ -4228,143 +4464,152 @@ func (sh *strictHandler) SignOut(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

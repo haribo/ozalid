@@ -53,12 +53,20 @@ GridStep:
 
 GridCell:
   type: object
-  required: [variantId, hash, status]
+  required: [id, variantId, hash, status]
   properties:
+    id:
+      type: string
+      description: |
+        The capture. Fetch its image at
+        `/projects/{slug}/captures/{captureId}` — the hash names no project and
+        cannot be authorised (`product.md` §8.1).
     variantId: { type: string }
     hash:
       type: string
-      description: Fetch the image at `/blobs/{hash}`.
+      description: |
+        The content address these bytes are stored under. What a client
+        computes before uploading, not what a reader fetches with.
     status:
       type: string
       enum: [to-review, to-fix, validated]
@@ -90,7 +98,10 @@ GridCell:
 
 GridRecording:
   type: object
-  required: [variantId, hash]
+  required: [id, variantId, hash]
   properties:
+    id:
+      type: string
+      description: Fetch the video at `/projects/{slug}/recordings/{recordingId}`.
     variantId: { type: string }
     hash: { type: string }
