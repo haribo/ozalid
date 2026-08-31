@@ -207,7 +207,17 @@ WHERE t.id = @id AND t.service_account_id = @service_account_id
 -- its membership, and a power that cannot be exercised is not a power
 -- (product.md §8.2). What stays withheld is everything inside.
 -- name: ProjectsForUser :many
-SELECT p.*
+SELECT p.*,
+    (SELECT count(*) FROM project_members pm
+      LEFT JOIN users pu ON pu.id = pm.user_id
+      LEFT JOIN service_accounts ps ON ps.id = pm.service_account_id
+      WHERE pm.project_id = p.id
+        AND coalesce(pu.deactivated_at, ps.deactivated_at) IS NULL
+        AND pm.user_id IS NOT NULL) AS people,
+    (SELECT count(*) FROM project_members pm
+      LEFT JOIN service_accounts ps ON ps.id = pm.service_account_id
+      WHERE pm.project_id = p.id AND pm.service_account_id IS NOT NULL
+        AND ps.deactivated_at IS NULL) AS programs
 FROM projects p
 LEFT JOIN project_members m ON m.project_id = p.id AND m.user_id = @user_id
 WHERE m.user_id IS NOT NULL OR @is_admin::boolean
@@ -215,7 +225,16 @@ ORDER BY lower(p.name);
 
 -- A service account belongs to one project and sees that one (ADR 0018).
 -- name: ProjectsForServiceAccount :many
-SELECT p.* FROM projects p
+SELECT p.*,
+    (SELECT count(*) FROM project_members pm
+      LEFT JOIN users pu ON pu.id = pm.user_id
+      WHERE pm.project_id = p.id AND pm.user_id IS NOT NULL
+        AND pu.deactivated_at IS NULL) AS people,
+    (SELECT count(*) FROM project_members pm
+      LEFT JOIN service_accounts ps ON ps.id = pm.service_account_id
+      WHERE pm.project_id = p.id AND pm.service_account_id IS NOT NULL
+        AND ps.deactivated_at IS NULL) AS programs
+FROM projects p
 JOIN project_members m ON m.project_id = p.id
 WHERE m.service_account_id = @service_account_id
 ORDER BY lower(p.name);

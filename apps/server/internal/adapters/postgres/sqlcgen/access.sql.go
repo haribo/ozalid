@@ -428,22 +428,42 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 }
 
 const projectsForServiceAccount = `-- name: ProjectsForServiceAccount :many
-SELECT p.id, p.slug, p.name, p.intake_policy, p.created_at, p.pixel_threshold FROM projects p
+SELECT p.id, p.slug, p.name, p.intake_policy, p.created_at, p.pixel_threshold,
+    (SELECT count(*) FROM project_members pm
+      LEFT JOIN users pu ON pu.id = pm.user_id
+      WHERE pm.project_id = p.id AND pm.user_id IS NOT NULL
+        AND pu.deactivated_at IS NULL) AS people,
+    (SELECT count(*) FROM project_members pm
+      LEFT JOIN service_accounts ps ON ps.id = pm.service_account_id
+      WHERE pm.project_id = p.id AND pm.service_account_id IS NOT NULL
+        AND ps.deactivated_at IS NULL) AS programs
+FROM projects p
 JOIN project_members m ON m.project_id = p.id
 WHERE m.service_account_id = $1
 ORDER BY lower(p.name)
 `
 
+type ProjectsForServiceAccountRow struct {
+	ID             string
+	Slug           string
+	Name           string
+	IntakePolicy   string
+	CreatedAt      pgtype.Timestamptz
+	PixelThreshold int32
+	People         int64
+	Programs       int64
+}
+
 // A service account belongs to one project and sees that one (ADR 0018).
-func (q *Queries) ProjectsForServiceAccount(ctx context.Context, serviceAccountID *string) ([]Project, error) {
+func (q *Queries) ProjectsForServiceAccount(ctx context.Context, serviceAccountID *string) ([]ProjectsForServiceAccountRow, error) {
 	rows, err := q.db.Query(ctx, projectsForServiceAccount, serviceAccountID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Project{}
+	items := []ProjectsForServiceAccountRow{}
 	for rows.Next() {
-		var i Project
+		var i ProjectsForServiceAccountRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Slug,
@@ -451,6 +471,8 @@ func (q *Queries) ProjectsForServiceAccount(ctx context.Context, serviceAccountI
 			&i.IntakePolicy,
 			&i.CreatedAt,
 			&i.PixelThreshold,
+			&i.People,
+			&i.Programs,
 		); err != nil {
 			return nil, err
 		}
@@ -463,7 +485,17 @@ func (q *Queries) ProjectsForServiceAccount(ctx context.Context, serviceAccountI
 }
 
 const projectsForUser = `-- name: ProjectsForUser :many
-SELECT p.id, p.slug, p.name, p.intake_policy, p.created_at, p.pixel_threshold
+SELECT p.id, p.slug, p.name, p.intake_policy, p.created_at, p.pixel_threshold,
+    (SELECT count(*) FROM project_members pm
+      LEFT JOIN users pu ON pu.id = pm.user_id
+      LEFT JOIN service_accounts ps ON ps.id = pm.service_account_id
+      WHERE pm.project_id = p.id
+        AND coalesce(pu.deactivated_at, ps.deactivated_at) IS NULL
+        AND pm.user_id IS NOT NULL) AS people,
+    (SELECT count(*) FROM project_members pm
+      LEFT JOIN service_accounts ps ON ps.id = pm.service_account_id
+      WHERE pm.project_id = p.id AND pm.service_account_id IS NOT NULL
+        AND ps.deactivated_at IS NULL) AS programs
 FROM projects p
 LEFT JOIN project_members m ON m.project_id = p.id AND m.user_id = $1
 WHERE m.user_id IS NOT NULL OR $2::boolean
@@ -475,19 +507,30 @@ type ProjectsForUserParams struct {
 	IsAdmin bool
 }
 
+type ProjectsForUserRow struct {
+	ID             string
+	Slug           string
+	Name           string
+	IntakePolicy   string
+	CreatedAt      pgtype.Timestamptz
+	PixelThreshold int32
+	People         int64
+	Programs       int64
+}
+
 // The projects a caller may see: the ones they belong to, and every one on the
 // instance when they administer it. An administrator names a project to manage
 // its membership, and a power that cannot be exercised is not a power
 // (product.md §8.2). What stays withheld is everything inside.
-func (q *Queries) ProjectsForUser(ctx context.Context, arg ProjectsForUserParams) ([]Project, error) {
+func (q *Queries) ProjectsForUser(ctx context.Context, arg ProjectsForUserParams) ([]ProjectsForUserRow, error) {
 	rows, err := q.db.Query(ctx, projectsForUser, arg.UserID, arg.IsAdmin)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Project{}
+	items := []ProjectsForUserRow{}
 	for rows.Next() {
-		var i Project
+		var i ProjectsForUserRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Slug,
@@ -495,6 +538,8 @@ func (q *Queries) ProjectsForUser(ctx context.Context, arg ProjectsForUserParams
 			&i.IntakePolicy,
 			&i.CreatedAt,
 			&i.PixelThreshold,
+			&i.People,
+			&i.Programs,
 		); err != nil {
 			return nil, err
 		}

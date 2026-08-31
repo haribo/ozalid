@@ -45,6 +45,10 @@ type Project struct {
 	Name         string
 	IntakePolicy IntakePolicy
 	CreatedAt    time.Time
+	// People and Programs are how many of each reach this project. Deactivated
+	// accounts are not counted: they reach nothing (product.md §8.2).
+	People   int
+	Programs int
 }
 
 // Category is a node in the catalogue tree. A case belongs to exactly one
