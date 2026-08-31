@@ -150,3 +150,55 @@ test('an administrator grants on a project they still cannot read', async ({ req
   // Still not theirs to read, membership granted or not.
   expect((await request.get(`${API}/api/projects/${slug}/cases`)).status()).toBe(403)
 })
+
+test('a person sees the projects they belong to, and an admin sees them all', async ({
+  request,
+}) => {
+  const slug = `unseen-${unique()}`
+  await request.post(`${API}/api/projects`, { data: { slug, name: 'a team nobody is on' } })
+
+  // The administrator belongs to the suite's project and not to this one, and
+  // sees both names — never anything inside (product.md §8.2).
+  const mine = await request.get(`${API}/api/projects`)
+  expect(mine.status()).toBe(200)
+  const seen = (await mine.json()).map((p: { slug: string }) => p.slug)
+  expect(seen).toContain(PROJECT)
+  expect(seen).toContain(slug)
+  expect((await request.get(`${API}/api/projects/${slug}/cases`)).status()).toBe(403)
+
+  // The suite's token belongs to one project and sees that one.
+  const asProgram = await fetch(`${API}/api/projects`, {
+    headers: { authorization: `Bearer ${TOKEN}` },
+  })
+  const forProgram = (await asProgram.json()).map((p: { slug: string }) => p.slug)
+  expect(forProgram).toEqual([PROJECT])
+
+  expect((await fetch(`${API}/api/projects`)).status).toBe(401)
+})
+
+test('a deactivated account leaves the access list, and a program says how many keys it holds', async ({
+  request,
+}) => {
+  const accountId = await anAccount(request)
+  await request.put(`${API}/api/projects/${PROJECT}/members/${accountId}`, {
+    data: { rights: 'member' },
+  })
+
+  const before = await (await request.get(`${API}/api/projects/${PROJECT}/members`)).json()
+  expect(before.some((m: { accountId: string }) => m.accountId === accountId)).toBe(true)
+
+  await request.delete(`${API}/api/accounts/${accountId}`)
+
+  // This page answers "who reaches this project", and a deactivated account
+  // reaches nothing. It stays on /accounts, which answers another question.
+  const after = await (await request.get(`${API}/api/projects/${PROJECT}/members`)).json()
+  expect(after.some((m: { accountId: string }) => m.accountId === accountId)).toBe(false)
+  const onAccounts = await (await request.get(`${API}/api/accounts`)).json()
+  expect(onAccounts.some((a: { id: string }) => a.id === accountId)).toBe(true)
+
+  // A person carries no token count; a program carries one, and zero is the
+  // value worth seeing.
+  for (const m of after) {
+    expect(m.isPerson ? m.tokens === undefined : typeof m.tokens === 'number').toBe(true)
+  }
+})
