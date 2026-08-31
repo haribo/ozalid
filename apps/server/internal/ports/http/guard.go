@@ -66,6 +66,25 @@ func (s *Server) mayNot(ctx context.Context, slug string, a access.Action) (open
 	return openapi.Problem{}, false
 }
 
+// administers reports whether the caller runs this instance.
+//
+// Distinct from mayNotOnInstance, which refuses: some answers are *wider* for an
+// administrator without being reserved to them. Listing projects is the one so
+// far — everybody sees theirs, an administrator sees all their names
+// (product.md §8.2).
+func (s *Server) administers(ctx context.Context) bool {
+	if !isKnown(ctx) {
+		return false
+	}
+	standing, err := s.standings.StandingOf(ctx, actorFrom(ctx), "")
+	if err != nil {
+		// A lookup that failed is not an administrator. Widening an answer on a
+		// database hiccup is the wrong way to fail.
+		return false
+	}
+	return standing.Admin
+}
+
 // mayNotOnInstance is mayNot for the powers that belong to no project —
 // creating one, managing accounts (product.md §8.2).
 func (s *Server) mayNotOnInstance(ctx context.Context, a access.Action) (openapi.Problem, bool) {

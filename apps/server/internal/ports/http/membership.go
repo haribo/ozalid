@@ -42,6 +42,7 @@ func (s *Server) ListMembers(ctx context.Context, request openapi.ListMembersReq
 			address := openapitypes.Email(m.Email)
 			entry.Email = &address
 		}
+		entry.Tokens = m.Tokens
 		out = append(out, entry)
 	}
 	return openapi.ListMembers200JSONResponse(out), nil

@@ -12,6 +12,29 @@ import (
 )
 
 // CreateProject opens a book.
+// ListProjects returns the projects this caller may see.
+func (s *Server) ListProjects(ctx context.Context, _ openapi.ListProjectsRequestObject) (openapi.ListProjectsResponseObject, error) {
+	if !isKnown(ctx) {
+		return openapi.ListProjects401ApplicationProblemPlusJSONResponse{
+			UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(unknownCaller()),
+		}, nil
+	}
+
+	// No refusal below this line: a caller who belongs to nothing gets an empty
+	// list rather than a 403. Being a member of no project is a legitimate
+	// state — it is what a new account is — and answering "forbidden" would
+	// send them looking for a right they do not need.
+	found, err := s.catalogue.ProjectsFor(ctx, actorFrom(ctx), s.administers(ctx))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]openapi.Project, 0, len(found))
+	for _, p := range found {
+		out = append(out, toAPIProject(p))
+	}
+	return openapi.ListProjects200JSONResponse(out), nil
+}
+
 func (s *Server) CreateProject(ctx context.Context, request openapi.CreateProjectRequestObject) (openapi.CreateProjectResponseObject, error) {
 	if why, no := s.mayNotOnInstance(ctx, access.CreateProject); no {
 		if why.Status == http.StatusUnauthorized {
