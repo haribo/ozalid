@@ -1,0 +1,33 @@
+parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
+
+get:
+  operationId: listMembers
+  security:
+    - serviceToken: []
+    - session: []
+  summary: Who reaches this project
+  description: |
+    People and programs in one list. A service account holds a membership like
+    anyone else ([ADR 0019](https://github.com/haribo/ozalid/blob/develop/docs/adr/0019-two-kinds-of-account-one-set-of-rights.md)),
+    and hiding either kind would make the list a lie about who can see the book.
+
+    Reaching this needs `reader`, not administration: seeing who is on a project
+    is seeing, and a reader sees everything (`product.md` §8.1).
+  tags: [accounts]
+  responses:
+    "200":
+      description: The members, people first.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: "../components/schemas.yaml#/Membership"
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"

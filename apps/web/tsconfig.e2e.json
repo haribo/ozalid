@@ -1,0 +1,17 @@
+{
+  // The end-to-end suite is TypeScript too, and nothing was checking it. It
+  // gets its own project rather than joining the application's: it runs in
+  // Node, not in a browser, so letting it share the app's DOM library would
+  // let a test reach for a global the runner does not have.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "composite": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.e2e.tsbuildinfo"
+  },
+  "include": ["e2e/**/*.ts", "playwright.config.ts"]
+}

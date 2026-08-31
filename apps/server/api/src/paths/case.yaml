@@ -1,0 +1,62 @@
+parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
+  - name: caseId
+    in: path
+    required: true
+    schema: { type: string }
+
+get:
+  operationId: getCase
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
+  summary: Read a case, archived or not
+  tags: [cases]
+  responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "200":
+      description: The case.
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/Case"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
+
+patch:
+  operationId: updateCase
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
+  summary: Change what is mutable about a case
+  description: Its id and its state are not part of that.
+  tags: [cases]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "../components/schemas.yaml#/CaseUpdate"
+  responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "200":
+      description: The updated case.
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/Case"
+    "400":
+      $ref: "../components/responses.yaml#/BadRequest"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"

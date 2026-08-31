@@ -1,0 +1,26 @@
+get:
+  operationId: whoAmI
+  security:
+    - session: []
+  summary: Who this request resolves to
+  description: |
+    What the client needs to know whether to show a review or a sign-in form.
+  tags:
+    - sign-in
+  responses:
+    '200':
+      description: The signed-in person.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [id, name, email, isAdmin]
+            properties:
+              id: { type: string }
+              name: { type: string }
+              email: { type: string }
+              isAdmin:
+                type: boolean
+                description: Manages accounts and creates projects; reaches no content.
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"

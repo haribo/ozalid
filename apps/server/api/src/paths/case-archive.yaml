@@ -1,0 +1,36 @@
+parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
+  - name: caseId
+    in: path
+    required: true
+    schema: { type: string }
+
+post:
+  operationId: archiveCase
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
+  summary: Take a case out of the catalogue
+  description: |
+    It stops being listed and stops blocking intake, and stays readable with its
+    captures, comments and journal. There is no deletion.
+  tags: [cases]
+  responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "204":
+      description: The case is archived.
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
+    "409":
+      description: The case was already archived.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "../components/problem.yaml"

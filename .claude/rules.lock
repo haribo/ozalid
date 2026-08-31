@@ -1,0 +1,35 @@
+# Shared rule adoptions for this repository.
+#
+# The rules themselves live in CLAUDE.md — this file only records which
+# of them come from a ruleset shared with my other projects, when each
+# was adopted, and a hash of its wording at that time. The hash lets a
+# check tell a deliberate rewording from an accidental deletion, and
+# flag a rule whose shared wording has moved on since.
+#
+# Nothing here changes how the repository behaves.
+
+rules_version = 1
+
+[rules.adr-lifecycle]
+adopted = "2026-08-19"
+hash = "aabd778ef08e"
+
+[rules.design-first]
+adopted = "2026-08-19"
+hash = "6d93ba90db46"
+
+[rules.measurable-defect]
+adopted = "2026-08-19"
+hash = "268cf19aeb9d"
+
+[rules.memory-precedence]
+adopted = "2026-08-19"
+hash = "78dc260ec367"
+
+[rules.severe-opinion]
+adopted = "2026-08-19"
+hash = "da1ad3af8e04"
+
+[rules.tests-with-the-change]
+adopted = "2026-08-19"
+hash = "f9b8b747acfb"

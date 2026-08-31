@@ -1,0 +1,56 @@
+# Running ozalid. Distinct from docker-compose.yaml, which exists so a developer
+# has a Postgres — that one publishes a port and keeps no server.
+#
+#   docker compose -f compose.production.yaml up -d
+#   docker compose -f compose.production.yaml exec ozalid \
+#     ozalid bootstrap -name "…" -email "…" -project "…" -service-account "…"
+#
+# The bootstrap prints a token once. Nothing keeps it: only its hash is stored.
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ozalid
+      POSTGRES_PASSWORD: ${OZALID_PG_PASSWORD:?set OZALID_PG_PASSWORD}
+      POSTGRES_DB: ozalid
+    volumes:
+      # Postgres 18+ wants a single mount at /var/lib/postgresql, not at its
+      # data subdirectory — that is what makes pg_upgrade --link possible later.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ozalid"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    # No published port: nothing outside this network has business reaching the
+    # database.
+
+  ozalid:
+    image: ghcr.io/haribo/ozalid:${OZALID_VERSION:-latest}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      OZALID_ADDR: ":8090"
+      OZALID_DSN: postgres://ozalid:${OZALID_PG_PASSWORD:?set OZALID_PG_PASSWORD}@postgres:5432/ozalid?sslmode=disable
+      OZALID_BLOB_ROOT: /var/lib/ozalid/blobs
+    volumes:
+      # Capture bytes. Losing this volume loses every image ever reviewed —
+      # the database keeps their addresses, not their content.
+      - blobs:/var/lib/ozalid/blobs
+    ports:
+      # Bound to the loopback: put a TLS terminator in front. Change this only
+      # if you know what is listening.
+      - "127.0.0.1:8090:8090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/api/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  blobs:

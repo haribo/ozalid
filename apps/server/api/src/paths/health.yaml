@@ -1,0 +1,20 @@
+get:
+  operationId: getHealth
+  summary: Report whether the service is able to serve
+  tags: [service]
+  responses:
+    "200":
+      description: The service is serving.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [status, version]
+            properties:
+              status:
+                type: string
+                enum: [ok]
+              version:
+                type: string
+                description: The build this instance runs.
+                examples: ["0.1.0"]

@@ -1,0 +1,73 @@
+parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
+
+get:
+  operationId: listCases
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
+  summary: List the catalogue
+  description: |
+    Filters on the stored state, without scanning — which is why the state is
+    stored at all. Archived cases are never listed.
+  tags: [cases]
+  parameters:
+    - name: state
+      in: query
+      schema:
+        $ref: "../components/schemas.yaml#/CaseState"
+    - name: categoryId
+      in: query
+      schema: { type: string }
+  responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "200":
+      description: The cases.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: "../components/schemas.yaml#/Case"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
+
+post:
+  operationId: createCase
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
+  summary: Open a case and receive its id
+  description: |
+    The id comes back generated; the client stores it and sends it on every
+    subsequent edition. It never invents one.
+  tags: [cases]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "../components/schemas.yaml#/NewCase"
+  responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "201":
+      description: The case is open, outside the funnel until it has captures.
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/Case"
+    "400":
+      $ref: "../components/responses.yaml#/BadRequest"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"

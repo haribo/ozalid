@@ -1,0 +1,114 @@
+# The contract. This document is the source of truth (backend ADR 0002):
+# the server's handler interface and the web client's types are generated from
+# it, so a break here is a compile error in every consumer.
+#
+# Authored as several files, one per resource. Never edit apps/server/api/openapi.yaml
+# by hand — it is the bundle produced from this directory.
+openapi: 3.1.0
+
+info:
+  title: ozalid
+  version: 0.1.0
+  description: A hosted review book for end-to-end test evidence.
+
+servers:
+  - url: /api
+
+paths:
+  /health:
+    $ref: "./paths/health.yaml"
+  /sign-in:
+    $ref: "./paths/sign-in.yaml"
+  /sign-in/claim:
+    $ref: "./paths/sign-in-claim.yaml"
+  /sign-out:
+    $ref: "./paths/sign-out.yaml"
+  /me:
+    $ref: "./paths/me.yaml"
+  /projects/{slug}/blobs/{hash}:
+    $ref: "./paths/blob.yaml"
+  /accounts:
+    $ref: "./paths/accounts.yaml"
+  /accounts/{accountId}:
+    $ref: "./paths/account.yaml"
+  /projects:
+    $ref: "./paths/projects.yaml"
+  /projects/{slug}:
+    $ref: "./paths/project.yaml"
+  /projects/{slug}/axes:
+    $ref: "./paths/axes.yaml"
+  /projects/{slug}/cases:
+    $ref: "./paths/cases.yaml"
+  /projects/{slug}/editions:
+    $ref: "./paths/editions.yaml"
+  /projects/{slug}/service-accounts:
+    $ref: "./paths/service-accounts.yaml"
+  /projects/{slug}/service-accounts/{serviceAccountId}:
+    $ref: "./paths/service-account.yaml"
+  /projects/{slug}/service-accounts/{serviceAccountId}/tokens:
+    $ref: "./paths/service-tokens.yaml"
+  /projects/{slug}/service-accounts/{serviceAccountId}/tokens/{tokenId}:
+    $ref: "./paths/service-token.yaml"
+  /projects/{slug}/members:
+    $ref: "./paths/members.yaml"
+  /projects/{slug}/members/{accountId}:
+    $ref: "./paths/member.yaml"
+  /projects/{slug}/categories:
+    $ref: "./paths/categories.yaml"
+  /projects/{slug}/captures/{captureId}:
+    $ref: "./paths/capture-image.yaml"
+  /projects/{slug}/recordings/{recordingId}:
+    $ref: "./paths/recording-video.yaml"
+  /projects/{slug}/cases/{caseId}:
+    $ref: "./paths/case.yaml"
+  /projects/{slug}/cases/{caseId}/captures:
+    $ref: "./paths/case-captures.yaml"
+  /projects/{slug}/cases/{caseId}/comments:
+    $ref: "./paths/case-comments.yaml"
+  /projects/{slug}/comments/{commentId}/reference:
+    $ref: "./paths/comment-moves.yaml#/Reference"
+  /projects/{slug}/comments/{commentId}/discard:
+    $ref: "./paths/comment-moves.yaml#/Discard"
+  /projects/{slug}/comments/{commentId}/delivery:
+    $ref: "./paths/comment-moves.yaml#/Delivery"
+  /projects/{slug}/comments/{commentId}/judgment:
+    $ref: "./paths/comment-moves.yaml#/Judgment"
+  /projects/{slug}/cases/{caseId}/reviews:
+    $ref: "./paths/case-reviews.yaml"
+  /projects/{slug}/cases/{caseId}/archive:
+    $ref: "./paths/case-archive.yaml"
+  /projects/{slug}/categories/{categoryId}:
+    $ref: "./paths/category.yaml"
+
+# Declared on every operation, never globally. An empty default would say the
+# same thing less visibly — this way `security` is a decision somebody made
+# rather than one they forgot, and an operation without it stands out.
+#
+# Two credentials, and an operation that accepts both lists both: a person came
+# through a sign-in, a program presented a token, and nothing is forbidden
+# because the caller is a program
+# ([ADR 0019](https://github.com/haribo/ozalid/blob/develop/docs/adr/0019-two-kinds-of-account-one-set-of-rights.md)).
+# What each may do is decided by their membership, not by which door they came
+# through.
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: ozalid_session
+      description: |
+        The cookie a sign-in opens. `HttpOnly`, so no script reads it; the
+        browser sends it on its own, which is what lets an `<img>` fetch a
+        capture.
+    serviceToken:
+      type: http
+      scheme: bearer
+      description: |
+        A service account's token, minted once and shown once
+        ([ADR 0019](https://github.com/haribo/ozalid/blob/develop/docs/adr/0019-two-kinds-of-account-one-set-of-rights.md)).
+
+        It belongs to exactly one project: a token naming project A cannot push
+        to project B, and the attempt is refused rather than ignored.
+  schemas:
+    Problem:
+      $ref: "./components/problem.yaml"

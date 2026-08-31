@@ -1,0 +1,139 @@
+ReviewSave:
+  type: object
+  properties:
+    validated:
+      type: array
+      description: The squares the reviewer looked at with nothing to say.
+      items:
+        $ref: "#/CellRef"
+    comments:
+      type: array
+      description: What the reviewer wrote during the sitting.
+      items:
+        $ref: "#/NewComment"
+
+CellRef:
+  type: object
+  required: [stepId, variantId]
+  properties:
+    stepId: { type: string }
+    variantId: { type: string }
+
+NewComment:
+  type: object
+  required: [stepId, kind, body, variantIds]
+  properties:
+    stepId: { type: string }
+    kind:
+      type: string
+      enum: [defect, improvement]
+      description: |
+        What it is. The kind is written on the comment, where it is exact and
+        where the issue is written from — it never colours the case's state.
+    body: { type: string, minLength: 1 }
+    variantIds:
+      type: array
+      minItems: 1
+      description: |
+        The variants it applies to. One defect spanning four variants is **one**
+        comment with four variants checked, never four comments.
+      items: { type: string }
+
+ReviewOutcome:
+  type: object
+  required: [state, comments, verdicts]
+  properties:
+    state:
+      $ref: "./schemas.yaml#/CaseState"
+    comments:
+      type: integer
+      description: How many comments the session added.
+    verdicts:
+      type: array
+      description: The status of every capture the case has, after the save.
+      items:
+        $ref: "#/CellVerdict"
+
+CellVerdict:
+  allOf:
+    - $ref: "#/CellRef"
+    - type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [to-review, to-fix, validated]
+
+IssueRef:
+  type: object
+  required: [id]
+  description: |
+    An opaque reference to an issue somewhere else. Supplied by the client and
+    never read back: ozalid holds no tracker credential (ADR 0003).
+  properties:
+    id: { type: string, minLength: 1 }
+    url: { type: string, format: uri }
+    title:
+      type: string
+      description: |
+        Shown next to the comment. ozalid never refreshes it, so it is whatever
+        the client said at the time.
+
+CommentState:
+  type: string
+  enum: [to-track, tracked, to-review, refused, validated, discarded]
+  description: |
+    Where the comment stands. `validated` and `discarded` are the only terminal
+    states; a refusal returns to `to-review` on the next delivery.
+
+Comment:
+  type: object
+  required: [id, stepId, kind, body, state, variantIds, authorId, createdAt, judgments]
+  properties:
+    id: { type: string }
+    stepId: { type: string }
+    kind:
+      type: string
+      enum: [defect, improvement]
+    body:
+      type: string
+      description: What the reviewer wrote, in their words. It survives the issue title.
+    state:
+      $ref: "#/CommentState"
+    variantIds:
+      type: array
+      items: { type: string }
+    issue:
+      $ref: "#/IssueRef"
+    discardReason:
+      type: string
+      description: Mandatory when discarded, and kept forever with its author.
+    authorId: { type: string }
+    createdAt: { type: string, format: date-time }
+    judgments:
+      type: array
+      description: Every judgment, not just the last — three round trips is information.
+      items:
+        $ref: "#/Judgment"
+
+Judgment:
+  type: object
+  required: [verdict, actorId, at]
+  properties:
+    verdict:
+      type: string
+      enum: [accepted, refused]
+    remark:
+      type: string
+      description: Mandatory on a refusal. It is what the dev has to read.
+    actorId: { type: string }
+    at: { type: string, format: date-time }
+
+MoveOutcome:
+  type: object
+  required: [commentState, caseState]
+  properties:
+    commentState:
+      $ref: "#/CommentState"
+    caseState:
+      $ref: "./schemas.yaml#/CaseState"

@@ -1,0 +1,23 @@
+#!/bin/sh
+# Refuse a commit made directly on a permanent branch.
+#
+# main and develop are permanent and only ever advance through a pull request
+# (docs/git-workflow.md). A direct commit here bypasses review and whatever CI
+# gate the pull request carried, and the history is shared the moment it is
+# pushed — recovering is never a one-liner.
+
+branch=$(git rev-parse --abbrev-ref HEAD)
+
+for permanent in main develop; do
+	if [ "$branch" = "$permanent" ]; then
+		echo "pre-commit: refusing a commit on '$branch' — permanent branch." >&2
+		echo >&2
+		echo "  git checkout -b <type>/<issue>-<description> $branch" >&2
+		echo >&2
+		echo "Commit there, then open a pull request targeting develop." >&2
+		echo "See docs/git-workflow.md." >&2
+		exit 1
+	fi
+done
+
+exit 0

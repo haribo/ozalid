@@ -1,0 +1,11 @@
+# Strict server mode: handlers satisfy a generated typed interface, so a shape
+# mismatch is a Go compile error rather than a production request (ADR 0002).
+package: openapi
+output: ../internal/ports/http/openapi/server.gen.go
+generate:
+  strict-server: true
+  std-http-server: true
+  models: true
+  embedded-spec: true
+output-options:
+  skip-prune: false

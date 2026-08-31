@@ -1,0 +1,27 @@
+parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
+
+get:
+  operationId: getProject
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
+  summary: Read a project
+  tags: [projects]
+  responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "200":
+      description: The project.
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/Project"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"

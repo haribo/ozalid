@@ -1,0 +1,79 @@
+parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
+
+get:
+  operationId: listAxes
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
+  summary: Read the project's rendering axes, in their declared order
+  tags: [projects]
+  responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "200":
+      description: The axes.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: "../components/schemas.yaml#/Axis"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
+
+put:
+  operationId: orderAxes
+  security:
+    - serviceToken: []
+    - session: []
+    - session: []
+  summary: Declare the order the axes read in
+  description: |
+    Only the order. Axes themselves are created by first use at intake —
+    ozalid ships no list of them and never invents one.
+
+    The order is what a variant's label reads from: placing `viewport` before
+    `theme` turns `dark·desktop` into `desktop·dark`. Existing variants are
+    relabelled, since a label is a rendering of the values and never an
+    identity.
+
+    An axis the project omits keeps its place after those it named.
+  tags: [projects]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required: [order]
+          properties:
+            order:
+              type: array
+              description: Axis names, most significant first.
+              items: { type: string }
+              examples:
+                - [viewport, theme, locale]
+  responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "200":
+      description: The axes in their new order.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: "../components/schemas.yaml#/Axis"
+    "400":
+      $ref: "../components/responses.yaml#/BadRequest"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"

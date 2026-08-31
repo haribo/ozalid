@@ -1,0 +1,73 @@
+name: Release
+
+# Publishes the binaries on a tag.
+#
+# A tag rather than a push to a branch: what runs in production has to be
+# nameable, and a branch cannot be rolled back to. Pre-release tags match `v*`
+# too, so `v0.1.0-rc.1` publishes without any change here.
+#
+# Binaries, not an image. Packaging belongs to a separate project; this one
+# produces the thing that gets packaged (#96).
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  binaries:
+    name: Build and attach the binaries
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Servers. A developer runs `go run ./apps/server/cmd/server` and never
+        # reaches for a release asset.
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v5.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - uses: extractions/setup-just@e33e0265a09d6d736e2ee1e0eb685ef1de4669ff # v3.0.0
+
+      # The same recipe a person runs, so what ships is what they can build.
+      - run: just release-binary "${{ github.ref_name }}" linux ${{ matrix.goarch }} dist/ozalid-linux-${{ matrix.goarch }}
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ozalid-linux-${{ matrix.goarch }}
+          path: dist/ozalid-linux-${{ matrix.goarch }}
+          if-no-files-found: error
+
+  publish:
+    name: Attach them to the release
+    needs: binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: dist
+          merge-multiple: true
+
+      # A packaging project that cannot verify what it downloaded is trusting
+      # the network.
+      - run: cd dist && sha256sum ozalid-linux-* > SHA256SUMS && cat SHA256SUMS
+
+      - uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
+        with:
+          files: |
+            dist/ozalid-linux-*
+            dist/SHA256SUMS
+          fail_on_unmatched_files: true

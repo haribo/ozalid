@@ -1,0 +1,35 @@
+parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
+  - name: recordingId
+    in: path
+    required: true
+    schema: { type: string }
+
+get:
+  operationId: getRecordingVideo
+  security:
+    - serviceToken: []
+    - session: []
+  summary: The video a recording holds
+  description: |
+    Read through the recording, for the same reason a capture's image is
+    (`product.md` §8.1). A recording is a supporting exhibit: never
+    byte-compared, never a source of state (ADR 0013).
+  tags: [blobs]
+  responses:
+    "200":
+      description: The video.
+      content:
+        application/octet-stream:
+          schema:
+            type: string
+            format: binary
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"

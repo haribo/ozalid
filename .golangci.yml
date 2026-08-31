@@ -1,0 +1,65 @@
+# Layer boundaries are architecture, not formatting: this file enforces
+# backend ADR 0001. A violation is a failed build, never a review comment.
+version: "2"
+
+linters:
+  enable:
+    - depguard
+    - errorlint
+    - forbidigo
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+  settings:
+    depguard:
+      rules:
+        # app orchestrates; it never reaches for a concrete adapter or a port.
+        app-layer:
+          files:
+            - "**/apps/server/internal/app/**"
+          deny:
+            - pkg: github.com/haribo/ozalid/apps/server/internal/adapters
+              desc: "app must not import an adapter — declare an interface in ports.go and wire it in cmd/server (backend ADR 0001)"
+            - pkg: github.com/haribo/ozalid/apps/server/internal/ports
+              desc: "app must not import a port — dependencies point inward (backend ADR 0001)"
+        # domain is pure: it knows nothing of the rest of the product. Two
+        # domain packages may talk to each other — that stays pure — but
+        # nothing above them may be reached.
+        domain-layer:
+          files:
+            - "**/apps/server/internal/domain/**"
+          deny:
+            - pkg: github.com/haribo/ozalid/apps/server/internal/app
+              desc: "domain must not import app — dependencies point inward (backend ADR 0001)"
+            - pkg: github.com/haribo/ozalid/apps/server/internal/adapters
+              desc: "domain must not import an adapter — it is pure (backend ADR 0001)"
+            - pkg: github.com/haribo/ozalid/apps/server/internal/ports
+              desc: "domain must not import a port — it is pure (backend ADR 0001)"
+
+    forbidigo:
+      # app receives its I/O through interfaces, so a use case stays testable
+      # without a clock, an environment or a network.
+      forbid:
+        - pattern: ^time\.Now$
+          msg: "inject a Clock instead (backend ADR 0001)"
+        - pattern: ^os\.Getenv$
+          msg: "read configuration in cmd/server and pass it down (backend ADR 0001)"
+        - pattern: ^http\.DefaultClient$
+          msg: "inject an HTTP client instead (backend ADR 0001)"
+        - pattern: ^sql\.Open$
+          msg: "open the database in cmd/server (backend ADR 0001)"
+      analyze-types: true
+
+  exclusions:
+    rules:
+      # cmd wires the concrete world, and tests build their own.
+      - path: apps/server/cmd/
+        linters: [forbidigo]
+      - path: _test\.go
+        linters: [forbidigo]
+
+formatters:
+  enable:
+    - gofmt

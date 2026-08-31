@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ozalid
+      POSTGRES_PASSWORD: ozalid
+      POSTGRES_DB: ozalid
+    ports:
+      # Off the default port on purpose, like the API on 8090: a developer
+      # machine usually already runs a Postgres on 5432, and a collision here
+      # is silent. Override with OZALID_PG_PORT.
+      - "${OZALID_PG_PORT:-5442}:5432"
+    volumes:
+      # Postgres 18+ wants a single mount at /var/lib/postgresql, not at its
+      # data subdirectory — that is what makes pg_upgrade --link possible later.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ozalid"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # A mailbox the end-to-end suite can read.
+  #
+  # Sign-in sends a message, and a suite that reached into the database for the
+  # link would leave the sending untested — the half most likely to be
+  # misconfigured on a real instance.
+  mailpit:
+    image: axllent/mailpit:v1.28
+    ports:
+      # Off 1025 and 8025 on purpose, like Postgres off 5432 and the API off
+      # 8080: a developer machine often already runs a mailpit, and the
+      # collision is only loud the first time.
+      - "${OZALID_SMTP_PORT:-1045}:1025"
+      - "${OZALID_MAILPIT_PORT:-8045}:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
