@@ -59,7 +59,7 @@ async function copy() {
     >
       <p class="mb-2 flex items-center gap-2 font-semibold text-amber-800 dark:text-amber-300">
         <AdminIcon name="warn" :size="15" />
-        Copiez-le maintenant. Il ne sera plus jamais affiché.
+        Nouveau jeton à copier
       </p>
       <div
         class="mb-2 flex items-center gap-2 rounded border border-slate-300 bg-white px-2.5 py-2 dark:border-slate-600 dark:bg-slate-900"
@@ -73,16 +73,18 @@ async function copy() {
           <AdminIcon name="copy" :size="12" />{{ copied ? 'Copié' : 'Copier' }}
         </button>
       </div>
-      <p class="text-[12px] text-slate-600 dark:text-slate-400">
-        Seule son empreinte est stockée. Perdu, il se remplace.
-      </p>
-      <button
-        type="button"
-        class="mt-3 rounded border border-indigo-600 px-3 py-1.5 text-[12px] font-medium text-indigo-700 dark:border-indigo-500 dark:text-indigo-300"
-        @click="dismiss"
-      >
-        J'ai copié le jeton
-      </button>
+      <div class="flex items-center gap-3">
+        <p class="text-[12px] text-amber-800 dark:text-amber-300">
+          Il ne sera plus jamais affiché.
+        </p>
+        <button
+          type="button"
+          class="ml-auto rounded border border-indigo-600 px-3 py-1.5 text-[12px] font-medium text-indigo-700 dark:border-indigo-500 dark:text-indigo-300"
+          @click="dismiss"
+        >
+          J'ai copié le jeton
+        </button>
+      </div>
     </section>
 
     <form class="mb-5 flex flex-wrap items-end gap-3" @submit.prevent="submit">

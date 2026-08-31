@@ -6,7 +6,7 @@
  * something (ADR 0018). The access screen of a project answers a different
  * question — who reaches it — and drops them.
  */
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { AdminIcon } from '@/shared/ui'
 import { formatMoment } from '@/shared/lib'
 import { useAccounts } from '@/features/accounts'
@@ -14,6 +14,15 @@ import { useAccounts } from '@/features/accounts'
 const { accounts, error, busy, load, create, deactivate } = useAccounts()
 
 const making = ref(false)
+// Retired accounts are out of the way, not out of reach. They clutter the
+// screen somebody onboards people on, and they are still what a name in the
+// journal resolves to (ADR 0018) — so they are one click away rather than
+// gone.
+const showRetired = ref(false)
+const shown = computed(() =>
+  showRetired.value ? accounts.value : accounts.value.filter((a) => !a.deactivatedAt),
+)
+const retired = computed(() => accounts.value.filter((a) => a.deactivatedAt).length)
 const name = ref('')
 const email = ref('')
 const admin = ref('relecteur')
@@ -42,6 +51,14 @@ async function submit() {
         <AdminIcon name="add" :size="12" />Nouveau compte
       </button>
     </div>
+
+    <label
+      v-if="retired"
+      class="mb-3 inline-flex items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400"
+    >
+      <input v-model="showRetired" type="checkbox" class="accent-indigo-600" />
+      voir les {{ retired }} compte{{ retired > 1 ? 's' : '' }} retiré{{ retired > 1 ? 's' : '' }}
+    </label>
 
     <form
       v-if="making"
@@ -116,7 +133,7 @@ async function submit() {
       </thead>
       <tbody>
         <tr
-          v-for="a in accounts"
+          v-for="a in shown"
           :key="a.id"
           class="border-b border-slate-200 dark:border-slate-700"
           :class="a.deactivatedAt ? 'text-slate-400 dark:text-slate-500' : ''"

@@ -133,9 +133,10 @@ async function add() {
             <span
               class="inline-flex items-center gap-1.5 font-mono text-[10.5px] text-slate-500 dark:text-slate-400"
             >
-              <AdminIcon :name="m.isPerson ? 'person' : 'program'" :size="11" />
-              {{ m.isPerson ? 'personne' : 'programme' }}
-              <template v-if="m.tokens === 0">· sans jeton</template>
+              <!-- The icon carries it, and it names itself to a screen reader.
+                   Spelling it out beside would be the same word twice. -->
+              <AdminIcon :name="m.isPerson ? 'person' : 'program'" :size="12" />
+              <template v-if="m.tokens === 0">sans jeton</template>
             </span>
           </td>
           <td class="py-2 pr-3"><RightsPill :rights="m.rights" /></td>
