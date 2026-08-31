@@ -51,5 +51,27 @@ export function useAccounts() {
     await load()
   }
 
-  return { accounts, error, busy, load, create, deactivate }
+  /**
+   * Promote or demote.
+   *
+   * The server refuses to leave the instance with no administrator, and says so
+   * with a 409 — a state nothing short of a database console repairs, so it is
+   * not something the screen may talk anybody out of.
+   */
+  async function setAdmin(accountId: string, isAdmin: boolean) {
+    error.value = ''
+    busy.value = true
+    const result = await api.PATCH('/accounts/{accountId}', {
+      params: { path: { accountId } },
+      body: { isAdmin },
+    })
+    busy.value = false
+    if (result.error) {
+      error.value = result.error.title
+      return
+    }
+    await load()
+  }
+
+  return { accounts, error, busy, load, create, deactivate, setAdmin }
 }

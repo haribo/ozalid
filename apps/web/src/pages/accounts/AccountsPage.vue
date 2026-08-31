@@ -11,7 +11,7 @@ import { AdminIcon } from '@/shared/ui'
 import { formatMoment } from '@/shared/lib'
 import { useAccounts } from '@/features/accounts'
 
-const { accounts, error, busy, load, create, deactivate } = useAccounts()
+const { accounts, error, busy, load, create, deactivate, setAdmin } = useAccounts()
 
 const making = ref(false)
 // Retired accounts are out of the way, not out of reach. They clutter the
@@ -157,16 +157,28 @@ async function submit() {
             </span>
           </td>
           <td class="py-2 pr-3 font-mono text-[12px]">{{ formatMoment(a.createdAt) }}</td>
-          <td class="py-2 text-right">
-            <button
-              v-if="!a.deactivatedAt"
-              type="button"
-              :disabled="busy"
-              class="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 text-indigo-700 disabled:opacity-50 dark:border-slate-600 dark:text-indigo-300"
-              @click="deactivate(a.id)"
-            >
-              <AdminIcon name="remove" label="désactiver le compte" />
-            </button>
+          <td class="py-2 text-right whitespace-nowrap">
+            <template v-if="!a.deactivatedAt">
+              <button
+                type="button"
+                :disabled="busy"
+                class="mr-1.5 inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 text-indigo-700 disabled:opacity-50 dark:border-slate-600 dark:text-indigo-300"
+                @click="setAdmin(a.id, !a.isAdmin)"
+              >
+                <AdminIcon
+                  name="swap"
+                  :label="a.isAdmin ? 'retirer le rôle admin' : 'passer en admin'"
+                />
+              </button>
+              <button
+                type="button"
+                :disabled="busy"
+                class="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 text-indigo-700 disabled:opacity-50 dark:border-slate-600 dark:text-indigo-300"
+                @click="deactivate(a.id)"
+              >
+                <AdminIcon name="remove" label="désactiver le compte" />
+              </button>
+            </template>
           </td>
         </tr>
       </tbody>
