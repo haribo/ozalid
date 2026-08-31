@@ -126,11 +126,15 @@ test('the captures in the grid actually decode, not just point somewhere', async
   const images = page.locator('tbody img')
   await expect(images).toHaveCount(6)
 
-  const widths = await images.evaluateAll((nodes) =>
-    nodes.map((n) => (n as HTMLImageElement).naturalWidth),
-  )
-  expect(
-    widths.every((w) => w > 0),
-    `naturalWidth per capture: ${widths}`,
-  ).toBe(true)
+  // Polled, not sampled once: the images are still arriving when the grid is
+  // already rendered, so reading naturalWidth straight away measures the
+  // network rather than the address. Sampling once passed on a fast machine
+  // and failed in CI with `320,320,0,320,0,0`.
+  await expect
+    .poll(
+      async () =>
+        images.evaluateAll((nodes) => nodes.map((n) => (n as HTMLImageElement).naturalWidth)),
+      { message: 'every capture in the grid should decode' },
+    )
+    .toEqual([320, 320, 320, 320, 320, 320])
 })

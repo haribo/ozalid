@@ -11,6 +11,7 @@ import (
 
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres/sqlcgen"
 	app "github.com/haribo/ozalid/apps/server/internal/app/catalogue"
+	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
 	"github.com/haribo/ozalid/apps/server/internal/domain/catalogue"
 	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"github.com/haribo/ozalid/internal/contract"
@@ -69,6 +70,37 @@ func (r *Repository) CreateCase(ctx context.Context, projectID string, categoryI
 // A case belonging to another project is not found here rather than refused:
 // the row does not exist for this caller, and a refusal would confirm that it
 // exists elsewhere (#71).
+// ProjectsFor returns the projects a caller may see: the ones they belong to,
+// and every one on the instance when they administer it.
+//
+// A service account never administers, so its answer is the single project it
+// belongs to, whatever the flag says (ADR 0018).
+func (r *Repository) ProjectsFor(ctx context.Context, by actor.Actor, admin bool) ([]catalogue.Project, error) {
+	var rows []sqlcgen.Project
+	var err error
+
+	switch by.Kind {
+	case actor.Human:
+		rows, err = r.q.ProjectsForUser(ctx, sqlcgen.ProjectsForUserParams{
+			UserID: &by.ID, IsAdmin: admin,
+		})
+	case actor.Machine:
+		rows, err = r.q.ProjectsForServiceAccount(ctx, &by.ID)
+	default:
+		// A kind nobody defined is nobody, and nobody sees nothing.
+		return []catalogue.Project{}, nil
+	}
+	if err != nil {
+		return nil, translate("listing the projects", err)
+	}
+
+	out := make([]catalogue.Project, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toProject(row))
+	}
+	return out, nil
+}
+
 func (r *Repository) CaseByID(ctx context.Context, slug, id string) (catalogue.Case, error) {
 	row, err := r.q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: id, Slug: slug})
 	if err != nil {

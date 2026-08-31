@@ -218,7 +218,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * The projects this caller may see
+         * @description The ones they belong to — and every one on the instance when they administer
+         *     it. An administrator names a project to manage its membership, and a power
+         *     that cannot be exercised is not a power (`product.md` §8.2). What stays
+         *     withheld is everything inside: the cases, the captures, the remarks.
+         *
+         *     A service account belongs to one project and sees that one
+         *     ([ADR 0018](https://github.com/haribo/ozalid/blob/develop/docs/adr/0018-an-actor-is-never-invented.md)).
+         */
+        get: operations["listProjects"];
         put?: never;
         /** Open a book */
         post: operations["createProject"];
@@ -913,15 +923,6 @@ export interface components {
             /** @default false */
             isAdmin: boolean;
         };
-        NewProject: {
-            slug: string;
-            name: string;
-            /**
-             * @default per-case
-             * @enum {string}
-             */
-            intakePolicy: "strict" | "per-case";
-        };
         Project: {
             id: string;
             slug: string;
@@ -934,6 +935,15 @@ export interface components {
             intakePolicy: "strict" | "per-case";
             /** Format: date-time */
             createdAt: string;
+        };
+        NewProject: {
+            slug: string;
+            name: string;
+            /**
+             * @default per-case
+             * @enum {string}
+             */
+            intakePolicy: "strict" | "per-case";
         };
         /**
          * @description A rendering dimension the project declares. ozalid ships no built-in list:
@@ -1115,6 +1125,14 @@ export interface components {
              */
             isPerson: boolean;
             rights: components["schemas"]["Rights"];
+            /**
+             * @description How many credentials this program holds. Absent for a person, who
+             *     presents no token. **Zero is the value worth seeing**: a member that
+             *     cannot authenticate, which is a missing key rather than a retired
+             *     account — a retired account is not listed here at all (`product.md`
+             *     §8.2).
+             */
+            tokens?: number;
             /** Format: date-time */
             addedAt: string;
         };
@@ -1666,6 +1684,28 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listProjects: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The projects, by name. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
         };
     };
     createProject: {

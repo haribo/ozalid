@@ -290,12 +290,17 @@ SELECT
     u.email,
     (m.user_id IS NOT NULL)::boolean AS is_person,
     m.rights,
-    m.added_at
+    m.added_at,
+    -- How many credentials this program holds. A program with none is a member
+    -- that cannot authenticate — alive, and missing a key, which is a thing
+    -- somebody can fix. NULL for a person, who presents no token.
+    (SELECT count(*) FROM service_tokens t WHERE t.service_account_id = sa.id) AS tokens
 FROM project_members m
 JOIN projects p ON p.id = m.project_id
 LEFT JOIN users u ON u.id = m.user_id
 LEFT JOIN service_accounts sa ON sa.id = m.service_account_id
 WHERE p.slug = $1
+  AND coalesce(u.deactivated_at, sa.deactivated_at) IS NULL
 ORDER BY is_person DESC, lower(coalesce(u.name, sa.name))
 `
 
@@ -306,10 +311,14 @@ type ListProjectMembersRow struct {
 	IsPerson  bool
 	Rights    string
 	AddedAt   pgtype.Timestamptz
+	Tokens    int64
 }
 
 // Both kinds of holder in one list: a project's members are the people and the
 // programs that reach it, and hiding either would make the list a lie.
+// A deactivated account is not listed. This page answers "who reaches this
+// project", and a deactivated account reaches nothing; it stays on /accounts,
+// which answers "who exists on this instance" (product.md §8.2).
 func (q *Queries) ListProjectMembers(ctx context.Context, slug string) ([]ListProjectMembersRow, error) {
 	rows, err := q.db.Query(ctx, listProjectMembers, slug)
 	if err != nil {
@@ -326,6 +335,7 @@ func (q *Queries) ListProjectMembers(ctx context.Context, slug string) ([]ListPr
 			&i.IsPerson,
 			&i.Rights,
 			&i.AddedAt,
+			&i.Tokens,
 		); err != nil {
 			return nil, err
 		}
@@ -406,6 +416,85 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 			&i.IsAdmin,
 			&i.DeactivatedAt,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const projectsForServiceAccount = `-- name: ProjectsForServiceAccount :many
+SELECT p.id, p.slug, p.name, p.intake_policy, p.created_at, p.pixel_threshold FROM projects p
+JOIN project_members m ON m.project_id = p.id
+WHERE m.service_account_id = $1
+ORDER BY lower(p.name)
+`
+
+// A service account belongs to one project and sees that one (ADR 0018).
+func (q *Queries) ProjectsForServiceAccount(ctx context.Context, serviceAccountID *string) ([]Project, error) {
+	rows, err := q.db.Query(ctx, projectsForServiceAccount, serviceAccountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Project{}
+	for rows.Next() {
+		var i Project
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Name,
+			&i.IntakePolicy,
+			&i.CreatedAt,
+			&i.PixelThreshold,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const projectsForUser = `-- name: ProjectsForUser :many
+SELECT p.id, p.slug, p.name, p.intake_policy, p.created_at, p.pixel_threshold
+FROM projects p
+LEFT JOIN project_members m ON m.project_id = p.id AND m.user_id = $1
+WHERE m.user_id IS NOT NULL OR $2::boolean
+ORDER BY lower(p.name)
+`
+
+type ProjectsForUserParams struct {
+	UserID  *string
+	IsAdmin bool
+}
+
+// The projects a caller may see: the ones they belong to, and every one on the
+// instance when they administer it. An administrator names a project to manage
+// its membership, and a power that cannot be exercised is not a power
+// (product.md §8.2). What stays withheld is everything inside.
+func (q *Queries) ProjectsForUser(ctx context.Context, arg ProjectsForUserParams) ([]Project, error) {
+	rows, err := q.db.Query(ctx, projectsForUser, arg.UserID, arg.IsAdmin)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Project{}
+	for rows.Next() {
+		var i Project
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Name,
+			&i.IntakePolicy,
+			&i.CreatedAt,
+			&i.PixelThreshold,
 		); err != nil {
 			return nil, err
 		}

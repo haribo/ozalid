@@ -1,3 +1,32 @@
+get:
+  operationId: listProjects
+  security:
+    - serviceToken: []
+    - session: []
+  summary: The projects this caller may see
+  description: |
+    The ones they belong to — and every one on the instance when they administer
+    it. An administrator names a project to manage its membership, and a power
+    that cannot be exercised is not a power (`product.md` §8.2). What stays
+    withheld is everything inside: the cases, the captures, the remarks.
+
+    A service account belongs to one project and sees that one
+    ([ADR 0018](https://github.com/haribo/ozalid/blob/develop/docs/adr/0018-an-actor-is-never-invented.md)).
+  tags: [catalogue]
+  responses:
+    "200":
+      description: The projects, by name.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: "../components/schemas.yaml#/Project"
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+
 post:
   operationId: createProject
   security:
