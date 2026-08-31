@@ -10,12 +10,36 @@ import { expect } from '@playwright/test'
 const MAILPIT = process.env.OZALID_E2E_MAILPIT ?? 'http://localhost:8045'
 
 /**
+ * Throw away what an address has already been sent.
+ *
+ * Called before asking for a link, so that waiting for "a message" is waiting
+ * for *this* message. Without it a reader picks up an older one — already spent,
+ * since a link works once — and the sign-in fails for a reason that has nothing
+ * to do with what the test is about.
+ */
+export async function emptyMailbox(address: string): Promise<void> {
+  const listed = await fetch(
+    `${MAILPIT}/api/v1/search?query=${encodeURIComponent('to:' + address)}`,
+  )
+  const { messages } = (await listed.json()) as { messages: { ID: string }[] }
+  if (!messages.length) return
+  await fetch(`${MAILPIT}/api/v1/messages`, {
+    method: 'DELETE',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ IDs: messages.map((m) => m.ID) }),
+  })
+}
+
+/**
  * The link in the newest message sent to an address.
  *
  * Polled, not sampled: the server answers before the message leaves, on purpose
  * — waiting for the send is what let a stopwatch tell an address with an
  * account from one without (#92). A reader that looks once races the send, and
  * would pass on a fast machine and fail in CI.
+ *
+ * Pair it with `emptyMailbox` before the ask, or it may hand back a link from
+ * an earlier one.
  */
 export async function linkSentTo(address: string): Promise<string> {
   let messages: { ID: string }[] = []

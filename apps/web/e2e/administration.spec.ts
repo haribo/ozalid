@@ -6,7 +6,7 @@
  * browser, against a real server.
  */
 import { expect, test, type Page } from '@playwright/test'
-import { linkSentTo } from './mailbox'
+import { emptyMailbox, linkSentTo } from './mailbox'
 
 const PROJECT = process.env.OZALID_E2E_PROJECT ?? 'e2e'
 
@@ -14,6 +14,7 @@ const unique = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
 /** Signs a browser in through the interface, the way a person does. */
 async function signIn(page: Page, email: string) {
+  await emptyMailbox(email)
   await page.goto('/sign-in')
   await page.getByLabel('adresse').fill(email)
   await page.getByRole('button', { name: 'Envoyer le lien' }).click()

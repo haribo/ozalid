@@ -6,10 +6,11 @@
  * browser carrying a session the product itself issued.
  */
 import { expect, test as setup } from '@playwright/test'
-import { linkSentTo } from './mailbox'
+import { emptyMailbox, linkSentTo } from './mailbox'
 import { REVIEWER, SIGNED_IN } from './session'
 
 setup('a reviewer signs in, once, for the whole suite', async ({ page, context }) => {
+  await emptyMailbox(REVIEWER)
   await page.goto('/sign-in')
   await page.getByLabel('adresse').fill(REVIEWER)
   await page.getByRole('button', { name: 'Envoyer le lien' }).click()
