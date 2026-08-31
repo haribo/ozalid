@@ -118,14 +118,23 @@ func TestADeactivatedAccountStandsForNothing(t *testing.T) {
 	q := repo.Queries()
 	gone := person(t, ctx, q, "gone", true)
 	belongs(t, ctx, q, project.ID, gone.ID, access.Member)
+	// Somebody else administers the instance, so deactivating this one is
+	// allowed: the last administrator cannot go (#90). The account under test
+	// stays an administrator, which is what makes the assertion below cover
+	// `Admin` as well as the rights.
+	person(t, ctx, q, "still administering", true)
 
-	if _, err := q.DeactivateUser(ctx, gone.ID); err != nil {
+	rows, err := q.DeactivateUser(ctx, gone.ID)
+	if err != nil {
 		t.Fatalf("deactivating: %v", err)
 	}
+	if rows != 1 {
+		t.Fatalf("the account was not deactivated, so the standing below proves nothing")
+	}
 
-	standing, err := repo.StandingOf(ctx, actor.Actor{ID: gone.ID, Kind: actor.Human}, project.ID)
-	if err != nil {
-		t.Fatalf("reading the standing: %v", err)
+	standing, err2 := repo.StandingOf(ctx, actor.Actor{ID: gone.ID, Kind: actor.Human}, project.ID)
+	if err2 != nil {
+		t.Fatalf("reading the standing: %v", err2)
 	}
 	// Deactivated, not deleted: what they reviewed stays readable and the
 	// journal still names them, but the door is shut.
