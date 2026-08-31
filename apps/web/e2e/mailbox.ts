@@ -9,13 +9,28 @@ import { expect } from '@playwright/test'
 
 const MAILPIT = process.env.OZALID_E2E_MAILPIT ?? 'http://localhost:8045'
 
-/** The link in the newest message sent to an address. */
+/**
+ * The link in the newest message sent to an address.
+ *
+ * Polled, not sampled: the server answers before the message leaves, on purpose
+ * — waiting for the send is what let a stopwatch tell an address with an
+ * account from one without (#92). A reader that looks once races the send, and
+ * would pass on a fast machine and fail in CI.
+ */
 export async function linkSentTo(address: string): Promise<string> {
-  const listed = await fetch(
-    `${MAILPIT}/api/v1/search?query=${encodeURIComponent('to:' + address)}`,
-  )
-  const { messages } = (await listed.json()) as { messages: { ID: string }[] }
-  expect(messages.length, `no message reached ${address}`).toBeGreaterThan(0)
+  let messages: { ID: string }[] = []
+  await expect
+    .poll(
+      async () => {
+        const listed = await fetch(
+          `${MAILPIT}/api/v1/search?query=${encodeURIComponent('to:' + address)}`,
+        )
+        messages = ((await listed.json()) as { messages: { ID: string }[] }).messages
+        return messages.length
+      },
+      { message: `no message reached ${address}` },
+    )
+    .toBeGreaterThan(0)
 
   const body = await fetch(`${MAILPIT}/api/v1/message/${messages[0].ID}`)
   const { Text } = (await body.json()) as { Text: string }
