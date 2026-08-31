@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/haribo/ozalid/apps/server/internal/app/account"
 	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
@@ -44,20 +45,66 @@ func (s *Server) RequestSignIn(ctx context.Context, request openapi.RequestSignI
 		}, nil
 	}
 
+	// Both limits, and the address one first: a flood aimed at one person is
+	// what the per-address limit is for, and it must not be spent by whoever
+	// happens to share their source.
+	if wait, ok := s.perAddress.allow(strings.ToLower(email)); !ok {
+		return tooManySignIns(wait), nil
+	}
+	if wait, ok := s.perSource.allow(sourceOf(ctx)); !ok {
+		return tooManySignIns(wait), nil
+	}
+
 	link, send, err := s.signIn.StartSignIn(ctx, email)
 	if err != nil {
 		return nil, err
 	}
 	if send {
-		if err := s.mail.SendSignInLink(ctx, email, link); err != nil {
-			// The link exists and the message did not leave. Reported here
-			// because an operator has to see it, and answered the same way
-			// outside because the caller must not learn that the address is
-			// known.
-			slog.Error("the sign-in link could not be sent", "error", err)
-		}
+		s.deliver(email, link)
 	}
 	return openapi.RequestSignIn202Response{}, nil
+}
+
+// deliver sends the link off the request's path.
+//
+// Sending is the slow half, and waiting for it is what let a stopwatch tell an
+// address with an account from one without — the endpoint answers `202` either
+// way, and that is worth nothing if the two answers arrive at different times.
+//
+// The request's context is not carried: it is cancelled the moment the response
+// is written, which would abort the send it exists to protect.
+func (s *Server) deliver(email, link string) {
+	s.sending.Add(1)
+	go func() {
+		defer s.sending.Done()
+
+		ctx, stop := context.WithTimeout(context.Background(), sendTimeout)
+		defer stop()
+
+		if err := s.mail.SendSignInLink(ctx, email, link); err != nil {
+			// The link exists and the message did not leave. An operator has to
+			// see it; the caller is told nothing, because the caller must not
+			// learn that the address is known.
+			slog.ErrorContext(ctx, "the sign-in link could not be sent", "error", err, "to", email)
+		}
+	}()
+}
+
+// sendTimeout bounds one delivery. Without it a wedged SMTP server would hold a
+// goroutine for as long as it liked, and the rate limit is what bounds how many
+// of those there can be.
+const sendTimeout = 30 * time.Second
+
+func tooManySignIns(wait time.Duration) openapi.RequestSignIn429ApplicationProblemPlusJSONResponse {
+	seconds := int(wait.Seconds()) + 1
+	return openapi.RequestSignIn429ApplicationProblemPlusJSONResponse{
+		Body: problem("too-many-sign-ins", "Too many sign-in links asked for",
+			http.StatusTooManyRequests,
+			"A link stays good for fifteen minutes; the ones already sent still work."),
+		Headers: openapi.RequestSignIn429ResponseHeaders{
+			RetryAfter: &seconds,
+		},
+	}
 }
 
 // ClaimSignIn spends a link and sets the session cookie.

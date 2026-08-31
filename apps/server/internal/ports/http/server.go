@@ -8,6 +8,8 @@ package http
 import (
 	"context"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/haribo/ozalid/apps/server/internal/adapters/blobstore"
 	"github.com/haribo/ozalid/apps/server/internal/adapters/mail"
@@ -36,12 +38,23 @@ type Server struct {
 	signIn       SignIn
 	mail         mail.Sender
 	standings    Standings
-	account      *account.Service
-	catalogue    *catalogue.Service
-	intake       *intake.Service
-	evidence     *evidence.Service
-	session      *session.Service
-	comment      *comment.Service
+	// Asking for a sign-in link is the one thing anybody may do without a
+	// credential, so it is the one thing that has to be limited.
+	// trustProxy says whether X-Forwarded-For may be believed. False by
+	// default: trusting it without a proxy in front lets anybody claim any
+	// source and walk past the per-source limit.
+	trustProxy bool
+	perAddress *window
+	perSource  *window
+	// sending tracks the deliveries still in flight, so a shutdown can wait for
+	// them rather than dropping a link somebody is waiting on.
+	sending   sync.WaitGroup
+	account   *account.Service
+	catalogue *catalogue.Service
+	intake    *intake.Service
+	evidence  *evidence.Service
+	session   *session.Service
+	comment   *comment.Service
 }
 
 // Compile-time proof that every operation in the contract is implemented.
@@ -57,12 +70,16 @@ type Deps struct {
 	SignIn       SignIn
 	Mail         mail.Sender
 	Standings    Standings
-	Account      *account.Service
-	Catalogue    *catalogue.Service
-	Intake       *intake.Service
-	Evidence     *evidence.Service
-	Session      *session.Service
-	Comment      *comment.Service
+	TrustProxy   bool
+	// Now is the clock the rate limits are measured against. Handed in from
+	// cmd/server, which is where the concrete world is wired (backend ADR 0001).
+	Now       func() time.Time
+	Account   *account.Service
+	Catalogue *catalogue.Service
+	Intake    *intake.Service
+	Evidence  *evidence.Service
+	Session   *session.Service
+	Comment   *comment.Service
 }
 
 // New returns a Server wired to deps.
@@ -75,6 +92,9 @@ func New(deps Deps) *Server {
 		signIn:       deps.SignIn,
 		mail:         deps.Mail,
 		standings:    deps.Standings,
+		trustProxy:   deps.TrustProxy,
+		perAddress:   newWindow(perAddress, limitAfter, deps.Now),
+		perSource:    newWindow(perSource, limitAfter, deps.Now),
 		account:      deps.Account,
 		catalogue:    deps.Catalogue,
 		intake:       deps.Intake,
@@ -89,11 +109,18 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	// Every route passes through resolution, so no handler can be reached
 	// without an answer to "who is this".
-	mux.Handle("/api/", http.StripPrefix("/api", withActor(s.tokens, s.signIn, openapi.HandlerFromMux(
+	mux.Handle("/api/", http.StripPrefix("/api", withSource(s.trustProxy, withActor(s.tokens, s.signIn, openapi.HandlerFromMux(
 		openapi.NewStrictHandler(s, nil), http.NewServeMux(),
-	))))
+	)))))
 	// Everything else is the client, built into this binary. Registered last
 	// and at the root, so it catches what /api/ did not.
 	mux.Handle("/", webui.Handler())
 	return mux
 }
+
+// WaitForSending blocks until every sign-in link in flight has been handed to
+// the mail server or given up.
+//
+// Sending happens off the request's path, so a shutdown that did not wait would
+// drop a link somebody is sitting in front of their inbox waiting for.
+func (s *Server) WaitForSending() { s.sending.Wait() }

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/haribo/ozalid/apps/server/internal/adapters/blobstore"
 	"github.com/haribo/ozalid/apps/server/internal/app/catalogue"
@@ -81,7 +82,7 @@ func serverHolding(t *testing.T, hash string) http.Handler {
 		t.Fatalf("creating the store: %v", err)
 	}
 	return ozhttp.New(ozhttp.Deps{
-		Version: "test", Blobs: store, Tokens: oneToken{}, Standings: oneMembership{},
+		Version: "test", Now: time.Now, Blobs: store, Tokens: oneToken{}, Standings: oneMembership{},
 		Evidence: evidence.New(oneCapture{id: theCapture, hash: hash}),
 	}).Handler()
 }
@@ -95,7 +96,7 @@ func newServer(t *testing.T) http.Handler {
 	if err != nil {
 		t.Fatalf("creating the store: %v", err)
 	}
-	return ozhttp.New(ozhttp.Deps{Version: "test", Blobs: store, Tokens: oneToken{}, Standings: oneMembership{}}).Handler()
+	return ozhttp.New(ozhttp.Deps{Version: "test", Now: time.Now, Blobs: store, Tokens: oneToken{}, Standings: oneMembership{}}).Handler()
 }
 
 func do(t *testing.T, h http.Handler, method, path string, body io.Reader) *httptest.ResponseRecorder {
