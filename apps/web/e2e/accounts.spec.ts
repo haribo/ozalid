@@ -84,3 +84,52 @@ test('a service account administers nothing, however good its token', async () =
 test('deactivating an account nobody has is not found', async ({ request }) => {
   expect((await request.delete(`${API}/api/accounts/nobody-has-this`)).status()).toBe(404)
 })
+
+test('a role set wrongly at creation is not permanent', async ({ request }) => {
+  const made = await request.post(`${API}/api/accounts`, {
+    data: { name: 'meant to administer', email: anAddress() },
+  })
+  const account = await made.json()
+  expect(account.isAdmin).toBe(false)
+
+  expect(
+    (
+      await request.patch(`${API}/api/accounts/${account.id}`, { data: { isAdmin: true } })
+    ).status(),
+  ).toBe(204)
+
+  const listed = await (await request.get(`${API}/api/accounts`)).json()
+  expect(listed.find((a: { id: string }) => a.id === account.id).isAdmin).toBe(true)
+
+  // And back down, since there is another administrator standing.
+  expect(
+    (
+      await request.patch(`${API}/api/accounts/${account.id}`, { data: { isAdmin: false } })
+    ).status(),
+  ).toBe(204)
+})
+
+test('the last administrator cannot be removed, by either route', async ({ request }) => {
+  // The suite is bootstrapped with exactly one administrator, and the tests
+  // above make no others — so this is the last one, and both routes out of
+  // administration must refuse.
+  const me = await (await request.get(`${API}/api/me`)).json()
+
+  const demoted = await request.patch(`${API}/api/accounts/${me.id}`, { data: { isAdmin: false } })
+  expect(demoted.status()).toBe(409)
+  expect((await demoted.json()).title).toContain('last administrator')
+
+  const removed = await request.delete(`${API}/api/accounts/${me.id}`)
+  expect(removed.status()).toBe(409)
+
+  // Still standing, so the refusals were not cosmetic.
+  expect((await request.get(`${API}/api/accounts`)).status()).toBe(200)
+})
+
+test('a role nobody has is not found', async ({ request }) => {
+  expect(
+    (
+      await request.patch(`${API}/api/accounts/nobody-has-this`, { data: { isAdmin: true } })
+    ).status(),
+  ).toBe(404)
+})

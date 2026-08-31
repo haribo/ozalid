@@ -208,7 +208,16 @@ export interface paths {
         delete: operations["deactivateAccount"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Promote or demote an account
+         * @description An ordinary administrative act, and the reason a role set wrongly when the
+         *     account was made is not permanent.
+         *
+         *     **The last administrator cannot be demoted.** An instance with nobody
+         *     administering it can no longer make an account, grant a membership or mint a
+         *     token, and nothing short of a database console repairs that.
+         */
+        patch: operations["setAccountRole"];
         trace?: never;
     };
     "/projects": {
@@ -1691,6 +1700,53 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            /** @description It would leave the instance with no administrator. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["problem"];
+                };
+            };
+        };
+    };
+    setAccountRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    isAdmin: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The role is what was asked for. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description It would leave the instance with no administrator. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["problem"];
+                };
+            };
         };
     };
     listProjects: {
