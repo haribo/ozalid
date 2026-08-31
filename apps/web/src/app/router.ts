@@ -1,18 +1,26 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { AccountsPage } from '@/pages/accounts'
+import { AccessPage, TokensPage } from '@/pages/access'
 import { CataloguePage } from '@/pages/catalogue'
+import { ProjectsPage } from '@/pages/projects'
 import { CasePage } from '@/pages/case'
 import { SignInPage, ClaimPage } from '@/pages/sign-in'
 import { useSession } from '@/features/session'
 
 /**
- * Five routes, and two of them are the way in. The catalogue serves two of the
- * rest: listing the root and listing a category are the same screen at two
- * depths.
+ * Two of these are the way in, and the rest are the book and its administration.
+ * The catalogue serves two: listing the root and listing a category are the same
+ * screen at two depths.
  */
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', redirect: '/projects/demo' },
+    // What a person lands on. It used to redirect to a hardcoded `demo`
+    // project, which exists on nobody's instance.
+    { path: '/', component: ProjectsPage },
+    { path: '/accounts', component: AccountsPage },
+    { path: '/projects/:slug/access', component: AccessPage },
+    { path: '/projects/:slug/access/:serviceAccountId', component: TokensPage },
     { path: '/projects/:slug', component: CataloguePage },
     { path: '/projects/:slug/categories/:categoryId', component: CataloguePage },
     { path: '/projects/:slug/cases/:caseId', component: CasePage },

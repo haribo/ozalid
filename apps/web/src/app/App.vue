@@ -27,6 +27,26 @@ async function leave() {
       class="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-6 py-2.5 dark:border-slate-700 dark:bg-slate-900"
     >
       <RouterLink to="/" class="text-[15px] font-semibold"> ozalid </RouterLink>
+      <nav v-if="person" class="flex gap-1 font-mono text-[11px]">
+        <RouterLink
+          to="/"
+          class="rounded px-2 py-1 text-slate-500 dark:text-slate-400"
+          active-class="bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
+        >
+          projets
+        </RouterLink>
+        <!-- Shown from `isAdmin`, which decides what is offered and never what
+             is allowed: the server refuses regardless, and a hidden button has
+             never protected anything. -->
+        <RouterLink
+          v-if="person.isAdmin"
+          to="/accounts"
+          class="rounded px-2 py-1 text-slate-500 dark:text-slate-400"
+          active-class="bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
+        >
+          comptes
+        </RouterLink>
+      </nav>
       <span
         v-if="person"
         class="ml-auto flex items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400"

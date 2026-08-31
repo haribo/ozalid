@@ -364,6 +364,8 @@ func toAPIProject(p catalogue.Project) openapi.Project {
 		Name:         p.Name,
 		IntakePolicy: openapi.ProjectIntakePolicy(p.IntakePolicy),
 		CreatedAt:    p.CreatedAt,
+		People:       p.People,
+		Programs:     p.Programs,
 	}
 }
 

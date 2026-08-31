@@ -935,6 +935,13 @@ export interface components {
             intakePolicy: "strict" | "per-case";
             /** Format: date-time */
             createdAt: string;
+            /**
+             * @description How many people reach this project. Deactivated accounts are not
+             *     counted: they reach nothing (`product.md` §8.2).
+             */
+            people: number;
+            /** @description How many programs reach it. */
+            programs: number;
         };
         NewProject: {
             slug: string;

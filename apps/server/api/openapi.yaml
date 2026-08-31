@@ -1620,6 +1620,8 @@ components:
         - name
         - intakePolicy
         - createdAt
+        - people
+        - programs
       properties:
         id:
           type: string
@@ -1638,6 +1640,14 @@ components:
         createdAt:
           type: string
           format: date-time
+        people:
+          type: integer
+          description: |
+            How many people reach this project. Deactivated accounts are not
+            counted: they reach nothing (`product.md` §8.2).
+        programs:
+          type: integer
+          description: How many programs reach it.
     NewProject:
       type: object
       required:

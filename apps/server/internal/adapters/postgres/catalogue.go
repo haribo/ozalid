@@ -76,27 +76,36 @@ func (r *Repository) CreateCase(ctx context.Context, projectID string, categoryI
 // A service account never administers, so its answer is the single project it
 // belongs to, whatever the flag says (ADR 0018).
 func (r *Repository) ProjectsFor(ctx context.Context, by actor.Actor, admin bool) ([]catalogue.Project, error) {
-	var rows []sqlcgen.Project
-	var err error
+	out := []catalogue.Project{}
 
 	switch by.Kind {
 	case actor.Human:
-		rows, err = r.q.ProjectsForUser(ctx, sqlcgen.ProjectsForUserParams{
+		rows, err := r.q.ProjectsForUser(ctx, sqlcgen.ProjectsForUserParams{
 			UserID: &by.ID, IsAdmin: admin,
 		})
+		if err != nil {
+			return nil, translate("listing the projects", err)
+		}
+		for _, row := range rows {
+			out = append(out, withCounts(sqlcgen.Project{
+				ID: row.ID, Slug: row.Slug, Name: row.Name, IntakePolicy: row.IntakePolicy,
+				CreatedAt: row.CreatedAt, PixelThreshold: row.PixelThreshold,
+			}, row.People, row.Programs))
+		}
 	case actor.Machine:
-		rows, err = r.q.ProjectsForServiceAccount(ctx, &by.ID)
+		rows, err := r.q.ProjectsForServiceAccount(ctx, &by.ID)
+		if err != nil {
+			return nil, translate("listing the projects", err)
+		}
+		for _, row := range rows {
+			out = append(out, withCounts(sqlcgen.Project{
+				ID: row.ID, Slug: row.Slug, Name: row.Name, IntakePolicy: row.IntakePolicy,
+				CreatedAt: row.CreatedAt, PixelThreshold: row.PixelThreshold,
+			}, row.People, row.Programs))
+		}
 	default:
 		// A kind nobody defined is nobody, and nobody sees nothing.
-		return []catalogue.Project{}, nil
-	}
-	if err != nil {
-		return nil, translate("listing the projects", err)
-	}
-
-	out := make([]catalogue.Project, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, toProject(row))
+		return out, nil
 	}
 	return out, nil
 }
@@ -173,6 +182,15 @@ func (r *Repository) DeleteEmptyCategory(ctx context.Context, slug, id string) (
 
 // The translations below are the whole point of this file: generated rows stay
 // inside the adapter, and the layers above see domain types only.
+
+// withCounts is toProject plus who reaches the project. The two counts come
+// from the listing query and from nowhere else, so a project read on its own
+// carries zeros rather than a number nobody computed.
+func withCounts(row sqlcgen.Project, people, programs int64) catalogue.Project {
+	out := toProject(row)
+	out.People, out.Programs = int(people), int(programs)
+	return out
+}
 
 func toProject(row sqlcgen.Project) catalogue.Project {
 	return catalogue.Project{
