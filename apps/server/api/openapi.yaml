@@ -295,6 +295,47 @@ paths:
         required: true
         schema:
           type: string
+    patch:
+      operationId: setAccountRole
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Promote or demote an account
+      description: |
+        An ordinary administrative act, and the reason a role set wrongly when the
+        account was made is not permanent.
+
+        **The last administrator cannot be demoted.** An instance with nobody
+        administering it can no longer make an account, grant a membership or mint a
+        token, and nothing short of a database console repairs that.
+      tags:
+        - accounts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - isAdmin
+              properties:
+                isAdmin:
+                  type: boolean
+      responses:
+        '204':
+          description: The role is what was asked for.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: It would leave the instance with no administrator.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problem'
     delete:
       operationId: deactivateAccount
       security:
@@ -319,6 +360,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: It would leave the instance with no administrator.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problem'
   /projects:
     get:
       operationId: listProjects
