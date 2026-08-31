@@ -191,6 +191,14 @@ Membership:
         (`product.md` §8).
     rights:
       $ref: "#/Rights"
+    tokens:
+      type: integer
+      description: |
+        How many credentials this program holds. Absent for a person, who
+        presents no token. **Zero is the value worth seeing**: a member that
+        cannot authenticate, which is a missing key rather than a retired
+        account — a retired account is not listed here at all (`product.md`
+        §8.2).
     addedAt: { type: string, format: date-time }
 
 NewMembership:

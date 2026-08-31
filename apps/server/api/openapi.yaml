@@ -320,6 +320,35 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
   /projects:
+    get:
+      operationId: listProjects
+      security:
+        - serviceToken: []
+        - session: []
+      summary: The projects this caller may see
+      description: |
+        The ones they belong to — and every one on the instance when they administer
+        it. An administrator names a project to manage its membership, and a power
+        that cannot be exercised is not a power (`product.md` §8.2). What stays
+        withheld is everything inside: the cases, the captures, the remarks.
+
+        A service account belongs to one project and sees that one
+        ([ADR 0018](https://github.com/haribo/ozalid/blob/develop/docs/adr/0018-an-actor-is-never-invented.md)).
+      tags:
+        - catalogue
+      responses:
+        '200':
+          description: The projects, by name.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     post:
       operationId: createProject
       security:
@@ -1583,24 +1612,6 @@ components:
         isAdmin:
           type: boolean
           default: false
-    NewProject:
-      type: object
-      required:
-        - slug
-        - name
-      properties:
-        slug:
-          type: string
-          pattern: ^[a-z0-9][a-z0-9-]{1,62}$
-        name:
-          type: string
-          minLength: 1
-        intakePolicy:
-          type: string
-          enum:
-            - strict
-            - per-case
-          default: per-case
     Project:
       type: object
       required:
@@ -1627,6 +1638,24 @@ components:
         createdAt:
           type: string
           format: date-time
+    NewProject:
+      type: object
+      required:
+        - slug
+        - name
+      properties:
+        slug:
+          type: string
+          pattern: ^[a-z0-9][a-z0-9-]{1,62}$
+        name:
+          type: string
+          minLength: 1
+        intakePolicy:
+          type: string
+          enum:
+            - strict
+            - per-case
+          default: per-case
     Axis:
       type: object
       required:
@@ -1968,6 +1997,14 @@ components:
             (`product.md` §8).
         rights:
           $ref: '#/components/schemas/Rights'
+        tokens:
+          type: integer
+          description: |
+            How many credentials this program holds. Absent for a person, who
+            presents no token. **Zero is the value worth seeing**: a member that
+            cannot authenticate, which is a missing key rather than a retired
+            account — a retired account is not listed here at all (`product.md`
+            §8.2).
         addedAt:
           type: string
           format: date-time
