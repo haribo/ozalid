@@ -396,6 +396,15 @@ The consequence to accept today: **a second administrator stops being
 optional.** An instance with one loses the ability to add anybody the day that
 one loses their access.
 
+**An administrator sees every project's name, and no project's content.** The
+list of what exists is not the content §8.2 withholds: administering a project's
+membership requires naming that project, and a power that cannot be exercised is
+not a power. What stays withheld is everything inside — the cases, the captures,
+the remarks — which is the whole of what the section is about.
+
+Whether they are a member of a given project is not shown to them. They are
+administering it either way, and the answer changes nothing they can do.
+
 ## 9. API shape
 
 Indicative, not a contract yet. The principle is what matters: **every fact
