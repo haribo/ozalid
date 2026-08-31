@@ -31,7 +31,12 @@ type Membership struct {
 	// never declared (product.md §8).
 	IsPerson bool
 	Rights   access.Rights
-	AddedAt  time.Time
+	// Tokens is how many credentials a program holds, and nil for a person.
+	// Zero is the interesting value: a member that cannot authenticate, which
+	// is a thing somebody can fix — unlike a deactivated account, which is
+	// simply not listed here (product.md §8.2).
+	Tokens  *int
+	AddedAt time.Time
 }
 
 // Repository stores accounts.

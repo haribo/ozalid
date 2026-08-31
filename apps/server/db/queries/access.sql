@@ -38,12 +38,20 @@ SELECT
     u.email,
     (m.user_id IS NOT NULL)::boolean AS is_person,
     m.rights,
-    m.added_at
+    m.added_at,
+    -- How many credentials this program holds. A program with none is a member
+    -- that cannot authenticate — alive, and missing a key, which is a thing
+    -- somebody can fix. NULL for a person, who presents no token.
+    (SELECT count(*) FROM service_tokens t WHERE t.service_account_id = sa.id) AS tokens
 FROM project_members m
 JOIN projects p ON p.id = m.project_id
 LEFT JOIN users u ON u.id = m.user_id
 LEFT JOIN service_accounts sa ON sa.id = m.service_account_id
+-- A deactivated account is not listed. This page answers "who reaches this
+-- project", and a deactivated account reaches nothing; it stays on /accounts,
+-- which answers "who exists on this instance" (product.md §8.2).
 WHERE p.slug = @slug
+  AND coalesce(u.deactivated_at, sa.deactivated_at) IS NULL
 ORDER BY is_person DESC, lower(coalesce(u.name, sa.name));
 
 -- What a person may do on one project: whether they administer the instance,
@@ -193,3 +201,21 @@ USING service_accounts sa, project_members m, projects p
 WHERE t.id = @id AND t.service_account_id = @service_account_id
   AND sa.id = t.service_account_id
   AND m.service_account_id = sa.id AND p.id = m.project_id AND p.slug = @slug;
+
+-- The projects a caller may see: the ones they belong to, and every one on the
+-- instance when they administer it. An administrator names a project to manage
+-- its membership, and a power that cannot be exercised is not a power
+-- (product.md §8.2). What stays withheld is everything inside.
+-- name: ProjectsForUser :many
+SELECT p.*
+FROM projects p
+LEFT JOIN project_members m ON m.project_id = p.id AND m.user_id = @user_id
+WHERE m.user_id IS NOT NULL OR @is_admin::boolean
+ORDER BY lower(p.name);
+
+-- A service account belongs to one project and sees that one (ADR 0018).
+-- name: ProjectsForServiceAccount :many
+SELECT p.* FROM projects p
+JOIN project_members m ON m.project_id = p.id
+WHERE m.service_account_id = @service_account_id
+ORDER BY lower(p.name);

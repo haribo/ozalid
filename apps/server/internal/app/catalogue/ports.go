@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
 	"github.com/haribo/ozalid/apps/server/internal/domain/catalogue"
 )
 
@@ -16,6 +17,7 @@ import (
 type Repository interface {
 	CreateProject(ctx context.Context, slug, name string, policy catalogue.IntakePolicy) (catalogue.Project, error)
 	ProjectBySlug(ctx context.Context, slug string) (catalogue.Project, error)
+	ProjectsFor(ctx context.Context, by actor.Actor, admin bool) ([]catalogue.Project, error)
 
 	CreateCase(ctx context.Context, projectID string, categoryID *string, title string, description *string) (catalogue.Case, error)
 	CaseByID(ctx context.Context, slug, id string) (catalogue.Case, error)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
 	"github.com/haribo/ozalid/apps/server/internal/domain/catalogue"
 )
 
@@ -46,6 +47,15 @@ func (s *Service) CreateCase(ctx context.Context, projectID string, categoryID *
 		return catalogue.Case{}, err
 	}
 	return s.repo.CreateCase(ctx, projectID, categoryID, cleaned, description)
+}
+
+// ProjectsFor returns the projects a caller may see.
+//
+// Membership decides it, and administering the instance adds every project's
+// name — never its content (product.md §8.2). Whether an administrator belongs
+// to a given project is not part of the answer: they administer it either way.
+func (s *Service) ProjectsFor(ctx context.Context, by actor.Actor, admin bool) ([]catalogue.Project, error) {
+	return s.repo.ProjectsFor(ctx, by, admin)
 }
 
 // CaseByID reads a case, archived or not, inside the project the caller named.

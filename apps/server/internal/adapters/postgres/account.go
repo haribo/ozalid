@@ -79,6 +79,10 @@ func (r *Repository) Members(ctx context.Context, slug string) ([]account.Member
 		if row.Email != nil {
 			m.Email = *row.Email
 		}
+		if !row.IsPerson {
+			held := int(row.Tokens)
+			m.Tokens = &held
+		}
 		out = append(out, m)
 	}
 	return out, nil
