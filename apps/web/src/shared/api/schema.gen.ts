@@ -1472,6 +1472,20 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["BadRequest"];
+            /**
+             * @description Too many links asked for. The ones already sent still work — a link
+             *     stays good for fifteen minutes.
+             */
+            429: {
+                headers: {
+                    /** @description Seconds until the window turns over. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["problem"];
+                };
+            };
         };
     };
     claimSignIn: {

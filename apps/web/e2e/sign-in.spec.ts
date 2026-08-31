@@ -7,7 +7,7 @@
  * cleared here by hand.
  */
 import { expect, test } from '@playwright/test'
-import { linkSentTo } from './mailbox'
+import { emptyMailbox, linkSentTo } from './mailbox'
 import { seed } from './fixture'
 import { REVIEWER } from './session'
 
@@ -25,6 +25,7 @@ async function ask(email: string) {
 
 test('a person asks, reads their mail, and is signed in', async ({ request }) => {
   const email = REVIEWER
+  await emptyMailbox(email)
 
   const asked = await ask(email)
   expect(asked.status).toBe(202)
@@ -74,6 +75,7 @@ test('the link opens in another tab, and the waiting one carries on', async ({ p
   await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
   await expect(page.getByRole('heading', { name: 'Se connecter' })).toBeVisible()
 
+  await emptyMailbox(REVIEWER)
   await page.getByLabel('adresse').fill(REVIEWER)
   await page.getByRole('button', { name: 'Envoyer le lien' }).click()
   await expect(page.getByText('Le lien est parti.')).toBeVisible()

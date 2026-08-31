@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/haribo/ozalid/apps/server/internal/adapters/blobstore"
 	"github.com/haribo/ozalid/apps/server/internal/adapters/mail"
@@ -36,7 +37,11 @@ type config struct {
 	// a message has to point back here, and the server cannot work it out from
 	// a request — it sits behind whatever terminates TLS.
 	baseURL string
-	mail    mail.Config
+	// trustProxy says whether X-Forwarded-For may be believed. Off unless the
+	// deployment says a proxy is in front: trusting it without one lets anybody
+	// claim any source and walk past the sign-in rate limit.
+	trustProxy bool
+	mail       mail.Config
 }
 
 // defaultAddr is off :8080 on purpose. That port is the first thing anything
@@ -51,6 +56,9 @@ func load() config {
 		blobRoot: env("OZALID_BLOB_ROOT", "var/blobs"),
 		dsn:      env("OZALID_DSN", "postgres://ozalid:ozalid@localhost:5442/ozalid?sslmode=disable"),
 		baseURL:  env("OZALID_BASE_URL", "http://localhost:8090"),
+		// Off by default. On, the caller's address is read from
+		// X-Forwarded-For, which is only true when something in front sets it.
+		trustProxy: env("OZALID_TRUSTED_PROXY", "") != "",
 		mail: mail.Config{
 			Host:     env("OZALID_SMTP_HOST", ""),
 			Port:     env("OZALID_SMTP_PORT", "587"),
@@ -126,6 +134,8 @@ func run() error {
 		SignIn:       store,
 		Mail:         mail.NewSMTP(cfg.mail, cfg.baseURL),
 		Standings:    store,
+		TrustProxy:   cfg.trustProxy,
+		Now:          time.Now,
 		Intake:       intake.New(store, blobs),
 		Evidence:     evidence.New(store),
 		Session:      session.New(store),
@@ -139,9 +149,13 @@ func run() error {
 		slog.Warn("the web client was not built into this binary; only the API is served")
 	}
 
-	slog.Info("listening", "addr", cfg.addr, "blobs", cfg.blobRoot, "version", version)
+	slog.Info("listening", "addr", cfg.addr, "blobs", cfg.blobRoot, "version", version,
+		"trusting a proxy for the caller's address", cfg.trustProxy)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return err
 	}
+	// Sign-in links are sent off the request's path, so stopping without
+	// waiting would drop one somebody is watching their inbox for.
+	api.WaitForSending()
 	return nil
 }

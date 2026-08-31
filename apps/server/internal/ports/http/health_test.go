@@ -3,13 +3,14 @@ package http_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	ozhttp "github.com/haribo/ozalid/apps/server/internal/ports/http"
 	"github.com/haribo/ozalid/apps/server/internal/ports/http/openapi"
 )
 
 func TestGetHealthReportsTheBuildItRuns(t *testing.T) {
-	srv := ozhttp.New(ozhttp.Deps{Version: "1.2.3"})
+	srv := ozhttp.New(ozhttp.Deps{Version: "1.2.3", Now: time.Now})
 
 	got, err := srv.GetHealth(context.Background(), openapi.GetHealthRequestObject{})
 	if err != nil {
