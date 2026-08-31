@@ -25,3 +25,15 @@ post:
       description: If that address has an account, a link is on its way.
     '400':
       $ref: "../components/responses.yaml#/BadRequest"
+    '429':
+      description: |
+        Too many links asked for. The ones already sent still work — a link
+        stays good for fifteen minutes.
+      headers:
+        Retry-After:
+          schema: { type: integer }
+          description: Seconds until the window turns over.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "../components/problem.yaml"
