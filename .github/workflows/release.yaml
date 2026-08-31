@@ -67,6 +67,11 @@ jobs:
 
       - uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
         with:
+          # A hyphen in the tag makes it a candidate: v0.1.0-rc.1 is not
+          # v0.1.0, and a packaging project asking for the latest release must
+          # not be handed one. Without this the action marks everything final,
+          # which is what happened to the first tag.
+          prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
             dist/ozalid-linux-*
             dist/SHA256SUMS
