@@ -212,13 +212,24 @@ func (q *Queries) DeactivateServiceAccount(ctx context.Context, arg DeactivateSe
 }
 
 const deactivateUser = `-- name: DeactivateUser :execrows
-UPDATE users SET deactivated_at = coalesce(deactivated_at, now()) WHERE id = $1
+UPDATE users SET deactivated_at = coalesce(users.deactivated_at, now())
+WHERE users.id = $1
+  -- Already gone stays a no-op: the idempotency above is not traded for the
+  -- guard below.
+  AND (users.deactivated_at IS NOT NULL OR NOT users.is_admin OR EXISTS (
+        SELECT 1 FROM users other
+        WHERE other.is_admin AND other.deactivated_at IS NULL AND other.id <> users.id))
 `
 
 // An account is deactivated, never deleted: what it reviewed has to stay
 // readable, and the journal names it (ADR 0018).
 // Idempotent: `deactivated_at` is set once and never moved, so deactivating
 // twice is not two different days.
+//
+// The last administrator cannot go. The guard is the WHERE clause rather than a
+// read before the write: two administrators removing each other at the same
+// moment would each see the other still standing, and both would succeed. Here
+// the row simply does not match, so the race cannot happen (#90).
 func (q *Queries) DeactivateUser(ctx context.Context, id string) (int64, error) {
 	result, err := q.db.Exec(ctx, deactivateUser, id)
 	if err != nil {
@@ -621,6 +632,30 @@ func (q *Queries) ServiceAccountInProject(ctx context.Context, arg ServiceAccoun
 	return i, err
 }
 
+const setUserAdmin = `-- name: SetUserAdmin :execrows
+UPDATE users SET is_admin = $1
+WHERE users.id = $2
+  AND users.deactivated_at IS NULL
+  AND ($1::boolean OR NOT users.is_admin OR EXISTS (
+        SELECT 1 FROM users other
+        WHERE other.is_admin AND other.deactivated_at IS NULL AND other.id <> users.id))
+`
+
+type SetUserAdminParams struct {
+	IsAdmin bool
+	ID      string
+}
+
+// Promote or demote. Demoting the last administrator is refused the same way
+// deactivating them is, and for the same reason.
+func (q *Queries) SetUserAdmin(ctx context.Context, arg SetUserAdminParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setUserAdmin, arg.IsAdmin, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const standingOfServiceAccount = `-- name: StandingOfServiceAccount :one
 SELECT false AS is_admin, coalesce(m.rights, '')::text AS rights
 FROM service_accounts s
@@ -806,4 +841,17 @@ func (q *Queries) UserBySessionToken(ctx context.Context, tokenHash string) (Use
 	var i UserBySessionTokenRow
 	err := row.Scan(&i.ID, &i.SessionID)
 	return i, err
+}
+
+const userExists = `-- name: UserExists :one
+SELECT EXISTS (SELECT 1 FROM users WHERE id = $1)
+`
+
+// Whether the account exists at all, so a refusal can be told apart from a row
+// nobody has.
+func (q *Queries) UserExists(ctx context.Context, id string) (bool, error) {
+	row := q.db.QueryRow(ctx, userExists, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }

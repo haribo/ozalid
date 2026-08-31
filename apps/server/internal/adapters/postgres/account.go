@@ -40,14 +40,36 @@ func (r *Repository) ListAccounts(ctx context.Context) ([]account.Account, error
 	return out, nil
 }
 
-// DeactivateAccount stops an account from signing in. It reports whether the
-// account exists; deactivating one already deactivated is not an error.
+// DeactivateAccount stops an account from signing in.
+//
+// It reports whether the write happened, which is false both for an account
+// nobody has and for the last administrator: the query refuses by matching no
+// row, so the two are told apart above rather than here (#90).
 func (r *Repository) DeactivateAccount(ctx context.Context, id string) (bool, error) {
 	rows, err := r.q.DeactivateUser(ctx, id)
 	if err != nil {
 		return false, translate("deactivating the account", err)
 	}
 	return rows > 0, nil
+}
+
+// SetAdmin promotes or demotes an account, refusing to demote the last
+// administrator the same way.
+func (r *Repository) SetAdmin(ctx context.Context, id string, isAdmin bool) (bool, error) {
+	rows, err := r.q.SetUserAdmin(ctx, sqlcgen.SetUserAdminParams{ID: id, IsAdmin: isAdmin})
+	if err != nil {
+		return false, translate("changing the role", err)
+	}
+	return rows > 0, nil
+}
+
+// AccountExists answers whether an id names anybody at all.
+func (r *Repository) AccountExists(ctx context.Context, id string) (bool, error) {
+	found, err := r.q.UserExists(ctx, id)
+	if err != nil {
+		return false, translate("reading the account", err)
+	}
+	return found, nil
 }
 
 func toAccount(row sqlcgen.User) account.Account {

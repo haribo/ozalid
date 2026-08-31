@@ -20,6 +20,8 @@ func (nothingRepo) CreateAccount(context.Context, string, string, bool) (account
 }
 func (nothingRepo) ListAccounts(context.Context) ([]account.Account, error)       { return nil, nil }
 func (nothingRepo) DeactivateAccount(context.Context, string) (bool, error)       { return true, nil }
+func (nothingRepo) SetAdmin(context.Context, string, bool) (bool, error)          { return true, nil }
+func (nothingRepo) AccountExists(context.Context, string) (bool, error)           { return true, nil }
 func (nothingRepo) Members(context.Context, string) ([]account.Membership, error) { return nil, nil }
 func (nothingRepo) Grant(context.Context, string, string, access.Rights) (bool, error) {
 	return true, nil
@@ -78,6 +80,7 @@ func (r refusingRepo) Grant(context.Context, string, string, access.Rights) (boo
 type absentRepo struct{ nothingRepo }
 
 func (absentRepo) DeactivateAccount(context.Context, string) (bool, error) { return false, nil }
+func (absentRepo) AccountExists(context.Context, string) (bool, error)     { return false, nil }
 func (absentRepo) Grant(context.Context, string, string, access.Rights) (bool, error) {
 	return false, nil
 }

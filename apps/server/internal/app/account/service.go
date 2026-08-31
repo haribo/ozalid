@@ -44,6 +44,9 @@ type Repository interface {
 	CreateAccount(ctx context.Context, name, email string, isAdmin bool) (Account, error)
 	ListAccounts(ctx context.Context) ([]Account, error)
 	DeactivateAccount(ctx context.Context, id string) (bool, error)
+	SetAdmin(ctx context.Context, id string, isAdmin bool) (bool, error)
+
+	AccountExists(ctx context.Context, id string) (bool, error)
 
 	Members(ctx context.Context, slug string) ([]Membership, error)
 	Grant(ctx context.Context, slug, userID string, rights access.Rights) (bool, error)
@@ -62,6 +65,10 @@ var (
 	ErrNotFound = errors.New("account: no such account")
 	// ErrUnknownRights means the grant named something that is not a right.
 	ErrUnknownRights = errors.New("account: rights are reader or member")
+	// ErrLastAdmin means the instance would be left with nobody to administer
+	// it. Refused rather than warned about: there is no way back from it
+	// without a database console.
+	ErrLastAdmin = errors.New("account: the last administrator cannot be removed")
 )
 
 // Service makes and retires accounts, for people and for programs.
@@ -108,16 +115,44 @@ func (s *Service) List(ctx context.Context) ([]Account, error) {
 // recorded exactly as it is.
 //
 // Idempotent: an account already deactivated is not deactivated twice, and the
-// day it happened does not move.
+// day it happened does not move. Refused when it would leave the instance with
+// no administrator — a state nothing short of a database console repairs.
 func (s *Service) Deactivate(ctx context.Context, id string) error {
-	found, err := s.repo.DeactivateAccount(ctx, id)
+	return s.settle(ctx, id, s.repo.DeactivateAccount)
+}
+
+// SetAdmin promotes or demotes an account.
+//
+// An ordinary administrative act, and the reason a role set wrongly at creation
+// is not permanent. Demoting the last administrator is refused exactly as
+// deactivating them is.
+func (s *Service) SetAdmin(ctx context.Context, id string, isAdmin bool) error {
+	return s.settle(ctx, id, func(ctx context.Context, id string) (bool, error) {
+		return s.repo.SetAdmin(ctx, id, isAdmin)
+	})
+}
+
+// settle tells "no such account" from "that would leave nobody administering".
+//
+// The write refuses by matching no row, so the two look the same from here and
+// have to be told apart afterwards. A caller who cannot tell them apart fixes
+// the wrong thing.
+func (s *Service) settle(ctx context.Context, id string, write func(context.Context, string) (bool, error)) error {
+	done, err := write(ctx, id)
 	if err != nil {
 		return err
 	}
-	if !found {
+	if done {
+		return nil
+	}
+	exists, err := s.repo.AccountExists(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !exists {
 		return ErrNotFound
 	}
-	return nil
+	return ErrLastAdmin
 }
 
 // Members returns who reaches a project, people and programs alike.
