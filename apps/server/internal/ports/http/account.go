@@ -83,15 +83,52 @@ func (s *Server) DeactivateAccount(ctx context.Context, request openapi.Deactiva
 	}
 
 	err := s.account.Deactivate(ctx, request.AccountId)
-	if errors.Is(err, account.ErrNotFound) {
+	switch {
+	case errors.Is(err, account.ErrNotFound):
 		return openapi.DeactivateAccount404ApplicationProblemPlusJSONResponse{
 			NotFoundApplicationProblemPlusJSONResponse: notFound("account"),
 		}, nil
-	}
-	if err != nil {
+	case errors.Is(err, account.ErrLastAdmin):
+		return openapi.DeactivateAccount409ApplicationProblemPlusJSONResponse(lastAdmin()), nil
+	case err != nil:
 		return nil, err
 	}
 	return openapi.DeactivateAccount204Response{}, nil
+}
+
+// SetAccountRole promotes or demotes an account.
+func (s *Server) SetAccountRole(ctx context.Context, request openapi.SetAccountRoleRequestObject) (openapi.SetAccountRoleResponseObject, error) {
+	if why, no := s.mayNotOnInstance(ctx, access.ManageAccounts); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.SetAccountRole401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.SetAccountRole403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
+
+	err := s.account.SetAdmin(ctx, request.AccountId, request.Body.IsAdmin)
+	switch {
+	case errors.Is(err, account.ErrNotFound):
+		return openapi.SetAccountRole404ApplicationProblemPlusJSONResponse{
+			NotFoundApplicationProblemPlusJSONResponse: notFound("account"),
+		}, nil
+	case errors.Is(err, account.ErrLastAdmin):
+		return openapi.SetAccountRole409ApplicationProblemPlusJSONResponse(lastAdmin()), nil
+	case err != nil:
+		return nil, err
+	}
+	return openapi.SetAccountRole204Response{}, nil
+}
+
+// lastAdmin is the one refusal both routes out of administration share.
+func lastAdmin() openapi.Problem {
+	return problem("last-administrator", "The last administrator cannot be removed",
+		http.StatusConflict,
+		"An instance with nobody administering it can no longer make an account, "+
+			"grant a membership or mint a token. Promote somebody else first.")
 }
 
 func badAccount(kind, title, detail string) openapi.CreateAccount400ApplicationProblemPlusJSONResponse {
