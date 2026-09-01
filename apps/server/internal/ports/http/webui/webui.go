@@ -57,10 +57,39 @@ func Handler() http.Handler {
 			// the entry point and let the client decide what it means.
 			r = r.Clone(r.Context())
 			r.URL.Path = "/"
+			asked = "index.html"
 		}
+		w.Header().Set("Cache-Control", cacheFor(asked))
 		serve.ServeHTTP(w, r)
 	})
 }
+
+// cacheFor says how long an answer may be kept.
+//
+// Two tiers, and the client's own build decides which: Vite writes a content
+// hash into every name under `assets/`, so the bytes behind one of those URLs
+// never change and revalidating is wasted. The entry point is the opposite — it
+// is what names the hashed files, so a stale copy points at a bundle that is
+// gone.
+//
+// A header rather than a deployment concern: a browser, a proxy and a CDN all
+// read the same answer, which is why serving the files from somewhere else does
+// not remove the need for it.
+func cacheFor(asked string) string {
+	if strings.HasPrefix(asked, "assets/") {
+		return immutable
+	}
+	return revalidate
+}
+
+const (
+	// A year, the longest max-age worth writing, plus `immutable` so a reload
+	// does not revalidate what cannot have changed.
+	immutable = "public, max-age=31536000, immutable"
+	// Kept, but never used without asking. `no-store` would be wrong: the copy
+	// is worth holding, it is only worth checking before it is trusted.
+	revalidate = "no-cache"
+)
 
 // Built reports whether a real client was built into this binary.
 //
