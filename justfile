@@ -122,31 +122,16 @@ gen-check:
 be-build:
     go build {{gopkgs}}
 
-# Build the shippable binary: the server with the web client inside it.
+# Build the shippable server binary.
 #
-# One artefact, not two. `webui.go` embeds the client, so a binary and a `dist/`
-# published separately could be paired across versions and nothing would notice
-# — which is the failure the embed exists to prevent (#68).
+# The API and nothing else: the web client ships as its own archive, so a
+# deployment decides whether one process or a proxy in front serves it (#103).
 #
 # The release workflow calls this rather than repeating its steps, so what CI
 # ships is what a person can build.
 release-binary version="dev" goos="linux" goarch="amd64" out="dist/ozalid":
     #!/usr/bin/env bash
     set -euo pipefail
-    embedded=apps/server/internal/ports/http/webui/dist
-
-    # The placeholder is committed so `go build` works in a checkout where npm
-    # never ran, and it goes back afterwards: a recipe that leaves the working
-    # tree holding a built client is a recipe that gets one committed.
-    kept=$(mktemp -d)
-    cp -r "$embedded/." "$kept/"
-    trap 'rm -rf "$embedded"; mkdir -p "$embedded"; cp -r "$kept/." "$embedded/"; rm -rf "$kept"' EXIT
-
-    cd {{web}} && npm ci --silent && npm run build >/dev/null
-    cd - >/dev/null
-
-    rm -rf "$embedded"
-    cp -r {{web}}/dist "$embedded"
     mkdir -p "$(dirname {{out}})"
     CGO_ENABLED=0 GOOS={{goos}} GOARCH={{goarch}} GOTOOLCHAIN={{gotoolchain}} go build \
       -ldflags="-s -w -X main.version={{version}}" \

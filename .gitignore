@@ -30,7 +30,6 @@ dist/
 # Except the placeholder the server embeds. Without it `//go:embed` finds no
 # match and every Go build fails in a checkout where npm never ran — which is
 # what CI is. The image build replaces this directory with the real client.
-!apps/server/internal/ports/http/webui/dist/
 
 # =============================================================================
 # Server and CLI (Go)
