@@ -20,7 +20,6 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/app/intake"
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
 	"github.com/haribo/ozalid/apps/server/internal/ports/http/openapi"
-	"github.com/haribo/ozalid/apps/server/internal/ports/http/webui"
 )
 
 // BlobRecorder remembers, in the database, what the blob store now holds. The
@@ -112,9 +111,14 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/api/", http.StripPrefix("/api", withSource(s.trustProxy, withActor(s.tokens, s.signIn, openapi.HandlerFromMux(
 		openapi.NewStrictHandler(s, nil), http.NewServeMux(),
 	)))))
-	// Everything else is the client, built into this binary. Registered last
-	// and at the root, so it catches what /api/ did not.
-	mux.Handle("/", webui.Handler())
+	// The client is not in here. It ships as its own archive and whatever
+	// terminates TLS serves it — a deployment decides its own shape, and an
+	// artefact that carried the client would have decided it instead (#103).
+	//
+	// Said rather than 404'd: an operator pointing a browser at the API and
+	// getting a bare "not found" has no way to tell a misconfiguration from a
+	// broken server.
+	mux.Handle("/", http.HandlerFunc(elsewhere))
 	return mux
 }
 
@@ -124,3 +128,17 @@ func (s *Server) Handler() http.Handler {
 // Sending happens off the request's path, so a shutdown that did not wait would
 // drop a link somebody is sitting in front of their inbox waiting for.
 func (s *Server) WaitForSending() { s.sending.Wait() }
+
+// elsewhere answers anything that is not the API.
+//
+// This binary serves `/api` and nothing else. The web client is published as
+// `ozalid-web-<version>.zip` beside it, and the deployment serves it — from
+// nginx, from a CDN, from wherever it likes.
+func elsewhere(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusNotFound)
+	_, _ = w.Write([]byte(
+		"ozalid serves its API under /api.\n\n" +
+			"The web client is not in this binary: it ships as ozalid-web-<version>.zip,\n" +
+			"and whatever sits in front of this server is what serves it.\n"))
+}
