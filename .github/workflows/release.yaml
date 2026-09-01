@@ -51,9 +51,34 @@ jobs:
           path: dist/ozalid-linux-${{ matrix.goarch }}
           if-no-files-found: error
 
+  client:
+    name: Package the client on its own
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v5.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      # The binaries carry their own copy; this one is for a deployment that
+      # would rather nginx or a CDN served the files. Neither is imposed, and
+      # the artefact does not decide the shape of the deployment (#100).
+      - run: cd apps/web && npm ci && npm run build
+
+      - run: cd apps/web && zip -rq "$GITHUB_WORKSPACE/ozalid-web-${{ github.ref_name }}.zip" dist
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ozalid-web
+          path: ozalid-web-${{ github.ref_name }}.zip
+          if-no-files-found: error
+
   publish:
     name: Attach them to the release
-    needs: binaries
+    needs: [binaries, client]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -63,11 +88,17 @@ jobs:
 
       # A packaging project that cannot verify what it downloaded is trusting
       # the network.
-      - run: cd dist && sha256sum ozalid-linux-* > SHA256SUMS && cat SHA256SUMS
+      - run: cd dist && sha256sum ozalid-linux-* ozalid-web-*.zip > SHA256SUMS && cat SHA256SUMS
 
       - uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
         with:
+          # A hyphen in the tag makes it a candidate: v0.1.0-rc.1 is not
+          # v0.1.0, and a packaging project asking for the latest release must
+          # not be handed one. Without this the action marks everything final,
+          # which is what happened to the first tag.
+          prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
             dist/ozalid-linux-*
+            dist/ozalid-web-*.zip
             dist/SHA256SUMS
           fail_on_unmatched_files: true
