@@ -23,7 +23,6 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/app/intake"
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
 	ozhttp "github.com/haribo/ozalid/apps/server/internal/ports/http"
-	"github.com/haribo/ozalid/apps/server/internal/ports/http/webui"
 )
 
 // version is stamped at build time with -ldflags.
@@ -144,13 +143,9 @@ func run() error {
 
 	srv := &http.Server{Addr: cfg.addr, Handler: api.Handler()}
 
-	if !webui.Built() {
-		// Said at startup rather than discovered as a blank page.
-		slog.Warn("the web client was not built into this binary; only the API is served")
-	}
-
 	slog.Info("listening", "addr", cfg.addr, "blobs", cfg.blobRoot, "version", version,
-		"trusting a proxy for the caller's address", cfg.trustProxy)
+		"trusting a proxy for the caller's address", cfg.trustProxy,
+		"serving", "the API only — the web client ships as its own archive")
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return err
 	}

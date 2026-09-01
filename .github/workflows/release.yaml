@@ -34,12 +34,6 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
-      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v5.0.0
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: apps/web/package-lock.json
-
       - uses: extractions/setup-just@e33e0265a09d6d736e2ee1e0eb685ef1de4669ff # v3.0.0
 
       # The same recipe a person runs, so what ships is what they can build.
@@ -63,9 +57,8 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
 
-      # The binaries carry their own copy; this one is for a deployment that
-      # would rather nginx or a CDN served the files. Neither is imposed, and
-      # the artefact does not decide the shape of the deployment (#100).
+      # The client, on its own. The server binary carries no copy: a deployment
+      # serves this from nginx, a CDN, or wherever it likes (#103).
       - run: cd apps/web && npm ci && npm run build
 
       - run: cd apps/web && zip -rq "$GITHUB_WORKSPACE/ozalid-web-${{ github.ref_name }}.zip" dist
