@@ -23,11 +23,20 @@ const { accounts, error: accountsError, load: loadAccounts } = useAccounts()
 const adding = ref(false)
 const chosen = ref('')
 
-onMounted(() => {
-  void load()
-  void loadAccounts()
+// Who is addable is the difference between two lists that arrive separately.
+// Until both are in, that difference is wrong — with the members still on the
+// way it names everybody, including those already on the project.
+const ready = ref(false)
+
+onMounted(async () => {
+  await Promise.all([load(), loadAccounts()])
+  ready.value = true
 })
-watch(slug, () => void load())
+watch(slug, async () => {
+  ready.value = false
+  await load()
+  ready.value = true
+})
 
 /** Only accounts that are not already on the project, and not retired. */
 const addable = computed(() =>
@@ -65,10 +74,13 @@ async function add() {
     <div v-if="adding" class="mb-5 rounded-md border border-slate-200 p-4 dark:border-slate-700">
       <!-- An empty list is an answer, not a failure: without a sentence saying
            which, a select holding only "choisir…" reads as a broken screen. -->
-      <p v-if="accountsError" class="font-mono text-[12px] text-red-700 dark:text-red-400">
+      <p v-if="!ready" class="font-mono text-[12px] text-slate-500 dark:text-slate-400">
+        chargement…
+      </p>
+      <p v-else-if="accountsError" class="font-mono text-[12px] text-red-700 dark:text-red-400">
         {{ accountsError }}
       </p>
-      <p v-else-if="false" class="text-[13px] text-slate-600 dark:text-slate-400">
+      <p v-else-if="!addable.length" class="text-[13px] text-slate-600 dark:text-slate-400">
         Tous les comptes de l'instance sont déjà sur ce projet.
         <RouterLink to="/accounts" class="text-indigo-700 underline dark:text-indigo-300">
           Créer un compte
