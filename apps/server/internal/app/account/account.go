@@ -10,8 +10,8 @@ type Person struct {
 	ID    string
 	Name  string
 	Email string
-	// IsAdmin manages accounts and creates projects. It reaches no content
-	// (product.md §8.2), so the client uses it to show an administration
-	// screen and never to decide what a review may do.
+	// IsAdmin manages accounts, creates projects, and reaches every one of them
+	// (product.md §8.2). The client uses it to decide what to offer, never what
+	// to allow — the server refuses regardless.
 	IsAdmin bool
 }
