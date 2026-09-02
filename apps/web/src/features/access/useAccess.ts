@@ -16,6 +16,7 @@ type MintedToken = components['schemas']['MintedToken']
  */
 export function useAccess(slug: () => string) {
   const members = ref<Membership[]>([])
+  const minted = ref<MintedToken | null>(null)
   const error = ref('')
   const busy = ref(false)
 
@@ -58,6 +59,39 @@ export function useAccess(slug: () => string) {
     await load()
   }
 
+  /**
+   * Make a program an account on this project, with its first token.
+   *
+   * One call, because the three things it does are one thing: a service account
+   * with no membership reaches nothing and a service account with no token
+   * cannot present itself, so neither is a state worth existing in. It belongs
+   * to this project and never moves (ADR 0018) — which is why there is nothing
+   * to pick from, only something to name.
+   *
+   * The token comes back here and nowhere else.
+   */
+  async function createProgram(name: string, rights: Rights, tokenLabel: string): Promise<boolean> {
+    error.value = ''
+    busy.value = true
+    const result = await api.POST('/projects/{slug}/service-accounts', {
+      params: { path: { slug: slug() } },
+      body: { name, rights, tokenLabel },
+    })
+    busy.value = false
+    if (result.error) {
+      error.value = result.error.title
+      return false
+    }
+    minted.value = result.data.token
+    await load()
+    return true
+  }
+
+  /** Let go of the minted token. Nothing kept it, so it is gone for good. */
+  function forgetMinted() {
+    minted.value = null
+  }
+
   /** Retire a program. Its tokens stop opening anything at once. */
   async function retireProgram(serviceAccountId: string) {
     busy.value = true
@@ -72,7 +106,18 @@ export function useAccess(slug: () => string) {
     await load()
   }
 
-  return { members, error, busy, load, grant, revoke, retireProgram }
+  return {
+    members,
+    minted,
+    error,
+    busy,
+    load,
+    grant,
+    revoke,
+    createProgram,
+    forgetMinted,
+    retireProgram,
+  }
 }
 
 /**

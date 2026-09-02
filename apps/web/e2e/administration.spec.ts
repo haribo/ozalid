@@ -114,3 +114,69 @@ test('a program is given a token through the screens, and it is shown once', asy
   await expect(page.getByRole('cell', { name: label })).toBeVisible()
   await expect(page.locator('code', { hasText: /^ozp_/ })).toHaveCount(0)
 })
+
+test('a program is created from the access screen, and its token is shown there', async ({
+  page,
+}) => {
+  // Before this, no screen called POST /projects/{slug}/service-accounts: a
+  // program was added from a browser console or not at all (#110).
+  const slug = `programs-${unique()}`
+  await page.request.post(`/api/projects`, { data: { slug, name: 'a project needing a runner' } })
+
+  await page.goto(`/projects/${slug}/access`)
+  await page.getByRole('button', { name: 'Ajouter' }).first().click()
+  await page.getByRole('button', { name: 'Un programme' }).click()
+
+  const name = `runner-${unique()}`
+  await page.getByLabel('nom').fill(name)
+  await page.getByLabel('droits').selectOption('reader')
+  await page.getByLabel('étiquette du premier jeton').fill('github actions')
+  await page.getByRole('button', { name: 'Créer' }).click()
+
+  // The token, in place. Sending somebody to another screen for it would send
+  // them somewhere the token no longer exists.
+  const token = page.locator('code', { hasText: /^ozp_/ })
+  await expect(token).toBeVisible()
+  const value = await token.innerText()
+
+  const row = page.getByRole('row').filter({ hasText: name })
+  await expect(row).toContainText('reader')
+
+  // And it opens the project it was made for, which is the only claim that
+  // matters about a credential.
+  const opened = await fetch(
+    `${process.env.OZALID_API ?? 'http://localhost:8091'}/api/projects/${slug}/cases`,
+    { headers: { authorization: `Bearer ${value}` } },
+  )
+  expect(opened.status).toBe(200)
+
+  await page.getByRole('button', { name: "J'ai copié le jeton" }).click()
+  await page.reload()
+  await expect(page.locator('code', { hasText: /^ozp_/ })).toHaveCount(0)
+  await expect(page.getByRole('row').filter({ hasText: name })).toBeVisible()
+})
+
+test('a person is added as a reader without passing through member', async ({ page }) => {
+  // The form granted `member` in hard code, so somebody meant to read was
+  // added then demoted — and could write in between (#110).
+  const slug = `readers-${unique()}`
+  await page.request.post(`/api/projects`, { data: { slug, name: 'a project with a reader' } })
+  const made = await page.request.post(`/api/accounts`, {
+    data: { name: `reader ${unique()}`, email: `reader-${unique()}@example.test` },
+  })
+  const account = await made.json()
+
+  await page.goto(`/projects/${slug}/access`)
+  await page.getByRole('button', { name: 'Ajouter' }).first().click()
+  await page.getByLabel('compte').selectOption(account.id)
+  await page.getByLabel('droits').selectOption('reader')
+  await page.getByRole('button', { name: 'Ajouter' }).last().click()
+
+  await expect(page.getByRole('row').filter({ hasText: account.name })).toContainText('reader')
+
+  // Nothing recorded a passage through `member`: the membership was written
+  // once, with the rights that were asked for.
+  const members = await (await page.request.get(`/api/projects/${slug}/members`)).json()
+  expect(members).toHaveLength(1)
+  expect(members[0].rights).toBe('reader')
+})
