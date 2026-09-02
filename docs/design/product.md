@@ -349,7 +349,7 @@ case, and therefore one project, which is what turns "may this person see these
 pixels?" into a question with an answer. The hash stays what a client computes
 before uploading; it stops being what a reader fetches with.
 
-### 8.2 The administrator manages accounts, not content
+### 8.2 The administrator runs the instance, and reaches all of it
 
 There is no open sign-up: accounts are made by whoever runs the instance. Since
 clients speak to the API and nothing else
@@ -362,23 +362,26 @@ That power is a single flag on a user, not a hierarchy.
 An administrator **creates and deactivates accounts, creates a project, and
 names its members** — all of them, not only the first.
 
-An administrator **cannot read or write the content of a project they are not a
-member of**.
+An administrator **reads and writes every project**, whether or not they were
+ever added to one. Membership is what decides for everybody else.
 
-The second line is the one that matters. On an instance carrying several
-projects, an administrator who could read every review book would see every
-team's work — their product's captures, the remarks they exchange. Separating
-administration from access to content is what lets the running of the instance
-be handed to someone without handing them everything.
+This was the other way round until somebody ran the instance. An administrator
+created a project, opened it, and was refused — which is what the rule said, and
+nobody creates a project meaning never to enter it. The friction was the rule
+working, and the rule was not worth the friction.
 
-When an administrator does need to see a project, they are added to it as a
-member. That leaves a trace, which is exactly what an exceptional access should
-do.
+**Reading and writing, not reading alone.** A half-measure gives an
+administrator screens where everything shows and every button fails, which is
+worse than either whole answer and useless to one who is also a reviewer.
 
-Granting a membership is not reading content, so the two lines do not collide:
-an administrator who adds somebody to a project learns that the project exists
-and who is on it, which they knew already, and learns nothing about what is
-inside it.
+What this gives up is worth naming, because it does not come back cheaply:
+
+- **The running of the instance can no longer be handed to somebody without
+  also handing them every team's work.** On an instance carrying several teams,
+  that was the whole point of keeping the two apart.
+- **An administrator reading a project leaves no trace.** They used to have to
+  be added to it, and being a member was visible to the team. Reads are not
+  journalled; only writes are, and those name their actor as they always did.
 
 **A member does not manage the membership of their own project.** Delegating it
 would be a fourth thing to model — who may grant, whether they may grant more
