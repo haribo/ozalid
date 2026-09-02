@@ -18,7 +18,7 @@ const route = useRoute()
 const slug = computed(() => String(route.params.slug))
 
 const { members, error, busy, load, grant, revoke, retireProgram } = useAccess(() => slug.value)
-const { accounts, load: loadAccounts } = useAccounts()
+const { accounts, error: accountsError, load: loadAccounts } = useAccounts()
 
 const adding = ref(false)
 const chosen = ref('')
@@ -62,30 +62,39 @@ async function add() {
       </button>
     </div>
 
-    <form
-      v-if="adding"
-      class="mb-5 flex flex-wrap items-end gap-3 rounded-md border border-slate-200 p-4 dark:border-slate-700"
-      @submit.prevent="add"
-    >
-      <label class="flex flex-col gap-1.5">
-        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">compte</span>
-        <select
-          v-model="chosen"
-          required
-          class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
+    <div v-if="adding" class="mb-5 rounded-md border border-slate-200 p-4 dark:border-slate-700">
+      <!-- An empty list is an answer, not a failure: without a sentence saying
+           which, a select holding only "choisir…" reads as a broken screen. -->
+      <p v-if="accountsError" class="font-mono text-[12px] text-red-700 dark:text-red-400">
+        {{ accountsError }}
+      </p>
+      <p v-else-if="false" class="text-[13px] text-slate-600 dark:text-slate-400">
+        Tous les comptes de l'instance sont déjà sur ce projet.
+        <RouterLink to="/accounts" class="text-indigo-700 underline dark:text-indigo-300">
+          Créer un compte
+        </RouterLink>
+      </p>
+      <form v-else class="flex flex-wrap items-end gap-3" @submit.prevent="add">
+        <label class="flex flex-col gap-1.5">
+          <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">compte</span>
+          <select
+            v-model="chosen"
+            required
+            class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
+          >
+            <option value="" disabled>choisir…</option>
+            <option v-for="a in addable" :key="a.id" :value="a.id">{{ a.name }}</option>
+          </select>
+        </label>
+        <button
+          type="submit"
+          :disabled="busy"
+          class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
         >
-          <option value="" disabled>choisir…</option>
-          <option v-for="a in addable" :key="a.id" :value="a.id">{{ a.name }}</option>
-        </select>
-      </label>
-      <button
-        type="submit"
-        :disabled="busy"
-        class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
-      >
-        Ajouter
-      </button>
-    </form>
+          Ajouter
+        </button>
+      </form>
+    </div>
 
     <p v-if="error" class="mb-3 font-mono text-[12px] text-red-700 dark:text-red-400">
       {{ error }}

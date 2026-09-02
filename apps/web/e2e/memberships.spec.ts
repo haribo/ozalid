@@ -207,3 +207,28 @@ test('a deactivated account leaves the access list, and a program says how many 
     expect(m.isPerson ? m.tokens === undefined : typeof m.tokens === 'number').toBe(true)
   }
 })
+
+test('the add form says why there is nobody to add', async ({ page }) => {
+  // An empty list is an answer, not a failure. Before this, the form opened on
+  // a select holding only "choisir…" and there was no way to tell the two
+  // apart — which is what a production instance with one account showed (#109).
+  const slug = `alone-${unique()}`
+  await page.request.post(`${API}/api/projects`, { data: { slug, name: 'nobody to add here' } })
+
+  // Everybody who exists is already a member, so nobody is addable.
+  const accounts = await (await page.request.get(`${API}/api/accounts`)).json()
+  for (const a of accounts.filter((x: { deactivatedAt?: string }) => !x.deactivatedAt)) {
+    await page.request.put(`${API}/api/projects/${slug}/members/${a.id}`, {
+      data: { rights: 'member' },
+    })
+  }
+
+  await page.goto(`/projects/${slug}/access`)
+  await page.getByRole('button', { name: 'Ajouter' }).first().click()
+
+  await expect(
+    page.getByText("Tous les comptes de l'instance sont déjà sur ce projet."),
+  ).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Créer un compte' })).toBeVisible()
+  await expect(page.getByLabel('compte')).toHaveCount(0)
+})
