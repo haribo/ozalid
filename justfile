@@ -246,6 +246,15 @@ fe-test-e2e:
     curl -sf "http://localhost:{{e2e_web_port}}/" >/dev/null || {
       echo "the client never came up:"; cat "$blobs/web.log"; exit 1; }
 
+    # Pointing the capture step at this same instance proves the pipe without a
+    # production to push to. Off unless asked for: a local run should not fill a
+    # book nobody is reading (#107).
+    if [ -n "${OZALID_PUSH_SELF:-}" ]; then
+      export OZALID_PUSH_API="http://localhost:{{e2e_port}}"
+      export OZALID_PUSH_TOKEN="$token"
+      export OZALID_PUSH_PROJECT="e2e"
+    fi
+
     OZALID_API="http://localhost:{{e2e_port}}" \
       OZALID_E2E_WEB="http://localhost:{{e2e_web_port}}" \
       OZALID_E2E_TOKEN="$token" OZALID_E2E_PROJECT="e2e" \
