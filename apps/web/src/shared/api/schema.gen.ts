@@ -910,7 +910,10 @@ export interface components {
             name: string;
             /** Format: email */
             email: string;
-            /** @description Manages accounts and creates projects; reaches no content. */
+            /**
+             * @description Manages accounts, creates projects, and reaches every one of them
+             *     (`product.md` §8.2).
+             */
             isAdmin: boolean;
             /**
              * Format: date-time
@@ -1550,7 +1553,10 @@ export interface operations {
                         id: string;
                         name: string;
                         email: string;
-                        /** @description Manages accounts and creates projects; reaches no content. */
+                        /**
+                         * @description Manages accounts, creates projects, and reaches every one of them
+                         *     (`product.md` §8.2).
+                         */
                         isAdmin: boolean;
                     };
                 };
