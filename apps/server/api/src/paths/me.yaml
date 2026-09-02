@@ -21,6 +21,8 @@ get:
               email: { type: string }
               isAdmin:
                 type: boolean
-                description: Manages accounts and creates projects; reaches no content.
+                description: |
+                  Manages accounts, creates projects, and reaches every one of them
+                  (`product.md` §8.2).
     '401':
       $ref: "../components/responses.yaml#/Unauthenticated"

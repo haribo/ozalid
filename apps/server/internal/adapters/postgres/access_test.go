@@ -94,9 +94,10 @@ func TestAReaderReadsAndDoesNotWrite(t *testing.T) {
 	}
 }
 
-func TestAnAdministratorReachesNoContent(t *testing.T) {
-	// The line the whole section exists for: administration reaches accounts,
-	// never the content of a project it is not a member of (product.md §8.2).
+func TestAnAdministratorReachesAProjectTheyNeverJoined(t *testing.T) {
+	// An administrator reaches everything (product.md §8.2). This asserted the
+	// opposite until somebody ran an instance, created a project and was
+	// refused entry to it.
 	ctx, repo, project := accessFixture(t)
 	q := repo.Queries()
 	admin := person(t, ctx, q, "admin", true)
@@ -105,11 +106,16 @@ func TestAnAdministratorReachesNoContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading the standing: %v", err)
 	}
-	if !access.Allows(standing, access.ManageAccounts) {
-		t.Error("an administrator could not manage accounts")
+	// No membership row was written for them, so what follows is administration
+	// and not a grant somebody forgot.
+	if standing.Rights != "" {
+		t.Fatalf("the administrator holds %q on the project; this test needs them outside it", standing.Rights)
 	}
-	if access.Allows(standing, access.ReadProject) {
-		t.Error("an administrator read a project they are not a member of")
+
+	for _, may := range []access.Action{access.ManageAccounts, access.ReadProject, access.WriteProject} {
+		if !access.Allows(standing, may) {
+			t.Errorf("an administrator may not %s a project they never joined", may)
+		}
 	}
 }
 
