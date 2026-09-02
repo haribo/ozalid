@@ -9,7 +9,7 @@
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { AdminIcon, RightsPill } from '@/shared/ui'
+import { AdminIcon, MintedTokenPanel, RightsPill } from '@/shared/ui'
 import { formatMoment } from '@/shared/lib'
 import { useAccess } from '@/features/access'
 import { useAccounts } from '@/features/accounts'
@@ -17,11 +17,26 @@ import { useAccounts } from '@/features/accounts'
 const route = useRoute()
 const slug = computed(() => String(route.params.slug))
 
-const { members, error, busy, load, grant, revoke, retireProgram } = useAccess(() => slug.value)
+const {
+  members,
+  minted,
+  error,
+  busy,
+  load,
+  grant,
+  revoke,
+  createProgram,
+  forgetMinted,
+  retireProgram,
+} = useAccess(() => slug.value)
 const { accounts, error: accountsError, load: loadAccounts } = useAccounts()
 
 const adding = ref(false)
+const kind = ref<'person' | 'program'>('person')
 const chosen = ref('')
+const rights = ref<'member' | 'reader'>('member')
+const programName = ref('')
+const tokenLabel = ref('')
 
 // Who is addable is the difference between two lists that arrive separately.
 // Until both are in, that difference is wrong — with the members still on the
@@ -45,11 +60,24 @@ const addable = computed(() =>
   ),
 )
 
-async function add() {
-  if (!chosen.value) return
-  await grant(chosen.value, 'member')
+function reset() {
   chosen.value = ''
+  programName.value = ''
+  tokenLabel.value = ''
+  rights.value = 'member'
   adding.value = false
+}
+
+async function addPerson() {
+  if (!chosen.value) return
+  await grant(chosen.value, rights.value)
+  reset()
+}
+
+// The form stays open on a refusal: a name the server rejected is a name
+// somebody has to see to correct.
+async function addProgram() {
+  if (await createProgram(programName.value, rights.value, tokenLabel.value)) reset()
 }
 </script>
 
@@ -71,39 +99,120 @@ async function add() {
       </button>
     </div>
 
+    <!-- The one moment the token can be read. Above the form that minted it,
+         because the form is gone and this is what replaced it. -->
+    <MintedTokenPanel v-if="minted" class="mb-5" :token="minted.token" @dismiss="forgetMinted" />
+
     <div v-if="adding" class="mb-5 rounded-md border border-slate-200 p-4 dark:border-slate-700">
-      <!-- An empty list is an answer, not a failure: without a sentence saying
-           which, a select holding only "choisir…" reads as a broken screen. -->
-      <p v-if="!ready" class="font-mono text-[12px] text-slate-500 dark:text-slate-400">
-        chargement…
-      </p>
-      <p v-else-if="accountsError" class="font-mono text-[12px] text-red-700 dark:text-red-400">
-        {{ accountsError }}
-      </p>
-      <p v-else-if="!addable.length" class="text-[13px] text-slate-600 dark:text-slate-400">
-        Tous les comptes de l'instance sont déjà sur ce projet.
-        <RouterLink to="/accounts" class="text-indigo-700 underline dark:text-indigo-300">
-          Créer un compte
-        </RouterLink>
-      </p>
-      <form v-else class="flex flex-wrap items-end gap-3" @submit.prevent="add">
+      <div class="mb-3.5 flex gap-2">
+        <button
+          v-for="k in ['person', 'program'] as const"
+          :key="k"
+          type="button"
+          class="flex flex-1 items-center gap-2 rounded-md border px-3 py-2 text-[13px]"
+          :class="
+            kind === k
+              ? 'border-indigo-600 bg-indigo-50 font-semibold text-indigo-700 dark:border-indigo-500 dark:bg-indigo-950 dark:text-indigo-300'
+              : 'border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-400'
+          "
+          :aria-pressed="kind === k"
+          @click="kind = k"
+        >
+          <AdminIcon :name="k" :size="14" />
+          {{ k === 'person' ? 'Une personne' : 'Un programme' }}
+        </button>
+      </div>
+
+      <template v-if="kind === 'person'">
+        <!-- An empty list is an answer, not a failure: without a sentence saying
+             which, a select holding only "choisir…" reads as a broken screen. -->
+        <p v-if="!ready" class="font-mono text-[12px] text-slate-500 dark:text-slate-400">
+          chargement…
+        </p>
+        <p v-else-if="accountsError" class="font-mono text-[12px] text-red-700 dark:text-red-400">
+          {{ accountsError }}
+        </p>
+        <p v-else-if="!addable.length" class="text-[13px] text-slate-600 dark:text-slate-400">
+          Tous les comptes de l'instance sont déjà sur ce projet.
+          <RouterLink to="/accounts" class="text-indigo-700 underline dark:text-indigo-300">
+            Créer un compte
+          </RouterLink>
+        </p>
+        <form v-else class="flex flex-wrap items-end gap-3" @submit.prevent="addPerson">
+          <label class="flex flex-col gap-1.5">
+            <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase"
+              >compte</span
+            >
+            <select
+              v-model="chosen"
+              required
+              class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
+            >
+              <option value="" disabled>choisir…</option>
+              <option v-for="a in addable" :key="a.id" :value="a.id">{{ a.name }}</option>
+            </select>
+          </label>
+          <label class="flex flex-col gap-1.5">
+            <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase"
+              >droits</span
+            >
+            <select
+              v-model="rights"
+              class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
+            >
+              <option value="member">member</option>
+              <option value="reader">reader</option>
+            </select>
+          </label>
+          <button
+            type="submit"
+            :disabled="busy"
+            class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
+          >
+            Ajouter
+          </button>
+        </form>
+      </template>
+
+      <!-- Nothing to pick from: a service account belongs to one project and
+           never moves (ADR 0018), so one is made here rather than imported. -->
+      <form v-else class="flex flex-wrap items-end gap-3" @submit.prevent="addProgram">
         <label class="flex flex-col gap-1.5">
-          <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">compte</span>
-          <select
-            v-model="chosen"
+          <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">nom</span>
+          <input
+            v-model="programName"
             required
+            placeholder="ci-captures"
+            class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
+          />
+        </label>
+        <label class="flex flex-col gap-1.5">
+          <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">droits</span>
+          <select
+            v-model="rights"
             class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
           >
-            <option value="" disabled>choisir…</option>
-            <option v-for="a in addable" :key="a.id" :value="a.id">{{ a.name }}</option>
+            <option value="member">member</option>
+            <option value="reader">reader</option>
           </select>
+        </label>
+        <label class="flex flex-col gap-1.5">
+          <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">
+            étiquette du premier jeton
+          </span>
+          <input
+            v-model="tokenLabel"
+            required
+            placeholder="github actions"
+            class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
+          />
         </label>
         <button
           type="submit"
           :disabled="busy"
           class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
         >
-          Ajouter
+          Créer
         </button>
       </form>
     </div>
