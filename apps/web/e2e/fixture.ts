@@ -97,6 +97,27 @@ function manifest(caseId: string, first: string, second: string) {
 }
 
 /**
+ * The branch every seeded case hangs from, made once and reused.
+ *
+ * A case belongs to exactly one category and the catalogue lists the cases of a
+ * named one, so a case filed nowhere is a case no screen can show (#115).
+ */
+export async function suiteCategory(): Promise<string> {
+  const tree = (await (await call(`/projects/${PROJECT}/categories`)).json()) as {
+    id: string
+    name: string
+    parentId: string | null
+  }[]
+  const found = tree.find((c) => c.name === 'e2e' && !c.parentId)
+  if (found) return found.id
+  return (
+    (await (await call(`/projects/${PROJECT}/categories`, post({ name: 'e2e' }))).json()) as {
+      id: string
+    }
+  ).id
+}
+
+/**
  * One case in the suite's project, with three steps and two variants, taken in
  * once.
  *
@@ -107,7 +128,10 @@ export async function seed(page: Page): Promise<Seeded> {
   const kase = (await (
     await call(
       `/projects/${PROJECT}/cases`,
-      post({ title: `réinitialiser un mot de passe oublié — ${Date.now()}` }),
+      post({
+        title: `réinitialiser un mot de passe oublié — ${Date.now()}`,
+        categoryId: await suiteCategory(),
+      }),
     )
   ).json()) as { id: string }
 

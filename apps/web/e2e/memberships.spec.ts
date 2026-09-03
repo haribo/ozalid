@@ -140,8 +140,17 @@ test('an administrator reaches a project they created and never joined', async (
   // Read and write both, which is the decision: read alone would give screens
   // where everything shows and every button fails (product.md §8.2).
   expect((await request.get(`${API}/api/projects/${slug}/cases`)).status()).toBe(200)
+  // A case names the category it belongs to (#115); making one here is part of
+  // writing, which is what this asserts.
+  const branch = await request.post(`${API}/api/projects/${slug}/categories`, {
+    data: { name: 'written from outside' },
+  })
+  expect(branch.status()).toBe(201)
   const made = await request.post(`${API}/api/projects/${slug}/cases`, {
-    data: { title: 'written by somebody who is not a member' },
+    data: {
+      title: 'written by somebody who is not a member',
+      categoryId: (await branch.json()).id,
+    },
   })
   expect(made.status()).toBe(201)
 

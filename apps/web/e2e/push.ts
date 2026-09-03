@@ -71,7 +71,36 @@ async function caseFor(title: string): Promise<string> {
     await call(`/projects/${PROJECT}/cases`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({ title, categoryId: await categoryFor(CATEGORY) }),
+    })
+  ).json()) as { id: string }
+  return made.id
+}
+
+/**
+ * The branch these captures hang from.
+ *
+ * A case belongs to exactly one category, and the catalogue only lists the
+ * cases of a named one — a case filed nowhere is a case no screen can show
+ * (#115). Named here rather than configured: these are ozalid's own screens,
+ * and where they belong is not a deployment decision.
+ */
+const CATEGORY = 'ozalid'
+
+async function categoryFor(name: string): Promise<string> {
+  const tree = (await (await call(`/projects/${PROJECT}/categories`)).json()) as {
+    id: string
+    name: string
+    parentId: string | null
+  }[]
+  const found = tree.find((c) => c.name === name && !c.parentId)
+  if (found) return found.id
+
+  const made = (await (
+    await call(`/projects/${PROJECT}/categories`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name }),
     })
   ).json()) as { id: string }
   return made.id
