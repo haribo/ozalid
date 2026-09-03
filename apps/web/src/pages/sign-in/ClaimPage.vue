@@ -31,12 +31,12 @@ onMounted(async () => {
       v-if="dead"
       class="rounded border border-amber-500 bg-amber-50 p-3.5 text-[13px] leading-relaxed text-amber-800 dark:bg-amber-950 dark:text-amber-300"
     >
-      <b class="block font-semibold">Ce lien ne fonctionne plus.</b>
-      Un lien sert une fois, et pas plus de quinze minutes.
+      <b class="block font-semibold">This link no longer works.</b>
+      A link works once, and for fifteen minutes.
       <RouterLink to="/sign-in" class="mt-2 block underline underline-offset-2">
-        Demander un nouveau lien
+        Ask for a new link
       </RouterLink>
     </div>
-    <p v-else class="text-[13px] text-slate-500 dark:text-slate-400">Connexion…</p>
+    <p v-else class="text-[13px] text-slate-500 dark:text-slate-400">Signing in…</p>
   </main>
 </template>

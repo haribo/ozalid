@@ -55,8 +55,8 @@ export function ballHolder(state: CaseState): 'reviewer' | 'dev' | 'nobody' {
 
 /** What each tone means, in words, for the title a screen reader reads. */
 export const TONE_LABELS: Record<Tone, string> = {
-  idle: 'non instrumenté',
-  reviewer: 'à relire',
-  dev: 'à corriger',
-  done: 'relu',
+  idle: 'not instrumented',
+  reviewer: 'to review',
+  dev: 'to fix',
+  done: 'reviewed',
 }

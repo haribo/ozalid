@@ -82,18 +82,18 @@ async function addProgram() {
 <template>
   <main class="mx-auto max-w-5xl px-6 py-8">
     <nav class="mb-4 font-mono text-[11.5px] text-slate-500 dark:text-slate-400">
-      <RouterLink to="/" class="text-indigo-700 dark:text-indigo-300">projets</RouterLink>
+      <RouterLink to="/" class="text-indigo-700 dark:text-indigo-300">projects</RouterLink>
       › <b class="font-medium text-slate-900 dark:text-slate-100">{{ slug }}</b>
     </nav>
 
     <div class="mb-4 flex items-end gap-3">
-      <h1 class="text-lg font-semibold">Accès</h1>
+      <h1 class="text-lg font-semibold">Access</h1>
       <button
         type="button"
         class="ml-auto inline-flex items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 dark:border-indigo-500 dark:bg-indigo-500"
         @click="adding = !adding"
       >
-        <AdminIcon name="add" :size="12" />Ajouter
+        <AdminIcon name="add" :size="12" />Add
       </button>
     </div>
 
@@ -117,7 +117,7 @@ async function addProgram() {
           @click="kind = k"
         >
           <AdminIcon :name="k" :size="14" />
-          {{ k === 'person' ? 'Une personne' : 'Un programme' }}
+          {{ k === 'person' ? 'A person' : 'A program' }}
         </button>
       </div>
 
@@ -125,34 +125,34 @@ async function addProgram() {
         <!-- An empty list is an answer, not a failure: without a sentence saying
              which, a select holding only "choisir…" reads as a broken screen. -->
         <p v-if="!ready" class="font-mono text-[12px] text-slate-500 dark:text-slate-400">
-          chargement…
+          loading…
         </p>
         <p v-else-if="accountsError" class="font-mono text-[12px] text-red-700 dark:text-red-400">
           {{ accountsError }}
         </p>
         <p v-else-if="!addable.length" class="text-[13px] text-slate-600 dark:text-slate-400">
-          Tous les comptes de l'instance sont déjà sur ce projet.
+          Every account on this instance is already on this project.
           <RouterLink to="/accounts" class="text-indigo-700 underline dark:text-indigo-300">
-            Créer un compte
+            Create an account
           </RouterLink>
         </p>
         <form v-else class="flex flex-wrap items-end gap-3" @submit.prevent="addPerson">
           <label class="flex flex-col gap-1.5">
             <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase"
-              >compte</span
+              >account</span
             >
             <select
               v-model="chosen"
               required
               class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
             >
-              <option value="" disabled>choisir…</option>
+              <option value="" disabled>choose…</option>
               <option v-for="a in addable" :key="a.id" :value="a.id">{{ a.name }}</option>
             </select>
           </label>
           <label class="flex flex-col gap-1.5">
             <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase"
-              >droits</span
+              >rights</span
             >
             <select
               v-model="rights"
@@ -167,7 +167,7 @@ async function addProgram() {
             :disabled="busy"
             class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
           >
-            Ajouter
+            Add
           </button>
         </form>
       </template>
@@ -176,7 +176,7 @@ async function addProgram() {
            never moves (ADR 0018), so one is made here rather than imported. -->
       <form v-else class="flex flex-wrap items-end gap-3" @submit.prevent="addProgram">
         <label class="flex flex-col gap-1.5">
-          <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">nom</span>
+          <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">name</span>
           <input
             v-model="programName"
             required
@@ -185,7 +185,7 @@ async function addProgram() {
           />
         </label>
         <label class="flex flex-col gap-1.5">
-          <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">droits</span>
+          <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">rights</span>
           <select
             v-model="rights"
             class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
@@ -199,7 +199,7 @@ async function addProgram() {
           :disabled="busy"
           class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
         >
-          Créer
+          Create
         </button>
       </form>
     </div>
@@ -214,18 +214,18 @@ async function addProgram() {
           <th
             class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
           >
-            nom
+            name
           </th>
           <th />
           <th
             class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
           >
-            droits
+            rights
           </th>
           <th
             class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
           >
-            depuis
+            since
           </th>
           <th />
         </tr>
@@ -253,7 +253,7 @@ async function addProgram() {
               <!-- The icon carries it, and it names itself to a screen reader.
                    Spelling it out beside would be the same word twice. -->
               <AdminIcon :name="m.isPerson ? 'person' : 'program'" :size="12" />
-              <template v-if="m.tokens === 0">sans jeton</template>
+              <template v-if="m.tokens === 0">no token</template>
             </span>
           </td>
           <td class="py-2 pr-3"><RightsPill :rights="m.rights" /></td>
@@ -288,7 +288,7 @@ async function addProgram() {
             >
               <AdminIcon
                 name="remove"
-                :label="m.isPerson ? 'retirer du projet' : 'retirer le programme'"
+                :label="m.isPerson ? 'remove from the project' : 'retire the program'"
               />
             </button>
           </td>

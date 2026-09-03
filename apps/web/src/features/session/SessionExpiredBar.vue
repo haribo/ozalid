@@ -3,9 +3,8 @@
  * Shown when a session died with a verdict in flight.
  *
  * The page underneath does not move: what was being looked at stays on screen,
- * and the bar says what was lost by name. "Le dernier verdict n'est pas
- * enregistré" is a sentence somebody can act on; "une erreur est survenue" is
- * not.
+ * and the bar says what was lost by name. "The last verdict was not recorded"
+ * is a sentence somebody can act on; "something went wrong" is not.
  *
  * The address is already known — the person was signed in a moment ago — so
  * reconnecting is one click, not a form.
@@ -22,20 +21,18 @@ const { person, linkSent, busy, requestLink } = useSession()
   >
     <template v-if="linkSent">
       <span class="flex-1 font-medium">
-        Un lien est parti vers {{ person?.email }}. Ouvrez-le : cet onglet reprendra tout seul.
+        A link went to {{ person?.email }}. Open it: this tab will carry on by itself.
       </span>
     </template>
     <template v-else>
-      <span class="flex-1 font-medium">
-        Session expirée. Le dernier verdict n'est pas enregistré.
-      </span>
+      <span class="flex-1 font-medium"> Session expired. The last verdict was not recorded. </span>
       <button
         type="button"
         :disabled="busy || !person"
         class="rounded border border-amber-600 bg-amber-600 px-3 py-1.5 text-[13px] font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-500 disabled:opacity-60"
         @click="person && requestLink(person.email)"
       >
-        Se reconnecter
+        Sign in again
       </button>
     </template>
   </div>

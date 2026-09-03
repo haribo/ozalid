@@ -86,7 +86,7 @@ function lastRefusal(c: Comment) {
 <template>
   <div v-if="comments.length" class="mt-5">
     <p class="mb-2 font-mono text-[10.5px] tracking-widest text-slate-500 uppercase">
-      commentaires · {{ openCount }} ouvert{{ openCount > 1 ? 's' : '' }} sur {{ comments.length }}
+      comments · {{ openCount }} open of {{ comments.length }}
     </p>
 
     <div class="overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700">
@@ -95,9 +95,9 @@ function lastRefusal(c: Comment) {
           <tr
             class="bg-slate-50 font-mono text-[10.5px] tracking-widest text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400"
           >
-            <th class="px-3 py-2 text-left font-medium">étape</th>
+            <th class="px-3 py-2 text-left font-medium">step</th>
             <th class="px-2 py-2"></th>
-            <th class="px-3 py-2 text-left font-medium">ce qui a été dit</th>
+            <th class="px-3 py-2 text-left font-medium">what was said</th>
             <th
               v-for="v in grid.variants"
               :key="v.id"
@@ -105,7 +105,7 @@ function lastRefusal(c: Comment) {
             >
               <VariantHead :label="v.label" :values="v.values" compact class="justify-center" />
             </th>
-            <th class="px-3 py-2 text-left font-medium">état</th>
+            <th class="px-3 py-2 text-left font-medium">state</th>
           </tr>
         </thead>
         <tbody>
@@ -169,13 +169,13 @@ function lastRefusal(c: Comment) {
                 <span
                   v-if="c.discardReason"
                   class="mt-1 block font-mono text-[10.5px] text-slate-500 dark:text-slate-400"
-                  >écarté : {{ c.discardReason }}</span
+                  >discarded: {{ c.discardReason }}</span
                 >
                 <span
                   v-if="lastRefusal(c)"
                   class="mt-1 flex gap-1.5 font-mono text-[10.5px] text-amber-700 dark:text-amber-400"
                 >
-                  <ActionIcon name="refuse" :size="12" label="refusé" />{{ lastRefusal(c) }}
+                  <ActionIcon name="refuse" :size="12" label="refused" />{{ lastRefusal(c) }}
                 </span>
               </td>
               <td
@@ -187,7 +187,7 @@ function lastRefusal(c: Comment) {
                   v-if="c.variantIds.includes(v.id)"
                   name="check"
                   :size="13"
-                  :label="`s'applique à ${v.label}`"
+                  :label="`applies to ${v.label}`"
                   class="mx-auto text-emerald-700 dark:text-emerald-400"
                 />
               </td>

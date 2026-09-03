@@ -13,8 +13,8 @@ const grid: Grid = {
     { id: 'v2', label: 'desktop·dark', values: { viewport: 'desktop', theme: 'dark' } },
   ],
   steps: [
-    { id: 's1', name: 'ouvre le lien', position: 0, cells: [] },
-    { id: 's2', name: 'arrive sur son compte', position: 1, cells: [] },
+    { id: 's1', name: 'opens the link', position: 0, cells: [] },
+    { id: 's2', name: 'arrives on their account', position: 1, cells: [] },
   ],
   recordings: [],
 }
@@ -24,7 +24,7 @@ function comment(over: Partial<Comment> = {}): Comment {
     id: 'k1',
     stepId: 's1',
     kind: 'defect',
-    body: 'le bouton est coupé',
+    body: 'the button is clipped',
     state: 'to-track',
     variantIds: ['v2'],
     authorId: 'nina',
@@ -67,7 +67,7 @@ describe('CommentRecap', () => {
             judgments: [
               {
                 verdict: 'refused',
-                remark: 'toujours coupé sur iPhone SE',
+                remark: 'still clipped on iPhone SE',
                 actorId: 'nina',
                 at: '2026-08-24T10:00:00Z',
               },
@@ -76,7 +76,7 @@ describe('CommentRecap', () => {
         ],
       },
     })
-    expect(w.text()).toContain('toujours coupé sur iPhone SE')
+    expect(w.text()).toContain('still clipped on iPhone SE')
   })
 
   it('keeps a discarded comment visible, with its reason', () => {
@@ -101,7 +101,7 @@ describe('CommentRecap', () => {
       },
     })
     const steps = w.findAll('tbody td[rowspan]')
-    expect(steps.map((s) => s.text())).toEqual(['ouvre le lien', 'arrive sur son compte'])
+    expect(steps.map((s) => s.text())).toEqual(['opens the link', 'arrives on their account'])
     expect(steps.map((s) => s.attributes('rowspan'))).toEqual(['2', '1'])
   })
 
@@ -137,8 +137,8 @@ describe('CommentRecap', () => {
     const w = mount(CommentRecap, {
       props: { grid, comments: [comment({ kind: 'improvement' })] },
     })
-    expect(w.find('[aria-label="amélioration"]').exists()).toBe(true)
-    expect(w.find('[aria-label="à relire"]').exists()).toBe(false)
+    expect(w.find('[aria-label="improvement"]').exists()).toBe(true)
+    expect(w.find('[aria-label="to review"]').exists()).toBe(false)
   })
 
   it('counts what is still open, not what exists', () => {
@@ -152,6 +152,6 @@ describe('CommentRecap', () => {
         ],
       },
     })
-    expect(w.text()).toContain('1 ouvert sur 3')
+    expect(w.text()).toContain('1 open of 3')
   })
 })

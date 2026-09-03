@@ -72,9 +72,9 @@ async function upload(bytes: Buffer): Promise<string> {
 }
 
 const STEPS = [
-  'demande la réinitialisation',
-  'ouvre le lien reçu par e-mail',
-  'arrive sur son compte',
+  'asks for the reset',
+  'opens the link received by e-mail',
+  'arrives on their account',
 ]
 const LIGHT = { viewport: 'desktop', theme: 'light' }
 const DARK = { viewport: 'desktop', theme: 'dark' }
@@ -129,7 +129,7 @@ export async function seed(page: Page): Promise<Seeded> {
     await call(
       `/projects/${PROJECT}/cases`,
       post({
-        title: `réinitialiser un mot de passe oublié — ${Date.now()}`,
+        title: `reset a forgotten password — ${Date.now()}`,
         categoryId: await suiteCategory(),
       }),
     )

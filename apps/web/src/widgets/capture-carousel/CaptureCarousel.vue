@@ -68,7 +68,7 @@ const VERDICT_MARK: Record<string, string> = {
   validated: 'text-emerald-700 dark:text-emerald-400',
   'to-fix': 'text-amber-700 dark:text-amber-400',
 }
-const VERDICT_LABEL: Record<string, string> = { validated: 'validée', 'to-fix': 'commentée' }
+const VERDICT_LABEL: Record<string, string> = { validated: 'validated', 'to-fix': 'commented' }
 
 /** A capture that has moved is back to needing eyes, whatever its verdict says,
  * so it comes back to full strength here as it does in the grid. */
@@ -239,8 +239,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <kbd class="rounded border border-current px-1 font-sans">←</kbd>
         <kbd class="rounded border border-current px-1 font-sans">→</kbd> capture ·
         <kbd class="rounded border border-current px-1 font-sans">↑</kbd>
-        <kbd class="rounded border border-current px-1 font-sans">↓</kbd> variante ·
-        <kbd class="rounded border border-current px-1">Échap</kbd> fermer
+        <kbd class="rounded border border-current px-1 font-sans">↓</kbd> variant ·
+        <kbd class="rounded border border-current px-1">Esc</kbd> close
       </span>
     </div>
 
@@ -255,7 +255,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           v-if="moved"
           class="absolute -top-3 -right-3 z-10 flex items-center gap-1.5 rounded border border-indigo-500 bg-white px-2 py-1 font-mono text-[10.5px] text-indigo-700 dark:border-indigo-400 dark:bg-slate-900 dark:text-indigo-300"
         >
-          <MovedIcon :size="12" />a bougé<template v-if="cell.movedPixels !== undefined">
+          <MovedIcon :size="12" />moved<template v-if="cell.movedPixels !== undefined">
             · {{ cell.movedPixels }} px</template
           >
         </span>
@@ -286,7 +286,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       class="border-t border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900"
     >
       <p class="mb-2.5 font-mono text-[10.5px] tracking-widest text-slate-500 uppercase">
-        correction livrée<span v-if="toJudge.issue"> · issue {{ toJudge.issue.id }}</span>
+        fix delivered<span v-if="toJudge.issue"> · issue {{ toJudge.issue.id }}</span>
       </p>
       <p class="mb-3 text-[13px] text-slate-600 dark:text-slate-300">{{ toJudge.body }}</p>
 
@@ -297,7 +297,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           :disabled="busy"
           @click="accept"
         >
-          <ActionIcon name="accept" :size="13" />accepter
+          <ActionIcon name="accept" :size="13" />accept
         </button>
         <button
           type="button"
@@ -305,10 +305,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           :disabled="busy || (refusing && remark.trim() === '')"
           @click="refuse"
         >
-          <ActionIcon name="refuse" :size="13" />refuser
+          <ActionIcon name="refuse" :size="13" />refuse
         </button>
         <span v-if="!refusing" class="font-mono text-[11px] text-slate-500"
-          >refuser demandera votre remarque</span
+          >refusing will ask for your remark</span
         >
       </div>
 
@@ -317,7 +317,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         v-model="remark"
         class="mt-2.5 w-full rounded border border-slate-300 bg-white p-2 text-[13px] dark:border-slate-600 dark:bg-slate-950"
         rows="2"
-        placeholder="ce que le dev doit reprendre"
+        placeholder="what the developer must take back"
       ></textarea>
     </div>
 
@@ -332,8 +332,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         :disabled="busy || cell?.status === 'validated'"
         @click="emit('validate', stepId, variantId)"
       >
-        <ActionIcon name="check" :size="13" />valider
-        <kbd class="rounded border border-current px-1 text-[10px]">espace</kbd>
+        <ActionIcon name="check" :size="13" />validate
+        <kbd class="rounded border border-current px-1 text-[10px]">space</kbd>
       </button>
       <button
         type="button"
@@ -341,13 +341,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         :disabled="busy"
         @click="openComposer"
       >
-        <ActionIcon name="comment" :size="13" />commenter
+        <ActionIcon name="comment" :size="13" />comment
       </button>
       <span
         v-if="cell?.status === 'validated'"
         class="inline-flex items-center gap-1.5 font-mono text-[11px] text-emerald-700 dark:text-emerald-400"
       >
-        <StateIcon tone="done" :size="12" />validée
+        <StateIcon tone="done" :size="12" />validated
       </span>
       <span
         v-for="c in onSquare"
@@ -363,7 +363,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       class="border-t border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900"
     >
       <p class="mb-2.5 font-mono text-[10.5px] tracking-widest text-slate-500 uppercase">
-        commentaire sur cette étape
+        comment on this step
       </p>
 
       <div class="mb-2.5 flex gap-1.5">
@@ -377,7 +377,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           "
           @click="kind = 'defect'"
         >
-          <KindIcon kind="defect" :size="12" />défaut
+          <KindIcon kind="defect" :size="12" />defect
         </button>
         <button
           type="button"
@@ -389,7 +389,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           "
           @click="kind = 'improvement'"
         >
-          <KindIcon kind="improvement" :size="12" />amélioration
+          <KindIcon kind="improvement" :size="12" />improvement
         </button>
       </div>
 
@@ -397,7 +397,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         v-model="body"
         class="w-full rounded border border-slate-300 bg-white p-2 text-[13px] dark:border-slate-600 dark:bg-slate-950"
         rows="3"
-        placeholder="ce que vous voyez, dans vos mots"
+        placeholder="what you see, in your words"
       ></textarea>
 
       <div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-[11px]">
@@ -429,7 +429,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             class="rounded-full border border-slate-300 px-2 py-0.5 text-[10px] text-slate-500 hover:border-indigo-500 hover:text-indigo-600 dark:border-slate-600 dark:text-slate-400"
             @click="pickAll"
           >
-            tout
+            all
           </button>
         </span>
       </div>
@@ -441,19 +441,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           :disabled="!canAdd || busy"
           @click="add"
         >
-          ajouter
+          add
         </button>
         <button
           type="button"
           class="rounded border border-slate-300 px-3 py-1.5 text-[12.5px] text-slate-600 dark:border-slate-600 dark:text-slate-300"
           @click="composing = false"
         >
-          annuler
+          cancel
         </button>
         <span class="font-mono text-[11px] text-slate-500">
-          {{ chosen.length }} variante{{ chosen.length > 1 ? 's' : '' }} cochée{{
-            chosen.length > 1 ? 's' : ''
-          }}
+          {{ chosen.length }} variant{{ chosen.length > 1 ? 's' : '' }} ticked
         </span>
       </div>
     </div>

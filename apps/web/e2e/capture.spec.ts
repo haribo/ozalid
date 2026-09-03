@@ -35,14 +35,14 @@ async function walk(page: Page, theme: 'light' | 'dark'): Promise<Shot[]> {
   await page.emulateMedia({ colorScheme: theme })
 
   await page.goto('/sign-in')
-  await expect(page.getByRole('heading', { name: 'Se connecter' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
   const asked: Shot[] = [
     { step: 'arrive at the door', variant, bytes: await page.screenshot({ fullPage: true }) },
   ]
 
-  await page.getByLabel('adresse').fill(anAddress())
-  await page.getByRole('button', { name: 'Envoyer le lien' }).click()
-  await expect(page.getByText('Le lien est parti.')).toBeVisible()
+  await page.getByLabel('address').fill(anAddress())
+  await page.getByRole('button', { name: 'Send the link' }).click()
+  await expect(page.getByText('The link is on its way.')).toBeVisible()
   asked.push({
     step: 'ask for a link',
     variant,

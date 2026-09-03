@@ -33,14 +33,14 @@ async function submit() {
 <template>
   <main class="mx-auto max-w-5xl px-6 py-8">
     <div class="mb-4 flex items-end gap-3">
-      <h1 class="text-lg font-semibold">Projets</h1>
+      <h1 class="text-lg font-semibold">Projects</h1>
       <button
         v-if="person?.isAdmin"
         type="button"
         class="ml-auto inline-flex items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 dark:border-indigo-500 dark:bg-indigo-500"
         @click="making = !making"
       >
-        <AdminIcon name="add" :size="12" />Nouveau projet
+        <AdminIcon name="add" :size="12" />New project
       </button>
     </div>
 
@@ -50,7 +50,7 @@ async function submit() {
       @submit.prevent="submit"
     >
       <label class="flex flex-col gap-1.5">
-        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">nom</span>
+        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">name</span>
         <input
           v-model="name"
           required
@@ -58,9 +58,7 @@ async function submit() {
         />
       </label>
       <label class="flex flex-col gap-1.5">
-        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase"
-          >identifiant</span
-        >
+        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">id</span>
         <input
           v-model="slug"
           required
@@ -72,12 +70,12 @@ async function submit() {
         type="submit"
         class="justify-self-start rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white dark:border-indigo-500 dark:bg-indigo-500"
       >
-        Créer
+        Create
       </button>
     </form>
 
     <p v-if="error" class="font-mono text-[12px] text-red-700 dark:text-red-400">{{ error }}</p>
-    <p v-else-if="loading" class="font-mono text-[12px] text-slate-500">chargement…</p>
+    <p v-else-if="loading" class="font-mono text-[12px] text-slate-500">loading…</p>
 
     <table v-else-if="projects.length" class="w-full border-collapse text-[13px]">
       <thead>
@@ -85,17 +83,17 @@ async function submit() {
           <th
             class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
           >
-            projet
+            project
           </th>
           <th
             class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
           >
-            identifiant
+            id
           </th>
           <th
             class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
           >
-            membres
+            members
           </th>
           <th />
         </tr>
@@ -118,9 +116,9 @@ async function submit() {
             {{ p.slug }}
           </td>
           <td class="py-2 pr-3 font-mono text-[12px] text-slate-500 dark:text-slate-400">
-            {{ p.people }} {{ p.people === 1 ? 'personne' : 'personnes' }}
+            {{ p.people }} {{ p.people === 1 ? 'person' : 'people' }}
             <template v-if="p.programs">
-              · {{ p.programs }} {{ p.programs === 1 ? 'programme' : 'programmes' }}
+              · {{ p.programs }} {{ p.programs === 1 ? 'program' : 'programs' }}
             </template>
           </td>
           <td class="py-2 text-right">
@@ -140,10 +138,8 @@ async function submit() {
       v-else
       class="rounded-md border border-dashed border-slate-300 px-4 py-8 text-center text-slate-600 dark:border-slate-600 dark:text-slate-400"
     >
-      <b class="mb-1 block text-slate-900 dark:text-slate-100">
-        Vous n'êtes membre d'aucun projet.
-      </b>
-      Demandez à qui administre l'instance de vous ajouter.
+      <b class="mb-1 block text-slate-900 dark:text-slate-100"> You belong to no project. </b>
+      Ask whoever runs the instance to add you.
     </p>
   </main>
 </template>

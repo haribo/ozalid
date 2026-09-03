@@ -95,7 +95,7 @@ watch(
     <p v-if="error" class="font-mono text-[12px] text-red-700 dark:text-red-400">
       {{ error }}
     </p>
-    <p v-else-if="loading" class="font-mono text-[12px] text-slate-500">chargement…</p>
+    <p v-else-if="loading" class="font-mono text-[12px] text-slate-500">loading…</p>
 
     <template v-else>
       <CategoryTable v-if="children.length" :slug="slug" :categories="children" class="mb-6" />
@@ -104,7 +104,7 @@ watch(
         v-if="!children.length && !cases.length"
         class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center font-mono text-[12px] text-slate-500 dark:border-slate-600 dark:text-slate-400"
       >
-        rien ici pour le moment
+        nothing here yet
       </p>
     </template>
   </div>

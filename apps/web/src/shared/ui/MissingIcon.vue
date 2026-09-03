@@ -8,7 +8,7 @@
  */
 withDefaults(defineProps<{ size?: number; label?: string }>(), {
   size: 13,
-  label: 'manquante',
+  label: 'missing',
 })
 </script>
 

@@ -21,12 +21,12 @@ describe('MintedTokenPanel', () => {
     vi.stubGlobal('navigator', { clipboard: { writeText } })
 
     const w = mount(MintedTokenPanel, { props: { token: TOKEN } })
-    await button(w, 'Copier').trigger('click')
+    await button(w, 'Copy').trigger('click')
 
     // The argument matters: a panel that copies a truncated or stale value
     // hands somebody a credential that fails on first use, hours later.
     expect(writeText).toHaveBeenCalledWith(TOKEN)
-    expect(w.text()).toContain('Copié')
+    expect(w.text()).toContain('Copied')
 
     vi.unstubAllGlobals()
   })
@@ -36,7 +36,7 @@ describe('MintedTokenPanel', () => {
     // this component cleared its own state the token would be unreachable
     // while still on screen elsewhere.
     const w = mount(MintedTokenPanel, { props: { token: TOKEN } })
-    await button(w, "J'ai copié le jeton").trigger('click')
+    await button(w, 'I have copied the token').trigger('click')
     expect(w.emitted('dismiss')).toHaveLength(1)
   })
 })

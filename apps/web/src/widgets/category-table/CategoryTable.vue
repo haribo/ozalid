@@ -16,9 +16,9 @@ const props = defineProps<{ slug: string; categories: Category[] }>()
 function parts(c: Category) {
   return [
     { tone: 'done' as const, count: c.cases.reviewed, label: 'relus' },
-    { tone: 'reviewer' as const, count: c.cases.toReview, label: 'à relire' },
-    { tone: 'dev' as const, count: c.cases.toFix, label: 'à corriger' },
-    { tone: 'idle' as const, count: c.cases.notInstrumented, label: 'non instrumentés' },
+    { tone: 'reviewer' as const, count: c.cases.toReview, label: 'to review' },
+    { tone: 'dev' as const, count: c.cases.toFix, label: 'to fix' },
+    { tone: 'idle' as const, count: c.cases.notInstrumented, label: 'not instrumented' },
   ]
 }
 
@@ -34,10 +34,10 @@ function total(c: Category) {
         <tr
           class="bg-slate-50 font-mono text-[10.5px] tracking-widest text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400"
         >
-          <th class="px-3 py-2 text-left font-medium">catégorie</th>
-          <th class="w-1/3 px-3 py-2 text-left font-medium">avancement</th>
-          <th class="px-3 py-2 text-right font-medium">cas</th>
-          <th class="px-3 py-2 text-left font-medium whitespace-nowrap">dernière mise à jour</th>
+          <th class="px-3 py-2 text-left font-medium">category</th>
+          <th class="w-1/3 px-3 py-2 text-left font-medium">progress</th>
+          <th class="px-3 py-2 text-right font-medium">cases</th>
+          <th class="px-3 py-2 text-left font-medium whitespace-nowrap">last updated</th>
         </tr>
       </thead>
       <tbody>
