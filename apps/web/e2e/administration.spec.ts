@@ -130,7 +130,6 @@ test('a program is created from the access screen, and its token is shown there'
   const name = `runner-${unique()}`
   await page.getByLabel('nom').fill(name)
   await page.getByLabel('droits').selectOption('reader')
-  await page.getByLabel('étiquette du premier jeton').fill('github actions')
   await page.getByRole('button', { name: 'Créer' }).click()
 
   // The token, in place. Sending somebody to another screen for it would send
@@ -154,6 +153,18 @@ test('a program is created from the access screen, and its token is shown there'
   await page.reload()
   await expect(page.locator('code', { hasText: /^ozp_/ })).toHaveCount(0)
   await expect(page.getByRole('row').filter({ hasText: name })).toBeVisible()
+
+  // The form no longer asks what the first token is for: at that moment there
+  // is one token and its purpose is the program just named (#113). The server
+  // still requires a label, so the client sends the name — and this is where
+  // that label surfaces. Checked last, because leaving the page loses the
+  // token, which is the behaviour the lines above assert.
+  await page
+    .getByRole('row')
+    .filter({ hasText: name })
+    .getByRole('link', { name: 'ses jetons' })
+    .click()
+  await expect(page.getByRole('cell', { name, exact: true })).toBeVisible()
 })
 
 test('a person is added as a reader without passing through member', async ({ page }) => {

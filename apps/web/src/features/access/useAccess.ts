@@ -68,14 +68,19 @@ export function useAccess(slug: () => string) {
    * to this project and never moves (ADR 0018) — which is why there is nothing
    * to pick from, only something to name.
    *
+   * The first token is labelled with the account name rather than asked for.
+   * At this moment there is one token and its purpose is the program that was
+   * just named — a label asked here has no answer yet (#113). The tokens screen
+   * still asks, because minting a *second* one is a real question.
+   *
    * The token comes back here and nowhere else.
    */
-  async function createProgram(name: string, rights: Rights, tokenLabel: string): Promise<boolean> {
+  async function createProgram(name: string, rights: Rights): Promise<boolean> {
     error.value = ''
     busy.value = true
     const result = await api.POST('/projects/{slug}/service-accounts', {
       params: { path: { slug: slug() } },
-      body: { name, rights, tokenLabel },
+      body: { name, rights, tokenLabel: name },
     })
     busy.value = false
     if (result.error) {
