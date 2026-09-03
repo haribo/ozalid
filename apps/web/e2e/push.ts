@@ -84,8 +84,12 @@ async function caseFor(title: string): Promise<string> {
  * cases of a named one — a case filed nowhere is a case no screen can show
  * (#115). Named here rather than configured: these are ozalid's own screens,
  * and where they belong is not a deployment decision.
+ *
+ * `account`, not `ozalid`: the project is already called ozalid, and a branch
+ * repeating its project's name sorts nothing. The flow captured here is the
+ * account one — signing in.
  */
-const CATEGORY = 'ozalid'
+const CATEGORY = 'account'
 
 async function categoryFor(name: string): Promise<string> {
   const tree = (await (await call(`/projects/${PROJECT}/categories`)).json()) as {
