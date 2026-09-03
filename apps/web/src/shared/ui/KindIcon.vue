@@ -14,7 +14,7 @@ const props = withDefaults(defineProps<{ kind: 'defect' | 'improvement'; size?: 
   size: 13,
 })
 
-const title = computed(() => (props.kind === 'defect' ? 'défaut' : 'amélioration'))
+const title = computed(() => (props.kind === 'defect' ? 'defect' : 'improvement'))
 </script>
 
 <template>

@@ -16,15 +16,15 @@ const props = withDefaults(defineProps<{ name: Name; size?: number; label?: stri
 })
 
 const NAMES: Record<Name, string> = {
-  people: 'gérer les accès',
-  keys: 'ses jetons',
-  remove: 'retirer',
-  swap: 'changer les droits',
-  add: 'ajouter',
-  copy: 'copier',
+  people: 'manage access',
+  keys: 'its tokens',
+  remove: 'retire',
+  swap: 'change the rights',
+  add: 'add',
+  copy: 'copy',
   warn: 'attention',
-  person: 'personne',
-  program: 'programme',
+  person: 'person',
+  program: 'program',
 }
 const title = computed(() => props.label || NAMES[props.name])
 

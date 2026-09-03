@@ -12,12 +12,12 @@ import { REVIEWER, SIGNED_IN } from './session'
 setup('a reviewer signs in, once, for the whole suite', async ({ page, context }) => {
   await emptyMailbox(REVIEWER)
   await page.goto('/sign-in')
-  await page.getByLabel('adresse').fill(REVIEWER)
-  await page.getByRole('button', { name: 'Envoyer le lien' }).click()
-  await expect(page.getByText('Le lien est parti.')).toBeVisible()
+  await page.getByLabel('address').fill(REVIEWER)
+  await page.getByRole('button', { name: 'Send the link' }).click()
+  await expect(page.getByText('The link is on its way.')).toBeVisible()
 
   await page.goto(`/sign-in/${await linkSentTo(REVIEWER)}`)
-  await expect(page.getByRole('button', { name: 'se déconnecter' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'sign out' })).toBeVisible()
 
   await context.storageState({ path: SIGNED_IN })
 })

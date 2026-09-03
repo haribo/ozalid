@@ -33,7 +33,7 @@ async function leave() {
           class="rounded px-2 py-1 text-slate-500 dark:text-slate-400"
           active-class="bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
         >
-          projets
+          projects
         </RouterLink>
         <!-- Shown from `isAdmin`, which decides what is offered and never what
              is allowed: the server refuses regardless, and a hidden button has
@@ -44,7 +44,7 @@ async function leave() {
           class="rounded px-2 py-1 text-slate-500 dark:text-slate-400"
           active-class="bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
         >
-          comptes
+          accounts
         </RouterLink>
       </nav>
       <span
@@ -53,9 +53,7 @@ async function leave() {
       >
         <b class="font-medium text-slate-900 dark:text-slate-100">{{ person.name }}</b>
         ·
-        <button type="button" class="underline underline-offset-2" @click="leave">
-          se déconnecter
-        </button>
+        <button type="button" class="underline underline-offset-2" @click="leave">sign out</button>
       </span>
     </header>
     <SessionExpiredBar v-if="standing === 'expired'" />

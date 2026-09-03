@@ -18,9 +18,9 @@ function parts(c: Case) {
   const k = c.captures
   if (!k) return []
   return [
-    { tone: 'done' as const, count: k.validated, label: 'validées' },
-    { tone: 'reviewer' as const, count: k.toJudge, label: 'à juger' },
-    { tone: 'dev' as const, count: k.commented, label: 'commentées' },
+    { tone: 'done' as const, count: k.validated, label: 'validated' },
+    { tone: 'reviewer' as const, count: k.toJudge, label: 'to judge' },
+    { tone: 'dev' as const, count: k.commented, label: 'commented' },
   ]
 }
 </script>
@@ -33,10 +33,10 @@ function parts(c: Case) {
           class="bg-slate-50 font-mono text-[10.5px] tracking-widest text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400"
         >
           <th class="px-3 py-2 text-left font-medium">id</th>
-          <th class="px-3 py-2 text-left font-medium">cas</th>
-          <th class="px-3 py-2 text-left font-medium">état</th>
+          <th class="px-3 py-2 text-left font-medium">cases</th>
+          <th class="px-3 py-2 text-left font-medium">state</th>
           <th class="w-1/4 px-3 py-2 text-left font-medium">captures</th>
-          <th class="px-3 py-2 text-left font-medium whitespace-nowrap">dernière mise à jour</th>
+          <th class="px-3 py-2 text-left font-medium whitespace-nowrap">last updated</th>
         </tr>
       </thead>
       <tbody>

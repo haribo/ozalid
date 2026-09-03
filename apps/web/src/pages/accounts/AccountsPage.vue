@@ -25,16 +25,16 @@ const shown = computed(() =>
 const retired = computed(() => accounts.value.filter((a) => a.deactivatedAt).length)
 const name = ref('')
 const email = ref('')
-const admin = ref('relecteur')
+const admin = ref(false)
 
 onMounted(load)
 
 async function submit() {
-  if (await create(name.value, email.value, admin.value === 'admin')) {
+  if (await create(name.value, email.value, admin.value)) {
     making.value = false
     name.value = ''
     email.value = ''
-    admin.value = 'relecteur'
+    admin.value = false
   }
 }
 </script>
@@ -42,13 +42,13 @@ async function submit() {
 <template>
   <main class="mx-auto max-w-5xl px-6 py-8">
     <div class="mb-4 flex items-end gap-3">
-      <h1 class="text-lg font-semibold">Comptes</h1>
+      <h1 class="text-lg font-semibold">Accounts</h1>
       <button
         type="button"
         class="ml-auto inline-flex items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 dark:border-indigo-500 dark:bg-indigo-500"
         @click="making = !making"
       >
-        <AdminIcon name="add" :size="12" />Nouveau compte
+        <AdminIcon name="add" :size="12" />New account
       </button>
     </div>
 
@@ -57,7 +57,7 @@ async function submit() {
       class="mb-3 inline-flex items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400"
     >
       <input v-model="showRetired" type="checkbox" class="accent-indigo-600" />
-      voir les {{ retired }} compte{{ retired > 1 ? 's' : '' }} retiré{{ retired > 1 ? 's' : '' }}
+      show the {{ retired }} retired account{{ retired > 1 ? 's' : '' }}
     </label>
 
     <form
@@ -66,7 +66,7 @@ async function submit() {
       @submit.prevent="submit"
     >
       <label class="flex flex-col gap-1.5">
-        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">nom</span>
+        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">name</span>
         <input
           v-model="name"
           required
@@ -74,7 +74,7 @@ async function submit() {
         />
       </label>
       <label class="flex flex-col gap-1.5">
-        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">adresse</span>
+        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">address</span>
         <input
           v-model="email"
           type="email"
@@ -82,22 +82,18 @@ async function submit() {
           class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
         />
       </label>
-      <label class="flex flex-col gap-1.5">
-        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">rôle</span>
-        <select
-          v-model="admin"
-          class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
-        >
-          <option value="relecteur">relecteur</option>
-          <option value="admin">admin</option>
-        </select>
+      <label class="flex items-center gap-2 self-end pb-1.5">
+        <input v-model="admin" type="checkbox" class="accent-indigo-600" />
+        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">
+          administers the instance
+        </span>
       </label>
       <button
         type="submit"
         :disabled="busy"
         class="justify-self-start rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
       >
-        Créer le compte
+        Create the account
       </button>
     </form>
 
@@ -111,22 +107,22 @@ async function submit() {
           <th
             class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
           >
-            nom
+            name
           </th>
           <th
             class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
           >
-            adresse
+            address
           </th>
           <th
             class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
           >
-            rôle
+            admin
           </th>
           <th
             class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
           >
-            depuis
+            since
           </th>
           <th />
         </tr>
@@ -147,7 +143,7 @@ async function submit() {
               v-if="a.deactivatedAt"
               class="rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] whitespace-nowrap text-slate-500 dark:border-slate-600 dark:bg-slate-800"
             >
-              retiré le {{ formatMoment(a.deactivatedAt) }}
+              retired on {{ formatMoment(a.deactivatedAt) }}
             </span>
             <span
               v-else-if="a.isAdmin"
@@ -167,7 +163,7 @@ async function submit() {
               >
                 <AdminIcon
                   name="swap"
-                  :label="a.isAdmin ? 'retirer le rôle admin' : 'passer en admin'"
+                  :label="a.isAdmin ? 'stop being an admin' : 'make an admin'"
                 />
               </button>
               <button
@@ -176,7 +172,7 @@ async function submit() {
                 class="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 text-indigo-700 disabled:opacity-50 dark:border-slate-600 dark:text-indigo-300"
                 @click="deactivate(a.id)"
               >
-                <AdminIcon name="remove" label="désactiver le compte" />
+                <AdminIcon name="remove" label="deactivate the account" />
               </button>
             </template>
           </td>

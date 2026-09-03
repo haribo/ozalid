@@ -15,7 +15,7 @@ const grid: Grid = {
   steps: [
     {
       id: 's1',
-      name: 'ouvre le lien',
+      name: 'opens the link',
       position: 0,
       cells: [
         { id: 'cap1', variantId: 'v1', hash: 'sha256:a', status: 'to-review' },
@@ -43,11 +43,11 @@ describe('CaptureCarousel', () => {
     // still needs looking at.
     const judged = mountAt('v2')
     expect(judged.find('img').classes()).toContain('opacity-40')
-    expect(judged.find('[aria-label="validée"]').exists()).toBe(true)
+    expect(judged.find('[aria-label="validated"]').exists()).toBe(true)
 
     const pending = mountAt('v1')
     expect(pending.find('img').classes()).not.toContain('opacity-40')
-    expect(pending.find('[aria-label="validée"]').exists()).toBe(false)
+    expect(pending.find('[aria-label="validated"]').exists()).toBe(false)
   })
 
   it('says on the image that it moved, and by how much', () => {
@@ -82,7 +82,7 @@ describe('CaptureCarousel', () => {
     const w = mount(CaptureCarousel, {
       props: { slug: 'atlas', grid: moved, comments: [], stepId: 's1', variantId: 'v1' },
     })
-    expect(w.text()).toContain('a bougé')
+    expect(w.text()).toContain('moved')
     expect(w.text()).toContain('143 px')
     // Back to full strength: it needs eyes again, whatever its verdict says.
     expect(w.find('img').classes()).not.toContain('opacity-40')
@@ -96,7 +96,7 @@ describe('CaptureCarousel', () => {
 
   it('does not offer to validate a square that already is', () => {
     const w = mountAt('v2')
-    const validate = w.findAll('button').find((b) => b.text().includes('valider'))
+    const validate = w.findAll('button').find((b) => b.text().includes('validate'))
     expect(validate?.attributes('disabled')).toBeDefined()
   })
 
@@ -113,10 +113,10 @@ describe('CaptureCarousel', () => {
     const w = mountAt('v1')
     await w
       .findAll('button')
-      .find((b) => b.text().includes('commenter'))!
+      .find((b) => b.text().includes('comment'))!
       .trigger('click')
 
-    const add = w.findAll('button').find((b) => b.text() === 'ajouter')
+    const add = w.findAll('button').find((b) => b.text() === 'add')
     expect(add?.attributes('disabled')).toBeDefined()
   })
 
@@ -124,9 +124,9 @@ describe('CaptureCarousel', () => {
     const w = mountAt('v2')
     await w
       .findAll('button')
-      .find((b) => b.text().includes('commenter'))!
+      .find((b) => b.text().includes('comment'))!
       .trigger('click')
-    expect(w.text()).toContain('1 variante cochée')
+    expect(w.text()).toContain('1 variant ticked')
   })
 
   it('judges the fix rather than the capture once a delivery is waiting', () => {
@@ -134,7 +134,7 @@ describe('CaptureCarousel', () => {
       id: 'k1',
       stepId: 's1',
       kind: 'defect',
-      body: "l'avatar est écrasé",
+      body: 'the avatar is squashed',
       state: 'to-review',
       variantIds: ['v1'],
       authorId: 'nina',
@@ -144,12 +144,12 @@ describe('CaptureCarousel', () => {
     }
     const w = mountAt('v1', [delivered])
 
-    expect(w.text()).toContain('correction livrée')
+    expect(w.text()).toContain('fix delivered')
     expect(w.text()).toContain('issue 139')
     // The two verdicts replace "validate": it is no longer the capture being
     // judged, it is the fix.
-    expect(w.findAll('button').some((b) => b.text().includes('valider'))).toBe(false)
-    expect(w.findAll('button').some((b) => b.text().includes('accepter'))).toBe(true)
+    expect(w.findAll('button').some((b) => b.text().includes('validate'))).toBe(false)
+    expect(w.findAll('button').some((b) => b.text().includes('accept'))).toBe(true)
   })
 
   it('asks for the remark before letting a refusal through', async () => {
@@ -166,7 +166,7 @@ describe('CaptureCarousel', () => {
     }
     const w = mountAt('v1', [delivered])
 
-    const refuse = w.findAll('button').find((b) => b.text().includes('refuser'))!
+    const refuse = w.findAll('button').find((b) => b.text().includes('refuse'))!
     await refuse.trigger('click')
     // The first click opens the field; nothing is sent yet.
     expect(w.emitted('judge')).toBeUndefined()
@@ -190,7 +190,7 @@ describe('the group shortcuts', () => {
       steps: [
         {
           id: 's1',
-          name: 'ouvre',
+          name: 'opens',
           position: 0,
           cells: [
             { id: 'cap4', variantId: 'v1', hash: 'sha256:a', status: 'to-review' },
@@ -204,26 +204,26 @@ describe('the group shortcuts', () => {
     })
     await w
       .findAll('button')
-      .find((b) => b.text().includes('commenter'))!
+      .find((b) => b.text().includes('comment'))!
       .trigger('click')
 
     const labels = w.findAll('button').map((b) => b.text())
     expect(labels).toContain('admin')
     expect(labels).toContain('member')
     expect(labels).toContain('light')
-    expect(labels).toContain('tout')
+    expect(labels).toContain('all')
   })
 
   it('ticks every variant sharing a value in one click', async () => {
     const w = mountAt('v1')
     await w
       .findAll('button')
-      .find((b) => b.text().includes('commenter'))!
+      .find((b) => b.text().includes('comment'))!
       .trigger('click')
     await w
       .findAll('button')
       .find((b) => b.text() === 'desktop')!
       .trigger('click')
-    expect(w.text()).toContain('2 variantes cochées')
+    expect(w.text()).toContain('2 variants ticked')
   })
 })

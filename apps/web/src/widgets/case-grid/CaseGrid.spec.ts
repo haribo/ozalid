@@ -86,7 +86,7 @@ describe('CaseGrid', () => {
   it('says so plainly when a case has never been captured', () => {
     // Not being instrumented is a legitimate state, not an error (ADR 0012).
     const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid({ steps: [], variants: [] }) } })
-    expect(w.text()).toContain('aucune capture')
+    expect(w.text()).toContain('no capture')
     expect(w.find('table').exists()).toBe(false)
   })
 
@@ -111,12 +111,12 @@ describe('CaseGrid', () => {
     // decorative — one mark, one name.
     const marks = cells(w).map((c) => c.findAll('[role="img"]')[0]?.attributes('aria-label'))
     expect(marks).toEqual([
-      'validée',
-      'commentée',
+      'validated',
+      'commented',
       // A square nobody has judged carries no mark at all — bare is the
       // reading, and it is the only one that leaves every pixel visible.
       undefined,
-      'manquante',
+      'missing',
     ])
   })
 
@@ -158,7 +158,7 @@ describe('CaseGrid', () => {
     const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
     const hole = cells(w)[3]
     expect(hole.find('img').exists()).toBe(false)
-    expect(hole.find('[aria-label="manquante"]').exists()).toBe(true)
+    expect(hole.find('[aria-label="missing"]').exists()).toBe(true)
     expect(hole.find('.border-dashed').exists()).toBe(true)
   })
 
@@ -206,9 +206,9 @@ describe('CaseGrid', () => {
     const cell = cells(w)[0]
 
     expect(cell.find('img').classes()).not.toContain('opacity-40')
-    expect(cell.find('[aria-label="a bougé"]').exists()).toBe(true)
+    expect(cell.find('[aria-label="moved"]').exists()).toBe(true)
     // The verdict it used to carry is exactly what the grid no longer reports.
-    expect(cell.find('[aria-label="validée"]').exists()).toBe(false)
+    expect(cell.find('[aria-label="validated"]').exists()).toBe(false)
     expect(cell.find('button').classes().join(' ')).not.toContain('emerald')
   })
 
@@ -228,7 +228,7 @@ describe('CaseGrid', () => {
     // Absent is a third answer, not "unchanged" (ADR 0017).
     const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
     for (const cell of cells(w)) {
-      expect(cell.find('[aria-label="a bougé"]').exists()).toBe(false)
+      expect(cell.find('[aria-label="moved"]').exists()).toBe(false)
     }
   })
 
@@ -247,7 +247,7 @@ describe('CaseGrid', () => {
     })
     const cell = cells(w)[0]
     const mark = cell.find('[role="img"]')
-    expect(mark.attributes('aria-label')).toBe('a bougé')
+    expect(mark.attributes('aria-label')).toBe('moved')
     // Two arrows on the disc, not a check: a capture can be validated and moved
     // at once, and one mark must not be mistakable for the other.
     expect(mark.findAll('path')).toHaveLength(2)
@@ -256,7 +256,7 @@ describe('CaseGrid', () => {
 
   it('only shows the recording row when a recording exists', () => {
     const without = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
-    expect(without.text()).not.toContain('enregistrement')
+    expect(without.text()).not.toContain('recording')
 
     const withOne = mount(CaseGrid, {
       props: {
@@ -264,6 +264,6 @@ describe('CaseGrid', () => {
         grid: grid({ recordings: [{ id: 'cap7', variantId: 'v1', hash: 'sha256:vid' }] }),
       },
     })
-    expect(withOne.text()).toContain('enregistrement')
+    expect(withOne.text()).toContain('recording')
   })
 })

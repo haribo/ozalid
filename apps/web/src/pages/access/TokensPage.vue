@@ -35,12 +35,12 @@ async function submit() {
 <template>
   <main class="mx-auto max-w-5xl px-6 py-8">
     <nav class="mb-4 font-mono text-[11.5px] text-slate-500 dark:text-slate-400">
-      <RouterLink to="/" class="text-indigo-700 dark:text-indigo-300">projets</RouterLink>
+      <RouterLink to="/" class="text-indigo-700 dark:text-indigo-300">projects</RouterLink>
       ›
       <RouterLink :to="`/projects/${slug}/access`" class="text-indigo-700 dark:text-indigo-300">
         {{ slug }}
       </RouterLink>
-      › <b class="font-medium text-slate-900 dark:text-slate-100">jetons</b>
+      › <b class="font-medium text-slate-900 dark:text-slate-100">tokens</b>
     </nav>
 
     <!-- The one moment the token can be read. Only its hash is stored, so
@@ -48,9 +48,9 @@ async function submit() {
     <MintedTokenPanel v-if="minted" class="mb-6" :token="minted.token" @dismiss="dismiss" />
 
     <form class="mb-5 flex flex-wrap items-end gap-3" @submit.prevent="submit">
-      <h1 class="mr-auto text-lg font-semibold">Jetons</h1>
+      <h1 class="mr-auto text-lg font-semibold">Tokens</h1>
       <label class="flex flex-col gap-1.5">
-        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">étiquette</span>
+        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">label</span>
         <input
           v-model="label"
           required
@@ -63,7 +63,7 @@ async function submit() {
         :disabled="busy"
         class="inline-flex items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
       >
-        <AdminIcon name="keys" :size="12" />Frapper un jeton
+        <AdminIcon name="keys" :size="12" />Mint a token
       </button>
     </form>
 
@@ -77,17 +77,17 @@ async function submit() {
           <th
             class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
           >
-            étiquette
+            label
           </th>
           <th
             class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
           >
-            créé
+            created
           </th>
           <th
             class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
           >
-            dernier usage
+            last used
           </th>
           <th />
         </tr>
@@ -106,7 +106,7 @@ async function submit() {
                 : 'text-slate-400 dark:text-slate-600'
             "
           >
-            {{ t.lastUsedAt ? formatMoment(t.lastUsedAt) : 'jamais présenté' }}
+            {{ t.lastUsedAt ? formatMoment(t.lastUsedAt) : 'never presented' }}
           </td>
           <td class="py-2 text-right">
             <button
@@ -115,7 +115,7 @@ async function submit() {
               class="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 text-indigo-700 disabled:opacity-50 dark:border-slate-600 dark:text-indigo-300"
               @click="retire(t.id)"
             >
-              <AdminIcon name="remove" label="retirer ce jeton" />
+              <AdminIcon name="remove" label="retire this token" />
             </button>
           </td>
         </tr>
@@ -126,7 +126,7 @@ async function submit() {
       v-else
       class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center font-mono text-[12px] text-slate-500 dark:border-slate-600 dark:text-slate-400"
     >
-      ce programme ne présente aucun jeton
+      this program presents no token
     </p>
   </main>
 </template>

@@ -110,7 +110,7 @@ async function refreshCase() {
     <p v-if="review.error.value" class="font-mono text-[12px] text-red-700 dark:text-red-400">
       {{ review.error.value }}
     </p>
-    <p v-else-if="loading" class="font-mono text-[12px] text-slate-500">chargement…</p>
+    <p v-else-if="loading" class="font-mono text-[12px] text-slate-500">loading…</p>
 
     <template v-else-if="kase">
       <h1 class="mb-2.5 text-[21px] font-semibold">{{ kase.title }}</h1>
@@ -122,7 +122,7 @@ async function refreshCase() {
         <span>#{{ kase.id }}</span>
         <template v-if="review.grid.value?.editionId">
           <span>·</span>
-          <span>édition du {{ formatMoment(review.grid.value.takenAt) }}</span>
+          <span>edition of {{ formatMoment(review.grid.value.takenAt) }}</span>
           <template v-if="review.grid.value.revision">
             <span>·</span>
             <span>rev {{ review.grid.value.revision }}</span>
@@ -131,11 +131,9 @@ async function refreshCase() {
         <template v-if="tally.validated + tally.commented + tally.toJudge > 0">
           <span>·</span>
           <span>
-            {{ tally.validated }} validée{{ tally.validated > 1 ? 's' : '' }}
-            <template v-if="tally.commented">
-              · {{ tally.commented }} commentée{{ tally.commented > 1 ? 's' : '' }}</template
-            >
-            <template v-if="tally.toJudge"> · {{ tally.toJudge }} à juger</template>
+            {{ tally.validated }} validated
+            <template v-if="tally.commented"> · {{ tally.commented }} commented</template>
+            <template v-if="tally.toJudge"> · {{ tally.toJudge }} to judge</template>
           </span>
         </template>
         <span
@@ -144,8 +142,8 @@ async function refreshCase() {
         >
           <MovedIcon :size="10" />
           {{ tally.moved }} capture{{ tally.moved > 1 ? 's' : '' }}
-          {{ tally.moved > 1 ? 'ont' : 'a' }}
-          bougé
+          {{ tally.moved > 1 ? 'have' : 'has' }}
+          moved
         </span>
         <span
           v-if="tally.missing > 0"

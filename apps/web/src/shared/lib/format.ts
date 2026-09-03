@@ -3,7 +3,7 @@ export function formatMoment(iso: string | null | undefined): string {
   if (!iso) return '—'
   const at = new Date(iso)
   if (Number.isNaN(at.getTime())) return '—'
-  return new Intl.DateTimeFormat('fr-FR', {
+  return new Intl.DateTimeFormat('en-GB', {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',

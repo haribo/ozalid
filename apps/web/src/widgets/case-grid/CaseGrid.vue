@@ -57,7 +57,7 @@ const INK: Record<string, string> = {
   'to-fix': 'text-amber-700 dark:text-amber-400',
 }
 const TONE: Record<string, Tone> = { validated: 'done', 'to-fix': 'dev' }
-const LABEL: Record<string, string> = { validated: 'validée', 'to-fix': 'commentée' }
+const LABEL: Record<string, string> = { validated: 'validated', 'to-fix': 'commented' }
 
 /**
  * The six readings a cell can have, and no others.
@@ -94,7 +94,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
     v-if="grid.steps.length === 0"
     class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center font-mono text-[12px] text-slate-500 dark:border-slate-600 dark:text-slate-400"
   >
-    aucune capture pour ce cas
+    no capture on this case
   </p>
 
   <template v-else>
@@ -107,7 +107,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
             <th
               class="border-r border-b border-slate-200 px-3 py-2 text-left font-medium dark:border-slate-700"
             >
-              étape
+              step
             </th>
             <th
               v-for="v in variants"
@@ -123,11 +123,11 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
             <th
               class="border-r border-b border-slate-200 px-3 py-2.5 text-left align-middle text-[12.5px] font-semibold dark:border-slate-700"
             >
-              enregistrement
+              recording
               <i
                 class="mt-0.5 block font-mono text-[10px] font-normal text-slate-500 not-italic dark:text-slate-400"
               >
-                le flux complet
+                the whole flow
               </i>
             </th>
             <td
@@ -162,7 +162,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
               <i
                 class="mt-0.5 block font-mono text-[10px] font-normal text-slate-500 not-italic dark:text-slate-400"
               >
-                étape {{ step.position + 1 }}
+                step {{ step.position + 1 }}
               </i>
             </th>
             <td
@@ -184,7 +184,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
                         ? 'ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-900'
                         : '',
                     ]"
-                    :aria-label="`ouvrir ${step.name} — ${v.label} dans le carrousel`"
+                    :aria-label="`open ${step.name} — ${v.label} in the carousel`"
                     @click="emit('open', step.id, v.id)"
                   >
                     <img
@@ -215,7 +215,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
                     v-else-if="reading(cellOf(step, v.id)!) === 'moved'"
                     class="pointer-events-none absolute inset-0 grid place-items-center text-indigo-600 dark:text-indigo-300"
                   >
-                    <MovedIcon :size="18" label="a bougé" class="bg-indigo-50 dark:bg-indigo-950" />
+                    <MovedIcon :size="18" label="moved" class="bg-indigo-50 dark:bg-indigo-950" />
                   </span>
                 </span>
               </template>
@@ -243,19 +243,19 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
       class="mt-2.5 flex flex-wrap justify-center gap-x-5 gap-y-1.5 font-mono text-[10.5px] text-slate-500 dark:text-slate-400"
     >
       <span class="flex items-center gap-1.5">
-        <StateIcon tone="reviewer" :size="12" label="à juger" />à juger
+        <StateIcon tone="reviewer" :size="12" label="to judge" />to judge
       </span>
       <span class="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
-        <StateIcon tone="done" :size="12" label="validée" />validée
+        <StateIcon tone="done" :size="12" label="validated" />validated
       </span>
       <span class="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
-        <StateIcon tone="dev" :size="12" label="commentée" />commentée
+        <StateIcon tone="dev" :size="12" label="commented" />commented
       </span>
       <span class="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-300">
-        <MovedIcon :size="12" label="a bougé" />a bougé
+        <MovedIcon :size="12" label="moved" />moved
       </span>
       <span class="flex items-center gap-1.5 text-red-700 dark:text-red-400">
-        <MissingIcon :size="12" />manquante
+        <MissingIcon :size="12" />missing
       </span>
     </div>
   </template>

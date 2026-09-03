@@ -32,9 +32,9 @@ describe('StateGauge', () => {
 
   it('spells out each count, since an icon nobody has learnt is decoration', () => {
     const w = mount(StateGauge, {
-      props: { parts: [{ tone: 'done', count: 12, label: 'relus' }] },
+      props: { parts: [{ tone: 'done', count: 12, label: 'reviewed' }] },
     })
-    expect(w.html()).toContain('12 relus')
+    expect(w.html()).toContain('12 reviewed')
   })
 
   it('shows a dash rather than an empty bar when nothing is counted', () => {

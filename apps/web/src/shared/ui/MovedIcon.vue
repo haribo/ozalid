@@ -9,7 +9,7 @@
  */
 withDefaults(defineProps<{ size?: number; label?: string }>(), {
   size: 13,
-  label: 'a bougé depuis sa validation',
+  label: 'moved since it was validated',
 })
 </script>
 

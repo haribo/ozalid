@@ -233,11 +233,11 @@ test('the add form says why there is nobody to add', async ({ page }) => {
   }
 
   await page.goto(`/projects/${slug}/access`)
-  await page.getByRole('button', { name: 'Ajouter' }).first().click()
+  await page.getByRole('button', { name: 'Add' }).first().click()
 
   await expect(
-    page.getByText("Tous les comptes de l'instance sont déjà sur ce projet."),
+    page.getByText('Every account on this instance is already on this project.'),
   ).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Créer un compte' })).toBeVisible()
-  await expect(page.getByLabel('compte')).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Create an account' })).toBeVisible()
+  await expect(page.getByLabel('account')).toHaveCount(0)
 })
