@@ -208,7 +208,19 @@ async function addProgram() {
       {{ error }}
     </p>
 
-    <table class="w-full border-collapse text-[13px]">
+    <!-- Column heads over nothing read as a screen that is still loading, and
+         the two call for opposite gestures: add somebody, or wait and reload.
+         The same treatment as the tokens screen, which ends on a sentence
+         (#112). Guarded on `ready` so the empty answer is only given once
+         there is one. -->
+    <p
+      v-if="ready && !members.length"
+      class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center font-mono text-[12px] text-slate-500 dark:border-slate-600 dark:text-slate-400"
+    >
+      nobody reaches this project
+    </p>
+
+    <table v-else class="w-full border-collapse text-[13px]">
       <thead>
         <tr class="border-b border-slate-300 dark:border-slate-600">
           <th
