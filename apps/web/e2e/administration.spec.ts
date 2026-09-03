@@ -191,3 +191,25 @@ test('a person is added as a reader without passing through member', async ({ pa
   expect(members).toHaveLength(1)
   expect(members[0].rights).toBe('reader')
 })
+
+test('an access list with nobody on it says so, rather than heading nothing', async ({ page }) => {
+  // A fresh project rendered three column heads over an empty body, which reads
+  // as a screen still loading — and loading and empty call for opposite
+  // gestures (#112).
+  const slug = `alone-${unique()}`
+  await page.request.post(`/api/projects`, { data: { slug, name: 'a project nobody is on' } })
+
+  await page.goto(`/projects/${slug}/access`)
+  await expect(page.getByText('nobody reaches this project')).toBeVisible()
+  await expect(page.locator('table')).toHaveCount(0)
+
+  // One member is enough to bring the table back, heads and all.
+  const accounts = await (await page.request.get(`/api/accounts`)).json()
+  const someone = accounts.find((a: { deactivatedAt?: string }) => !a.deactivatedAt)
+  await page.request.put(`/api/projects/${slug}/members/${someone.id}`, {
+    data: { rights: 'reader' },
+  })
+  await page.reload()
+  await expect(page.getByText('nobody reaches this project')).toHaveCount(0)
+  await expect(page.getByRole('row').filter({ hasText: someone.name })).toBeVisible()
+})
