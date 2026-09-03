@@ -86,13 +86,18 @@ func (r *Repository) WriteEdition(
 	result := appintake.Result{EditionID: edition.ID, Cases: len(m.Cases)}
 
 	for _, mc := range m.Cases {
+		kept := make([]string, 0, len(mc.Steps))
 		for position, ms := range mc.Steps {
+			// Matched by name, moved rather than renamed: the step row is what
+			// captures, verdicts and comments hang from across editions, and
+			// renaming it reattached history to the wrong screen (#132).
 			step, err := q.UpsertStep(ctx, sqlcgen.UpsertStepParams{
 				CaseID: known[mc.ID].ID, Name: ms.Name, Position: int32(position),
 			})
 			if err != nil {
 				return appintake.Result{}, translate("recording a step", err)
 			}
+			kept = append(kept, step.ID)
 
 			for _, mcap := range ms.Captures {
 				variantID, err := variants.resolve(ctx, q, mcap.Variant)
@@ -132,11 +137,11 @@ func (r *Repository) WriteEdition(
 			}
 		}
 
-		// Steps the manifest no longer carries are gone from the flow. Their
-		// captures go with them; the comments anchored to them do too, which is
-		// why a step keeps its identity as long as it keeps its position.
-		if err := q.DeleteStepsBeyond(ctx, sqlcgen.DeleteStepsBeyondParams{
-			CaseID: known[mc.ID].ID, Position: int32(len(mc.Steps)),
+		// A step out of the manifest stays while any capture references it —
+		// it holds the evidence of earlier editions. Only a step nothing ever
+		// captured goes.
+		if err := q.PruneCapturelessSteps(ctx, sqlcgen.PruneCapturelessStepsParams{
+			CaseID: known[mc.ID].ID, Kept: kept,
 		}); err != nil {
 			return appintake.Result{}, translate("pruning vanished steps", err)
 		}

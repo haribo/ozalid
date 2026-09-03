@@ -100,6 +100,7 @@ type CommentJudgment struct {
 type CommentVariant struct {
 	CommentID string
 	VariantID string
+	CaptureID *string
 }
 
 type Edition struct {

@@ -12,8 +12,18 @@ import (
 )
 
 const attachCommentVariant = `-- name: AttachCommentVariant :exec
-INSERT INTO comment_variants (comment_id, variant_id)
-VALUES ($1, $2)
+INSERT INTO comment_variants (comment_id, variant_id, capture_id)
+SELECT $1, $2, (
+    SELECT cap.id FROM captures cap
+    JOIN comments c ON c.id = $1
+    JOIN cases k ON k.id = c.case_id
+    WHERE cap.step_id = c.step_id
+      AND cap.variant_id = $2
+      AND cap.edition_id = coalesce(
+            k.current_edition_id,
+            (SELECT e.id FROM editions e WHERE e.project_id = k.project_id
+             ORDER BY e.created_at DESC, e.id DESC LIMIT 1))
+)
 ON CONFLICT DO NOTHING
 `
 
@@ -22,6 +32,11 @@ type AttachCommentVariantParams struct {
 	VariantID string
 }
 
+// The anchor is the capture the reviewer was looking at: the one of the
+// edition the case is judged against, for this step and variant. It is what
+// the comment shows for as long as it lives — a step's name is a label, and
+// positions shift (#132). Null when the square had no capture, which is what
+// there was to see.
 func (q *Queries) AttachCommentVariant(ctx context.Context, arg AttachCommentVariantParams) error {
 	_, err := q.db.Exec(ctx, attachCommentVariant, arg.CommentID, arg.VariantID)
 	return err

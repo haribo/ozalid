@@ -10,6 +10,7 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres/sqlcgen"
 	"github.com/haribo/ozalid/apps/server/internal/domain/access"
 	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
+	"github.com/haribo/ozalid/internal/contract"
 )
 
 // accessFixture gives a repository and a project of its own.
@@ -217,5 +218,55 @@ func TestOneProjectPerServiceAccountIsEnforcedNotTrusted(t *testing.T) {
 
 	if err := add(second.ID); err == nil {
 		t.Error("a service account reached two projects")
+	}
+}
+
+// A comment anchors to the capture it was written about (#132): the one of
+// the edition the case is judged against, per covered variant.
+func TestACommentAnchorsToTheCaptureItWasWrittenAbout(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	door := storeBlob(t, ctx, repo, "the door once more")
+	if _, err := repo.WriteEdition(ctx, project.Slug, contract.Manifest{
+		Revision: "one",
+		Cases: []contract.ManifestCase{{ID: kase.ID, Steps: []contract.ManifestStep{{
+			Name: "opens the form",
+			Captures: []contract.ManifestCapture{
+				{Variant: map[string]string{"theme": "light"}, Hash: door},
+			},
+		}}}},
+	}, nil); err != nil {
+		t.Fatalf("edition: %v", err)
+	}
+
+	var stepID, variantID, captureID string
+	if err := repo.Pool().QueryRow(ctx,
+		`SELECT c.step_id, c.variant_id, c.id FROM captures c
+		 JOIN steps s ON s.id = c.step_id WHERE s.case_id = $1`, kase.ID,
+	).Scan(&stepID, &variantID, &captureID); err != nil {
+		t.Fatalf("finding the capture: %v", err)
+	}
+
+	q := sqlcgen.New(repo.Pool())
+	author := person(t, ctx, q, "anchor-author", false)
+	created, err := q.CreateComment(ctx, sqlcgen.CreateCommentParams{
+		CaseID: kase.ID, StepID: stepID, Kind: "defect", Body: "clipped", AuthorID: author.ID,
+	})
+	if err != nil {
+		t.Fatalf("creating the comment: %v", err)
+	}
+	if err := q.AttachCommentVariant(ctx, sqlcgen.AttachCommentVariantParams{
+		CommentID: created.ID, VariantID: variantID,
+	}); err != nil {
+		t.Fatalf("attaching: %v", err)
+	}
+
+	var anchored *string
+	if err := repo.Pool().QueryRow(ctx,
+		"SELECT capture_id FROM comment_variants WHERE comment_id = $1", created.ID,
+	).Scan(&anchored); err != nil {
+		t.Fatalf("reading the anchor: %v", err)
+	}
+	if anchored == nil || *anchored != captureID {
+		t.Errorf("anchor = %v, want %s", anchored, captureID)
 	}
 }
