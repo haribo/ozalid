@@ -59,8 +59,6 @@ const onSquare = computed(() =>
  * capture itself. */
 const toJudge = computed(() => onSquare.value.find((c) => c.state === 'to-review'))
 
-const isPortrait = computed(() => Object.values(variant.value?.values ?? {}).includes('mobile'))
-
 /** The verdict already on this square, in the grid's own vocabulary — one
  * language learnt once, whatever the size the capture is shown at. */
 const VERDICT_TONE: Record<string, Tone> = { validated: 'done', 'to-fix': 'dev' }
@@ -224,7 +222,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <template>
-  <div class="overflow-hidden rounded-lg border border-slate-300 dark:border-slate-600">
+  <!-- A column filling whatever box the caller gives it — the window, since
+       #125. The stage takes what the bars leave. -->
+  <div
+    role="dialog"
+    aria-label="capture"
+    class="flex flex-col overflow-hidden bg-white dark:bg-slate-950"
+  >
     <div
       class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 font-mono text-[11px] text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
     >
@@ -244,11 +248,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </span>
     </div>
 
-    <div class="grid place-items-center bg-slate-100 p-6 dark:bg-slate-950">
+    <div class="grid min-h-0 flex-1 place-items-center bg-slate-100 p-6 dark:bg-slate-950">
       <!-- The same reading as the grid, at full size: a square already judged
            steps back and wears its verdict, so what the eye lands on is what
            still needs looking at. -->
-      <span v-if="cell" class="relative inline-block leading-none">
+      <span v-if="cell" class="relative inline-block max-h-full max-w-full leading-none">
         <!-- Said on the image itself: the reviewer landed here from a keyboard
              walk and never saw the grid's mark. -->
         <span
@@ -259,11 +263,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             · {{ cell.movedPixels }} px</template
           >
         </span>
+        <!-- The capture takes the space the window offers. Its width was once
+             written in advance (240/560 px), which showed a 1280 px capture at
+             44% on the one screen where pixels are judged (#125). -->
         <img
           :src="`/api/projects/${slug}/captures/${cell.id}`"
           :alt="`${step?.name} — ${variant?.label}`"
-          class="max-h-[60vh] border border-slate-300 bg-white object-contain dark:border-slate-600 dark:bg-slate-900"
-          :class="[isPortrait ? 'w-[240px]' : 'w-[560px]', judged ? 'opacity-40' : '']"
+          class="max-h-full max-w-full border border-slate-300 bg-white object-contain dark:border-slate-600 dark:bg-slate-900"
+          :class="judged ? 'opacity-40' : ''"
         />
         <span
           v-if="judged"
