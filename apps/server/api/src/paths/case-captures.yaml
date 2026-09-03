@@ -13,7 +13,6 @@ get:
   security:
     - serviceToken: []
     - session: []
-    - session: []
   summary: Read the evidence a case is judged from
   description: |
     The grid: steps in order, the variants that exist, and the capture sitting

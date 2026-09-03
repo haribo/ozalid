@@ -13,7 +13,6 @@ post:
   security:
     - serviceToken: []
     - session: []
-    - session: []
   summary: Save what one review session decided
   description: |
     One save carries everything the sitting produced: the squares looked at with

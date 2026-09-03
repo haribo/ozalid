@@ -13,7 +13,6 @@ get:
   security:
     - serviceToken: []
     - session: []
-    - session: []
   summary: Read a case, archived or not
   tags: [cases]
   responses:
@@ -34,7 +33,6 @@ patch:
   operationId: updateCase
   security:
     - serviceToken: []
-    - session: []
     - session: []
   summary: Change what is mutable about a case
   description: Its id and its state are not part of that.

@@ -9,7 +9,6 @@ get:
   security:
     - serviceToken: []
     - session: []
-    - session: []
   summary: Read a project
   tags: [projects]
   responses:
