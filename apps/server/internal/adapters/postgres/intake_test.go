@@ -57,7 +57,7 @@ func intakeFixture(t *testing.T) (context.Context, *postgres.Repository, sqlcgen
 	})
 
 	kase, err := q.CreateCase(ctx, sqlcgen.CreateCaseParams{
-		ProjectID: project.ID, Title: "pay by card",
+		ProjectID: project.ID, CategoryID: seedCategory(t, ctx, q, project.ID), Title: "pay by card",
 	})
 	if err != nil {
 		t.Fatalf("creating the case: %v", err)

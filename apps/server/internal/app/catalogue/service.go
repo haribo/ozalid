@@ -41,10 +41,16 @@ func (s *Service) ProjectBySlug(ctx context.Context, slug string) (catalogue.Pro
 //
 // The client stores that id and sends it on every subsequent edition; it never
 // invents one (ADR 0014).
-func (s *Service) CreateCase(ctx context.Context, projectID string, categoryID *string, title string, description *string) (catalogue.Case, error) {
+func (s *Service) CreateCase(ctx context.Context, projectID string, categoryID string, title string, description *string) (catalogue.Case, error) {
 	cleaned, err := catalogue.CleanTitle(title)
 	if err != nil {
 		return catalogue.Case{}, err
+	}
+	// An empty one is a malformed request, not a category nobody has: the two
+	// deserve different answers, and only the repository can tell whether a
+	// named category exists (#115).
+	if strings.TrimSpace(categoryID) == "" {
+		return catalogue.Case{}, catalogue.ErrCategoryRequired
 	}
 	return s.repo.CreateCase(ctx, projectID, categoryID, cleaned, description)
 }

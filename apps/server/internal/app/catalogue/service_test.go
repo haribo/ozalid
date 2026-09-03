@@ -21,7 +21,7 @@ type stubRepo struct {
 	deleteRows  bool
 }
 
-func (s *stubRepo) CreateCase(_ context.Context, projectID string, categoryID *string, title string, description *string) (catalogue.Case, error) {
+func (s *stubRepo) CreateCase(_ context.Context, projectID string, categoryID string, title string, description *string) (catalogue.Case, error) {
 	s.gotTitle = title
 	return catalogue.Case{ID: "abc123456789", Title: title}, nil
 }
@@ -43,7 +43,7 @@ func TestATitleOfSpacesIsAMissingTitle(t *testing.T) {
 	repo := &stubRepo{}
 	svc := app.New(repo)
 
-	_, err := svc.CreateCase(context.Background(), "p", nil, "   \t\n ", nil)
+	_, err := svc.CreateCase(context.Background(), "p", "cat123456789", "   \t\n ", nil)
 	if !errors.Is(err, catalogue.ErrTitleRequired) {
 		t.Errorf("err = %v, want ErrTitleRequired", err)
 	}
@@ -56,7 +56,7 @@ func TestSurroundingSpaceIsTrimmedBeforeStoring(t *testing.T) {
 	repo := &stubRepo{}
 	svc := app.New(repo)
 
-	if _, err := svc.CreateCase(context.Background(), "p", nil, "  pay by card  ", nil); err != nil {
+	if _, err := svc.CreateCase(context.Background(), "p", "cat123456789", "  pay by card  ", nil); err != nil {
 		t.Fatalf("creating the case: %v", err)
 	}
 	if repo.gotTitle != "pay by card" {

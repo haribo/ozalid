@@ -68,11 +68,15 @@ Case:
 
 NewCase:
   type: object
-  required: [title]
+  # A case belongs to exactly one category (`product.md` §Category). Optional
+  # here, it produced cases sitting outside every branch of the tree, which the
+  # catalogue cannot show — it lists the cases of a named category and nothing
+  # else. Found on a production instance, not by reading the schema (#115).
+  required: [title, categoryId]
   properties:
     title: { type: string, minLength: 1 }
     description: { type: string }
-    categoryId: { type: string }
+    categoryId: { type: string, minLength: 1 }
 
 CaseUpdate:
   type: object

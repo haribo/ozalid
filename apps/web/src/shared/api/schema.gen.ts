@@ -1010,7 +1010,7 @@ export interface components {
         NewCase: {
             title: string;
             description?: string;
-            categoryId?: string;
+            categoryId: string;
         };
         /**
          * @description A combination of axis values, such as `{"theme":"dark","viewport":"mobile"}`.
