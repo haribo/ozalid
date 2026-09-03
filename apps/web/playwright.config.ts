@@ -28,6 +28,13 @@ export default defineConfig({
     baseURL: WEB,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    // One rasteriser, one colour profile, whatever the machine: the pushed
+    // captures must not differ between a laptop and a runner for reasons that
+    // are not the page. (The corner-antialiasing flake had another cause —
+    // partial repaints; see freshPaint in capture.spec.ts.)
+    launchOptions: {
+      args: ['--disable-gpu', '--force-color-profile=srgb', '--disable-lcd-text'],
+    },
   },
   projects: [
     // Nothing here is public any more, so the suite signs in first — through
