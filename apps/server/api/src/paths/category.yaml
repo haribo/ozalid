@@ -13,7 +13,6 @@ delete:
   security:
     - serviceToken: []
     - session: []
-    - session: []
   summary: Remove an empty node
   description: |
     Only an empty one. Deleting a filing drawer must not silently move what was

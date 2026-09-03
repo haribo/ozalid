@@ -32,7 +32,6 @@ post:
   security:
     - serviceToken: []
     - session: []
-    - session: []
   summary: Open a book
   tags: [projects]
   requestBody:
