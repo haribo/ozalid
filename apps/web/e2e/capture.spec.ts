@@ -40,6 +40,25 @@ async function walk(page: Page, theme: 'light' | 'dark'): Promise<Shot[]> {
     { step: 'arrive at the door', variant, bytes: await page.screenshot({ fullPage: true }) },
   ]
 
+  // A fixed address, typed and never sent: the bytes must be the same on
+  // every run, and this is the screen where the label lands on the border —
+  // the state the first real review asked to see (#131). Sending it would
+  // mail a real-looking address and eat the rate limiter; the unique one
+  // below replaces it before the click.
+  await page.getByLabel('address').fill('reviewer@ozalid.example')
+  await expect
+    .poll(async () => {
+      const label = (await page.locator('form label').boundingBox())!
+      const input = (await page.getByLabel('address').boundingBox())!
+      return input.y - label.y
+    })
+    .toBeGreaterThan(4)
+  asked.push({
+    step: 'enter an address',
+    variant,
+    bytes: await page.screenshot({ fullPage: true }),
+  })
+
   await page.getByLabel('address').fill(anAddress())
   await page.getByRole('button', { name: 'Send the link' }).click()
   await expect(page.getByText('The link is on its way.')).toBeVisible()
@@ -55,9 +74,9 @@ async function walk(page: Page, theme: 'light' | 'dark'): Promise<Shot[]> {
 test('signing in, kept as evidence', async ({ page }) => {
   const shots = [...(await walk(page, 'light')), ...(await walk(page, 'dark'))]
 
-  // Two screens, two themes: the axis a change most often breaks on one side
-  // only.
-  expect(shots).toHaveLength(4)
+  // Three screens, two themes: the axis a change most often breaks on one
+  // side only.
+  expect(shots).toHaveLength(6)
 
   // Walked again, and the bytes must be the same ones. This is the check the
   // whole thing rests on: byte comparison is the mechanism, so a screen that
