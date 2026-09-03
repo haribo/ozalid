@@ -30,6 +30,27 @@ test.skip(!pushes, 'set OZALID_PUSH_API and OZALID_PUSH_TOKEN to push captures')
 const anAddress = () =>
   `capture-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@ozalid.invalid`
 
+/**
+ * A screenshot of a fresh paint, not of a patch.
+ *
+ * After an interaction, Chromium repaints only the damaged region, and the
+ * anti-aliasing of rounded corners composed onto an earlier paint differs by
+ * one channel unit from the same corners painted whole — 32 pixels of ±1,
+ * found by diffing two captures of one settled screen. Byte comparison is the
+ * whole mechanism (#107), so every shot is taken from a full paint: hide,
+ * frame, show, frame.
+ */
+async function freshPaint(page: Page): Promise<Buffer> {
+  await page.waitForTimeout(250) // transition-all is 150ms; the label has landed
+  await page.evaluate(async () => {
+    document.body.style.visibility = 'hidden'
+    await new Promise((r) => requestAnimationFrame(r))
+    document.body.style.visibility = ''
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+  })
+  return page.screenshot({ fullPage: true })
+}
+
 async function walk(page: Page, theme: 'light' | 'dark'): Promise<Shot[]> {
   const variant = { theme }
   await page.emulateMedia({ colorScheme: theme })
@@ -37,7 +58,11 @@ async function walk(page: Page, theme: 'light' | 'dark'): Promise<Shot[]> {
   await page.goto('/sign-in')
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
   const asked: Shot[] = [
-    { step: 'arrive at the door', variant, bytes: await page.screenshot({ fullPage: true }) },
+    {
+      step: 'arrive at the door',
+      variant,
+      bytes: await freshPaint(page),
+    },
   ]
 
   // A fixed address, typed and never sent: the bytes must be the same on
@@ -46,6 +71,10 @@ async function walk(page: Page, theme: 'light' | 'dark'): Promise<Shot[]> {
   // mail a real-looking address and eat the rate limiter; the unique one
   // below replaces it before the click.
   await page.getByLabel('address').fill('reviewer@ozalid.example')
+  // Blurred before the picture: focus was never what the picture was about,
+  // and a focused field invites the renderer to differ. The label stays
+  // landed, since the value holds it there.
+  await page.getByLabel('address').blur()
   await expect
     .poll(async () => {
       const label = (await page.locator('form label').boundingBox())!
@@ -56,7 +85,7 @@ async function walk(page: Page, theme: 'light' | 'dark'): Promise<Shot[]> {
   asked.push({
     step: 'enter an address',
     variant,
-    bytes: await page.screenshot({ fullPage: true }),
+    bytes: await freshPaint(page),
   })
 
   await page.getByLabel('address').fill(anAddress())
@@ -65,7 +94,7 @@ async function walk(page: Page, theme: 'light' | 'dark'): Promise<Shot[]> {
   asked.push({
     step: 'ask for a link',
     variant,
-    bytes: await page.screenshot({ fullPage: true }),
+    bytes: await freshPaint(page),
   })
 
   return asked

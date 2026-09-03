@@ -68,7 +68,7 @@ const floating = computed(() => focused.value || email.value.length > 0)
           type="email"
           required
           autocomplete="email"
-          class="h-[42px] w-full rounded border-[1.5px] bg-slate-100 px-3 text-[13.5px] text-slate-900 outline-none dark:bg-slate-800 dark:text-slate-100"
+          class="h-[42px] w-full rounded border-2 bg-slate-100 px-3 text-[13.5px] text-slate-900 outline-none dark:bg-slate-800 dark:text-slate-100"
           :class="
             focused
               ? 'border-indigo-500 dark:border-indigo-400'
