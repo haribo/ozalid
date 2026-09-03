@@ -213,3 +213,97 @@ test('an access list with nobody on it says so, rather than heading nothing', as
   await expect(page.getByText('nobody reaches this project')).toHaveCount(0)
   await expect(page.getByRole('row').filter({ hasText: someone.name })).toBeVisible()
 })
+
+test('the tree is built from the screen, and a case filed under it is found from the root', async ({
+  page,
+}) => {
+  // Before this, POST /projects/{slug}/categories had no caller in the client:
+  // a project's tree could only be built through the API, and #115 made a
+  // category mandatory — a fresh project was a dead end (#116).
+  const slug = `tree-${unique()}`
+  await page.request.post(`/api/projects`, { data: { slug, name: 'a project built on screen' } })
+
+  await page.goto(`/projects/${slug}`)
+  await expect(page.getByText('nothing here yet')).toBeVisible()
+  await page.getByRole('button', { name: 'New category' }).click()
+  await page.getByLabel('name').fill('checkout')
+  await page.getByRole('button', { name: 'Create', exact: true }).click()
+  await expect(page.getByRole('link', { name: 'checkout' })).toBeVisible()
+
+  // A sibling of the same name is refused, and the server's sentence is shown
+  // in place — there is one word to change, so the form stays open with it.
+  await page.getByRole('button', { name: 'New category' }).click()
+  await page.getByLabel('name').fill('checkout')
+  await page.getByRole('button', { name: 'Create', exact: true }).click()
+  await expect(page.getByText('A sibling already carries that name')).toBeVisible()
+  await expect(page.getByLabel('name')).toHaveValue('checkout')
+
+  // Inside a category the same gesture makes a child: the parent is the
+  // category being read, so the form still asks one thing.
+  await page.getByRole('link', { name: 'checkout' }).click()
+  await page.getByRole('button', { name: 'New category' }).click()
+  await page.getByLabel('name').fill('by card')
+  await page.getByRole('button', { name: 'Create', exact: true }).click()
+  await expect(page.getByRole('link', { name: 'by card' })).toBeVisible()
+  const child = (await (await page.request.get(`/api/projects/${slug}/categories`)).json()).find(
+    (c: { name: string }) => c.name === 'by card',
+  )
+  expect(child.parentId).toBeTruthy()
+
+  // And a case filed under the child is reachable from the root by clicking,
+  // which is what #115 was about: no case sits outside the tree.
+  await page.request.post(`/api/projects/${slug}/cases`, {
+    data: { title: 'pay by card', categoryId: child.id },
+  })
+  await page.goto(`/projects/${slug}`)
+  await page.getByRole('link', { name: 'checkout' }).click()
+  await page.getByRole('link', { name: 'by card' }).click()
+  await expect(page.getByRole('link', { name: 'pay by card' })).toBeVisible()
+})
+
+test('a person who only reads is not offered the tree-building button', async ({
+  page,
+  context,
+}) => {
+  // The server refuses a reader (`WriteProject`); the screen must not offer
+  // what will be refused. Derived without a contract change: an administrator
+  // writes everywhere, and a member's rights sit in the member list a reader
+  // may also read (#116).
+  const slug = `readonly-${unique()}`
+  await page.request.post(`/api/projects`, { data: { slug, name: 'a project only read' } })
+  const branch = await (
+    await page.request.post(`/api/projects/${slug}/categories`, { data: { name: 'checkout' } })
+  ).json()
+  void branch
+  const email = `onlyreads-${unique()}@example.test`
+  const account = await (
+    await page.request.post(`/api/accounts`, {
+      data: { name: `onlyreads ${unique()}`, email },
+    })
+  ).json()
+  await page.request.put(`/api/projects/${slug}/members/${account.id}`, {
+    data: { rights: 'reader' },
+  })
+
+  // From nothing, not from the config's storage: the admin session must not
+  // leak into this browser (#123).
+  const theirs = await context.browser()!.newContext({
+    storageState: { cookies: [], origins: [] },
+  })
+  const their = await theirs.newPage()
+  await signIn(their, email)
+  // Signed in *and landed*: the top bar names the person once whoAmI resolves,
+  // and only then is the session cookie the one this test is about (#123).
+  await expect(their.getByText('sign out')).toBeVisible()
+
+  await their.goto(`/projects/${slug}`)
+  await expect(their.getByRole('link', { name: 'checkout' })).toBeVisible()
+  await expect(their.getByRole('button', { name: 'New category' })).toHaveCount(0)
+
+  // And the refusal the button's absence stands for is real.
+  const refused = await their.request.post(`/api/projects/${slug}/categories`, {
+    data: { name: 'sneaked in' },
+  })
+  expect(refused.status()).toBe(403)
+  await theirs.close()
+})
