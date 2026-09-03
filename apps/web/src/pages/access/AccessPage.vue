@@ -36,7 +36,6 @@ const kind = ref<'person' | 'program'>('person')
 const chosen = ref('')
 const rights = ref<'member' | 'reader'>('member')
 const programName = ref('')
-const tokenLabel = ref('')
 
 // Who is addable is the difference between two lists that arrive separately.
 // Until both are in, that difference is wrong — with the members still on the
@@ -63,7 +62,6 @@ const addable = computed(() =>
 function reset() {
   chosen.value = ''
   programName.value = ''
-  tokenLabel.value = ''
   rights.value = 'member'
   adding.value = false
 }
@@ -77,7 +75,7 @@ async function addPerson() {
 // The form stays open on a refusal: a name the server rejected is a name
 // somebody has to see to correct.
 async function addProgram() {
-  if (await createProgram(programName.value, rights.value, tokenLabel.value)) reset()
+  if (await createProgram(programName.value, rights.value)) reset()
 }
 </script>
 
@@ -195,17 +193,6 @@ async function addProgram() {
             <option value="member">member</option>
             <option value="reader">reader</option>
           </select>
-        </label>
-        <label class="flex flex-col gap-1.5">
-          <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">
-            étiquette du premier jeton
-          </span>
-          <input
-            v-model="tokenLabel"
-            required
-            placeholder="github actions"
-            class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
-          />
         </label>
         <button
           type="submit"
