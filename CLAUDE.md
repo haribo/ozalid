@@ -16,7 +16,8 @@ Rules must be concise. One rule per line where possible.
 - Never name a file path in a recommendation without verifying it exists in the
   current session — mark it "to confirm" otherwise
 - Every written artifact — documentation, code, commit message, issue, pull
-  request — is in English. User-facing strings live in i18n locale files
+  request — is in English, the interface included. One locale, no i18n layer:
+  see `docs/frontend/code.md`
 - Responses stay under 15 lines by default. Tables only when tabular beats
   prose. Background and rationale only when asked
 - When the user asks for an opinion, be severe, honest and challenging — the
