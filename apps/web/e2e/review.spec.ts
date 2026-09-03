@@ -8,6 +8,7 @@
  */
 import { expect, test, type Page } from '@playwright/test'
 import { commentOnStep, moveTheDarkVariant, seed, validateEverything } from './fixture'
+import { emptyMailbox, linkSentTo } from './mailbox'
 
 /** The grid's own cells. The recap is another table, and its ticks are actions
  * rather than statuses — an assertion that spans both proves nothing about
@@ -32,7 +33,7 @@ test('clicking a capture opens the carousel on that exact square', async ({ page
   await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
   await page.locator('tbody button[aria-label*="in the carousel"]').nth(2).click()
 
-  const carousel = page.locator('.overflow-hidden.rounded-lg').first()
+  const carousel = page.getByRole('dialog', { name: 'capture' })
   await expect(carousel).toContainText('opens the link received by e-mail')
   await expect(carousel).toContainText('3 / 6')
 })
@@ -75,7 +76,7 @@ test('the recap takes you back to the capture a comment was written on', async (
 
   await page.getByRole('link', { name: 'opens the link received by e-mail' }).click()
 
-  const carousel = page.locator('.overflow-hidden.rounded-lg').first()
+  const carousel = page.getByRole('dialog', { name: 'capture' })
   await expect(carousel).toContainText('opens the link received by e-mail')
   await expect(carousel).toContainText('the label misleads')
 })
@@ -140,4 +141,94 @@ test('the captures in the grid actually decode, not just point somewhere', async
       { message: 'every capture in the grid should decode' },
     )
     .toEqual([320, 320, 320, 320, 320, 320])
+})
+
+test('a capture has an address, and the window is what sizes it', async ({ page }) => {
+  const seeded = await seed(page)
+  const grid = await (
+    await page.request.get(`/api/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)
+  ).json()
+  const step = grid.steps[1]
+  const cell = step.cells[0]
+
+  // Loaded directly, the way a colleague sent "look at step 2 in dark" would:
+  // no grid was clicked, yet the dialog opens on that exact square (#125).
+  await page.goto(
+    `/projects/${seeded.slug}/cases/${seeded.caseId}/steps/${step.id}/variants/${cell.variantId}`,
+  )
+  const carousel = page.getByRole('dialog', { name: 'capture' })
+  await expect(carousel).toContainText(step.name)
+
+  // The capture renders at its own size when the window has room — never
+  // stretched, since blown-up pixels are falsified pixels. The old code wrote
+  // the width in advance and stretched this 320 px fixture to 560 (#125).
+  await page.setViewportSize({ width: 1600, height: 900 })
+  const shot = carousel.locator('img')
+  const natural = await shot.evaluate((img) => (img as HTMLImageElement).naturalWidth)
+  const roomy = (await shot.boundingBox())!.width
+  expect(Math.abs(roomy - natural)).toBeLessThanOrEqual(4)
+
+  // And it tracks the window once the window is what constrains it.
+  await page.setViewportSize({ width: 300, height: 500 })
+  expect((await shot.boundingBox())!.width).toBeLessThan(natural)
+
+  // Arrows walk by replacing, so leaving means the grid — not a retrace of
+  // every square looked at.
+  await page.keyboard.press('ArrowLeft')
+  await expect(page).toHaveURL(new RegExp(`/steps/${grid.steps[0].id}/`))
+  await page.keyboard.press('Escape')
+  await expect(page).toHaveURL(new RegExp(`/cases/${seeded.caseId}$`))
+  await expect(page.locator('table').first()).toBeVisible()
+})
+
+test('a verdict held through an expired session survives closing the carousel', async ({
+  page,
+  context,
+}) => {
+  // The #70 walk, run from the carousel route. Closing navigates; the two
+  // routes share one component, so the instance — and the verdict it holds —
+  // must survive that navigation. A remount would drop it silently (#125).
+  const seeded = await seed(page)
+  const grid = await (
+    await page.request.get(`/api/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)
+  ).json()
+  const step = grid.steps[0]
+  await page.goto(
+    `/projects/${seeded.slug}/cases/${seeded.caseId}/steps/${step.id}/variants/${step.cells[0].variantId}`,
+  )
+  await expect(page.getByRole('dialog', { name: 'capture' })).toBeVisible()
+
+  // Somebody to come back as, made while the session still works: asking for
+  // another of REVIEWER's links would eat the rate limiter's per-address
+  // budget and starve the sign-in suite behind this test.
+  const email = `resumed-${Date.now()}@example.test`
+  const account = await (
+    await page.request.post(`/api/accounts`, { data: { name: 'resumed reviewer', email } })
+  ).json()
+  await page.request.put(`/api/projects/${seeded.slug}/members/${account.id}`, {
+    data: { rights: 'member' },
+  })
+
+  // The session dies under the verdict.
+  await context.clearCookies()
+  await page.keyboard.press(' ')
+  await expect(page.getByText('Session expired. The last verdict was not recorded.')).toBeVisible()
+
+  // The reviewer closes the capture anyway, then signs back in from the bar's
+  // own path: another tab claims a link, this tab is told and resumes.
+  await page.keyboard.press('Escape')
+  await expect(page).toHaveURL(new RegExp(`/cases/${seeded.caseId}$`))
+
+  await emptyMailbox(email)
+  const other = await context.newPage()
+  await other.goto('/sign-in')
+  await other.getByLabel('address').fill(email)
+  await other.getByRole('button', { name: 'Send the link' }).click()
+  await other.goto(`/sign-in/${await linkSentTo(email)}`)
+
+  // The held verdict lands: the cell the space bar judged is validated.
+  await expect(page.getByText('Session expired')).toHaveCount(0)
+  await expect(
+    page.locator('table').first().locator('[aria-label="validated"]').first(),
+  ).toBeVisible()
 })

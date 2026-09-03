@@ -24,6 +24,14 @@ export const router = createRouter({
     { path: '/projects/:slug', component: CataloguePage },
     { path: '/projects/:slug/categories/:categoryId', component: CataloguePage },
     { path: '/projects/:slug/cases/:caseId', component: CasePage },
+    // The carousel: the same component, so the instance — and the verdict it
+    // may be holding through an expired session (#70) — survives opening and
+    // closing a capture. A capture worth judging is a capture worth pointing
+    // at, which is why this is an address and not a component state (#125).
+    {
+      path: '/projects/:slug/cases/:caseId/steps/:stepId/variants/:variantId',
+      component: CasePage,
+    },
     { path: '/sign-in', component: SignInPage, meta: { anonymous: true } },
     { path: '/sign-in/:link', component: ClaimPage, meta: { anonymous: true } },
   ],

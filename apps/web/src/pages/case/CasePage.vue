@@ -4,7 +4,7 @@
  * open — the carousel where judging happens.
  */
 import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { api, type components } from '@/shared/api'
 import { MissingIcon, MovedIcon, StatePill } from '@/shared/ui'
 import { formatMoment, hasMoved, type CaseState } from '@/shared/lib'
@@ -17,12 +17,39 @@ import { CommentRecap } from '@/widgets/comment-recap'
 type Case = components['schemas']['Case']
 
 const route = useRoute()
+const router = useRouter()
 const slug = computed(() => String(route.params.slug))
 const caseId = computed(() => String(route.params.caseId))
 
 const kase = ref<Case | null>(null)
 const loading = ref(true)
-const open = ref<{ stepId: string; variantId: string } | null>(null)
+
+// Which capture is open is the route's to say, not a ref's: an open capture
+// has an address, so a colleague can be sent to the exact square (#125). The
+// two routes share this component, which is what keeps the instance — and a
+// verdict held through an expired session (#70) — alive across open and close.
+const open = computed(() =>
+  route.params.stepId && route.params.variantId
+    ? { stepId: String(route.params.stepId), variantId: String(route.params.variantId) }
+    : null,
+)
+
+const caseUrl = computed(() => `/projects/${slug.value}/cases/${caseId.value}`)
+
+function openCell(stepId: string, variantId: string) {
+  void router.push(`${caseUrl.value}/steps/${stepId}/variants/${variantId}`)
+}
+
+/** Arrow keys walk, they do not stack: replace, so back means the grid. */
+function moveTo(stepId: string, variantId: string) {
+  void router.replace(`${caseUrl.value}/steps/${stepId}/variants/${variantId}`)
+}
+
+/** Push rather than back(): a link opened straight onto a capture has no
+ * page behind it to go back to. */
+function closeCarousel() {
+  void router.push(caseUrl.value)
+}
 
 const review = useReview(
   () => slug.value,
@@ -41,7 +68,6 @@ watch(
   caseId,
   async (id) => {
     loading.value = true
-    open.value = null
 
     const detail = await api.GET('/projects/{slug}/cases/{caseId}', {
       params: { path: { slug: slug.value, caseId: id } },
@@ -156,6 +182,8 @@ async function refreshCase() {
         </span>
       </div>
 
+      <!-- Over the page, not in it: the page stays mounted underneath with
+           everything it holds, and the capture gets the window (#125). -->
       <CaptureCarousel
         v-if="open && review.grid.value"
         :slug="slug"
@@ -164,9 +192,9 @@ async function refreshCase() {
         :step-id="open.stepId"
         :variant-id="open.variantId"
         :busy="review.saving.value"
-        class="mb-5"
-        @close="open = null"
-        @move="(stepId, variantId) => (open = { stepId, variantId })"
+        class="fixed inset-0 z-40"
+        @close="closeCarousel"
+        @move="moveTo"
         @validate="onValidate"
         @comment="onComment"
         @judge="onJudge"
@@ -177,14 +205,14 @@ async function refreshCase() {
         :slug="slug"
         :grid="review.grid.value"
         :open-cell="open"
-        @open="(stepId, variantId) => (open = { stepId, variantId })"
+        @open="openCell"
       />
 
       <CommentRecap
         v-if="review.grid.value"
         :grid="review.grid.value"
         :comments="review.comments.value"
-        @open="(stepId, variantId) => (open = { stepId, variantId })"
+        @open="openCell"
       />
     </template>
   </div>
