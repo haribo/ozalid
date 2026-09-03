@@ -975,3 +975,67 @@ func assertCaseState(t *testing.T, ctx context.Context, repo *postgres.Repositor
 		t.Errorf("case state = %q, want %q", got.State, want)
 	}
 }
+
+// The production scenario of #132, as a regression test: two steps, then a
+// third inserted between them. The step that shifted must keep its identity —
+// its row, its captures — and only its position may change.
+func TestAStepInsertedMidFlowRenamesNothing(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+
+	door := storeBlob(t, ctx, repo, "the door")
+	sent := storeBlob(t, ctx, repo, "the sent state")
+
+	step := func(name, hash string) contract.ManifestStep {
+		return contract.ManifestStep{Name: name, Captures: []contract.ManifestCapture{
+			{Variant: map[string]string{"theme": "light"}, Hash: hash},
+		}}
+	}
+	if _, err := repo.WriteEdition(ctx, project.Slug, contract.Manifest{
+		Revision: "one",
+		Cases: []contract.ManifestCase{{ID: kase.ID, Steps: []contract.ManifestStep{
+			step("arrive at the door", door), step("ask for a link", sent),
+		}}},
+	}, nil); err != nil {
+		t.Fatalf("first edition: %v", err)
+	}
+
+	var askID string
+	if err := repo.Pool().QueryRow(ctx,
+		"SELECT id FROM steps WHERE case_id = $1 AND name = 'ask for a link'", kase.ID,
+	).Scan(&askID); err != nil {
+		t.Fatalf("finding the step: %v", err)
+	}
+
+	typed := storeBlob(t, ctx, repo, "an address typed")
+	if _, err := repo.WriteEdition(ctx, project.Slug, contract.Manifest{
+		Revision: "two",
+		Cases: []contract.ManifestCase{{ID: kase.ID, Steps: []contract.ManifestStep{
+			step("arrive at the door", door), step("enter an address", typed), step("ask for a link", sent),
+		}}},
+	}, nil); err != nil {
+		t.Fatalf("second edition: %v", err)
+	}
+
+	// The row moved; it was not renamed, and nothing else took its name.
+	var name string
+	var position int32
+	if err := repo.Pool().QueryRow(ctx,
+		"SELECT name, position FROM steps WHERE id = $1", askID,
+	).Scan(&name, &position); err != nil {
+		t.Fatalf("re-reading the step: %v", err)
+	}
+	if name != "ask for a link" || position != 2 {
+		t.Errorf("step = %q at %d, want 'ask for a link' at 2", name, position)
+	}
+
+	// Both editions' sent-state captures hang from that same row.
+	var captures int
+	if err := repo.Pool().QueryRow(ctx,
+		"SELECT count(*) FROM captures WHERE step_id = $1", askID,
+	).Scan(&captures); err != nil {
+		t.Fatalf("counting: %v", err)
+	}
+	if captures != 2 {
+		t.Errorf("captures on the shifted step = %d, want 2 (one per edition)", captures)
+	}
+}

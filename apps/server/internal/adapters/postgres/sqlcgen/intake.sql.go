@@ -205,20 +205,6 @@ func (q *Queries) CreateRecording(ctx context.Context, arg CreateRecordingParams
 	return i, err
 }
 
-const deleteStepsBeyond = `-- name: DeleteStepsBeyond :exec
-DELETE FROM steps WHERE case_id = $1 AND position >= $2
-`
-
-type DeleteStepsBeyondParams struct {
-	CaseID   string
-	Position int32
-}
-
-func (q *Queries) DeleteStepsBeyond(ctx context.Context, arg DeleteStepsBeyondParams) error {
-	_, err := q.db.Exec(ctx, deleteStepsBeyond, arg.CaseID, arg.Position)
-	return err
-}
-
 const enterReviewOnFirstCaptures = `-- name: EnterReviewOnFirstCaptures :many
 UPDATE cases k
 SET state = 'to-review', updated_at = now()
@@ -326,6 +312,25 @@ func (q *Queries) ProjectThreshold(ctx context.Context, slug string) (int32, err
 	var pixel_threshold int32
 	err := row.Scan(&pixel_threshold)
 	return pixel_threshold, err
+}
+
+const pruneCapturelessSteps = `-- name: PruneCapturelessSteps :exec
+DELETE FROM steps s
+WHERE s.case_id = $1
+  AND NOT (s.id = ANY($2::text[]))
+  AND NOT EXISTS (SELECT 1 FROM captures c WHERE c.step_id = s.id)
+`
+
+type PruneCapturelessStepsParams struct {
+	CaseID string
+	Kept   []string
+}
+
+// A step out of the manifest stays while anything references it: it holds the
+// evidence of earlier editions. Only a step nothing ever captured goes.
+func (q *Queries) PruneCapturelessSteps(ctx context.Context, arg PruneCapturelessStepsParams) error {
+	_, err := q.db.Exec(ctx, pruneCapturelessSteps, arg.CaseID, arg.Kept)
+	return err
 }
 
 const recordTransition = `-- name: RecordTransition :exec
@@ -483,7 +488,7 @@ func (q *Queries) UpsertBlob(ctx context.Context, arg UpsertBlobParams) error {
 const upsertStep = `-- name: UpsertStep :one
 INSERT INTO steps (case_id, name, position)
 VALUES ($1, $2, $3)
-ON CONFLICT (case_id, position) DO UPDATE SET name = EXCLUDED.name
+ON CONFLICT (case_id, name) DO UPDATE SET position = EXCLUDED.position
 RETURNING id, case_id, name, position
 `
 
@@ -495,6 +500,9 @@ type UpsertStepParams struct {
 
 // Steps are reconciled per case: the manifest gives the order, and re-pushing
 // the same step keeps its identity so the comments anchored to it survive.
+// A step is matched by its name, and moved rather than renamed: the row is
+// the cross-edition identity that captures, verdicts and comments hang from,
+// and renaming it reattached history to the wrong screen (#132).
 func (q *Queries) UpsertStep(ctx context.Context, arg UpsertStepParams) (Step, error) {
 	row := q.db.QueryRow(ctx, upsertStep, arg.CaseID, arg.Name, arg.Position)
 	var i Step

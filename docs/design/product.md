@@ -41,7 +41,7 @@ Two things follow, and they define the product:
 | **Capture** | One image: a given step, in a given variant, at a given edition. Comparable, hashed, referenced. **PNG**: a lossy format re-encodes the same screen into different pixels, which makes "has it changed?" unanswerable ([§3.3](#33-freshness-is-the-evidence-still-the-evidence-that-was-judged)). Intake refuses anything else. |
 | **Recording** | The flow video. Optional, viewable, **never** compared byte-wise and never a source of state ([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md)). |
 | **Edition** | One accepted intake of a run. Immutable once accepted. |
-| **Comment** | A reviewer's report against a step and a set of variants. A durable entity with its own lifecycle ([§6](#6-comments)). Formerly called a *problem*. |
+| **Comment** | A reviewer's report against **a capture and the sibling captures of the variants it covers**. The capture, not the step, is the anchor: steps have no identity of their own, and their names are labels. A comment shows the image it was written about for as long as it lives. A durable entity with its own lifecycle ([§6](#6-comments)). Formerly called a *problem*. |
 | **Verdict** | The stored status of one capture: `to-review`, `to-fix`, `validated`. Computed by the server from the comments covering it. |
 | **Reference** | The capture bytes a given capture was last approved against. What "has it changed?" is measured from. |
 
@@ -224,8 +224,14 @@ A comment is a durable entity, not a scratch note
 ([ADR 0006](../adr/0006-problems-are-durable-entities.md)). It was called a
 *problem* until 2026-08-20.
 
-- Fields: kind (`defect` | `improvement`), text, the step it anchors to, the
-  variants it appears on, its state, and its history.
+- Fields: kind (`defect` | `improvement`), text, **the anchoring captures (one
+  per covered variant)**, its state, and its history. The step and variant a
+  comment displays under are read from its anchoring capture, never stored
+  beside it.
+- A step is matched **by name** at intake and never renamed: a new name at an
+  old position is a new step, and the old one keeps its identity — its
+  captures, its verdicts, its comments. Position is layout. Decided when one
+  step inserted mid-flow put a comment under the wrong screen (#132).
 - One real defect spanning four variants is **one** comment with four variants
   checked — never four comments.
 - The **kind stays on the comment**. It is what the issue is written from, and

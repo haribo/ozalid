@@ -21,14 +21,22 @@ RETURNING *;
 
 -- Steps are reconciled per case: the manifest gives the order, and re-pushing
 -- the same step keeps its identity so the comments anchored to it survive.
+-- A step is matched by its name, and moved rather than renamed: the row is
+-- the cross-edition identity that captures, verdicts and comments hang from,
+-- and renaming it reattached history to the wrong screen (#132).
 -- name: UpsertStep :one
 INSERT INTO steps (case_id, name, position)
 VALUES ($1, $2, $3)
-ON CONFLICT (case_id, position) DO UPDATE SET name = EXCLUDED.name
+ON CONFLICT (case_id, name) DO UPDATE SET position = EXCLUDED.position
 RETURNING *;
 
--- name: DeleteStepsBeyond :exec
-DELETE FROM steps WHERE case_id = $1 AND position >= $2;
+-- A step out of the manifest stays while anything references it: it holds the
+-- evidence of earlier editions. Only a step nothing ever captured goes.
+-- name: PruneCapturelessSteps :exec
+DELETE FROM steps s
+WHERE s.case_id = $1
+  AND NOT (s.id = ANY(@kept::text[]))
+  AND NOT EXISTS (SELECT 1 FROM captures c WHERE c.step_id = s.id);
 
 -- name: UpsertBlob :exec
 INSERT INTO blobs (hash, size_bytes)
