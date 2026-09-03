@@ -64,7 +64,8 @@ func (q *Queries) CaseInProject(ctx context.Context, arg CaseInProjectParams) (C
 
 const createCase = `-- name: CreateCase :one
 INSERT INTO cases (project_id, category_id, title, description)
-VALUES ($1, $2, $3, $4)
+SELECT $1, $2, $3, $4
+WHERE EXISTS (SELECT 1 FROM categories WHERE id = $2 AND project_id = $1)
 RETURNING id, project_id, category_id, title, description, state, archived_at, created_at, updated_at, current_edition_id
 `
 
@@ -77,6 +78,10 @@ type CreateCaseParams struct {
 
 // The id is generated here and returned; the client never invents it
 // (ADR 0014).
+// The category has to be one of this project's. Guarded in the WHERE rather
+// than checked beside it: a separate lookup is a second round trip somebody can
+// forget, and the two answers can disagree. No row means no such category here,
+// which the caller is told as a 404 (#115).
 func (q *Queries) CreateCase(ctx context.Context, arg CreateCaseParams) (Case, error) {
 	row := q.db.QueryRow(ctx, createCase,
 		arg.ProjectID,

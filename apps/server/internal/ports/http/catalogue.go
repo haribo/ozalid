@@ -120,6 +120,20 @@ func (s *Server) CreateCase(ctx context.Context, request openapi.CreateCaseReque
 				problem("invalid-case", "A case needs a title", http.StatusBadRequest, ""),
 			),
 		}, nil
+	case errors.Is(err, catalogue.ErrCategoryRequired):
+		return openapi.CreateCase400ApplicationProblemPlusJSONResponse{
+			BadRequestApplicationProblemPlusJSONResponse: openapi.BadRequestApplicationProblemPlusJSONResponse(
+				problem("invalid-case", "A case needs a category", http.StatusBadRequest,
+					"The catalogue lists the cases of a named category, so a case filed nowhere is a case no screen can show."),
+			),
+		}, nil
+	// Not found rather than refused: a category of another project does not
+	// exist for this caller, and a refusal would confirm that it exists
+	// somewhere (#71, #115).
+	case errors.Is(err, app.ErrNotFound):
+		return openapi.CreateCase404ApplicationProblemPlusJSONResponse{
+			NotFoundApplicationProblemPlusJSONResponse: notFound("category"),
+		}, nil
 	case err != nil:
 		return nil, err
 	}

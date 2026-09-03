@@ -53,6 +53,20 @@ func seedProject(t *testing.T, ctx context.Context, q *sqlcgen.Queries) sqlcgen.
 	return p
 }
 
+// seedCategory gives a project the branch every case now has to hang from: a
+// case belongs to exactly one category, and the insert refuses one that is not
+// this project's (#115).
+func seedCategory(t *testing.T, ctx context.Context, q *sqlcgen.Queries, projectID string) *string {
+	t.Helper()
+	c, err := q.CreateCategory(ctx, sqlcgen.CreateCategoryParams{
+		ProjectID: projectID, Name: "seeded", Position: 0,
+	})
+	if err != nil {
+		t.Fatalf("creating the category: %v", err)
+	}
+	return &c.ID
+}
+
 func TestACaseIsCreatedOutsideTheFunnelAndKeepsItsGeneratedID(t *testing.T) {
 	ctx, q := withTx(t)
 	project := seedProject(t, ctx, q)
@@ -86,7 +100,7 @@ func TestArchivingRemovesACaseFromTheCatalogueButNotFromTheBook(t *testing.T) {
 	project := seedProject(t, ctx, q)
 
 	created, err := q.CreateCase(ctx, sqlcgen.CreateCaseParams{
-		ProjectID: project.ID, Title: "pay by card",
+		ProjectID: project.ID, CategoryID: seedCategory(t, ctx, q, project.ID), Title: "pay by card",
 	})
 	if err != nil {
 		t.Fatalf("creating the case: %v", err)

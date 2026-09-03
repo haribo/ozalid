@@ -19,7 +19,7 @@ type Repository interface {
 	ProjectBySlug(ctx context.Context, slug string) (catalogue.Project, error)
 	ProjectsFor(ctx context.Context, by actor.Actor, admin bool) ([]catalogue.Project, error)
 
-	CreateCase(ctx context.Context, projectID string, categoryID *string, title string, description *string) (catalogue.Case, error)
+	CreateCase(ctx context.Context, projectID string, categoryID string, title string, description *string) (catalogue.Case, error)
 	CaseByID(ctx context.Context, slug, id string) (catalogue.Case, error)
 	ListCases(ctx context.Context, projectID string, state, categoryID *string) ([]catalogue.Case, error)
 	UpdateCase(ctx context.Context, slug, id string, title string, description *string, categoryID *string) (catalogue.Case, error)

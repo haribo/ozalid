@@ -16,6 +16,7 @@ import (
 // Errors the domain can state on its own, without asking anything.
 var (
 	ErrTitleRequired       = errors.New("catalogue: a case needs a title")
+	ErrCategoryRequired    = errors.New("catalogue: a case needs a category")
 	ErrNameRequired        = errors.New("catalogue: a category needs a name")
 	ErrCategoryNotEmpty    = errors.New("catalogue: only an empty category can be deleted")
 	ErrCaseAlreadyArchived = errors.New("catalogue: the case is already archived")

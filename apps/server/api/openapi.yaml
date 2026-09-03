@@ -1818,6 +1818,7 @@ components:
       type: object
       required:
         - title
+        - categoryId
       properties:
         title:
           type: string
@@ -1826,6 +1827,7 @@ components:
           type: string
         categoryId:
           type: string
+          minLength: 1
     Variant:
       type: object
       additionalProperties:

@@ -55,9 +55,9 @@ func (r *Repository) ProjectBySlug(ctx context.Context, slug string) (catalogue.
 	return toProject(row), nil
 }
 
-func (r *Repository) CreateCase(ctx context.Context, projectID string, categoryID *string, title string, description *string) (catalogue.Case, error) {
+func (r *Repository) CreateCase(ctx context.Context, projectID string, categoryID string, title string, description *string) (catalogue.Case, error) {
 	row, err := r.q.CreateCase(ctx, sqlcgen.CreateCaseParams{
-		ProjectID: projectID, CategoryID: categoryID, Title: title, Description: description,
+		ProjectID: projectID, CategoryID: &categoryID, Title: title, Description: description,
 	})
 	if err != nil {
 		return catalogue.Case{}, translate("creating the case", err)
