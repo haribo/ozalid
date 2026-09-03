@@ -11,6 +11,9 @@ Rules must be concise. One rule per line where possible.
 ## General
 
 - The project uses `just` (justfile), never `make`
+- Local artifacts that are not committed (repair scripts, exports, dumps,
+  scratch files) go in `./tmp/` — gitignored. Never in the user's home, never
+  elsewhere in the tree
 - File names are lowercase kebab-case. No underscores, no mixedCase
 - Check the existing documentation before creating a file
 - Never name a file path in a recommendation without verifying it exists in the
