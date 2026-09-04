@@ -30,7 +30,7 @@ const emit = defineEmits<{
   comment: [
     input: { stepId: string; kind: 'defect' | 'improvement'; body: string; variantIds: string[] },
   ]
-  judge: [commentId: string, accept: boolean, remark: string]
+  judge: [commentId: string, issueRefId: string, accept: boolean, remark: string]
 }>()
 
 /** Every square that exists, in reading order: steps down, variants across. */
@@ -55,9 +55,18 @@ const onSquare = computed(() =>
   props.comments.filter((c) => c.stepId === props.stepId && c.variantIds.includes(props.variantId)),
 )
 
+/** The issue refs of the comments covering this square, each with its owner.
+ * One comment may carry several (#138): the delivered ones are judged here,
+ * one by one, and the undelivered stay in sight, dimmed. */
+const refsOnSquare = computed(() =>
+  onSquare.value.flatMap((c) => (c.issues ?? []).map((tracked) => ({ comment: c, ref: tracked }))),
+)
+
 /** A delivery waiting for a verdict. That is what gets judged here, not the
  * capture itself. */
-const toJudge = computed(() => onSquare.value.find((c) => c.state === 'to-review'))
+const toJudge = computed(() =>
+  refsOnSquare.value.find(({ ref: tracked }) => tracked.state === 'to-review'),
+)
 
 /** The verdict already on this square, in the grid's own vocabulary — one
  * language learnt once, whatever the size the capture is shown at. */
@@ -165,7 +174,8 @@ const refusing = ref(false)
 const remark = ref('')
 
 function accept() {
-  if (toJudge.value) emit('judge', toJudge.value.id, true, '')
+  const target = toJudge.value
+  if (target) emit('judge', target.comment.id, target.ref.id, true, '')
 }
 
 function refuse() {
@@ -173,8 +183,9 @@ function refuse() {
     refusing.value = true
     return
   }
-  if (toJudge.value && remark.value.trim() !== '') {
-    emit('judge', toJudge.value.id, false, remark.value.trim())
+  const target = toJudge.value
+  if (target && remark.value.trim() !== '') {
+    emit('judge', target.comment.id, target.ref.id, false, remark.value.trim())
     remark.value = ''
     refusing.value = false
   }
@@ -293,9 +304,25 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       class="border-t border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900"
     >
       <p class="mb-2.5 font-mono text-[10.5px] tracking-widest text-slate-500 uppercase">
-        fix delivered<span v-if="toJudge.issue"> · issue {{ toJudge.issue.id }}</span>
+        fix delivered · issue {{ toJudge.ref.issueId }}
       </p>
-      <p class="mb-3 text-[13px] text-slate-600 dark:text-slate-300">{{ toJudge.body }}</p>
+      <!-- The title once tracked; the free text was the draft it was written
+           from (#138). -->
+      <p class="mb-3 text-[13px] text-slate-600 dark:text-slate-300">
+        {{ toJudge.ref.title || toJudge.comment.body }}
+      </p>
+      <!-- The square's other refs, in sight while one is judged: dimmed when
+           undelivered, settled ones with their state. -->
+      <ul v-if="refsOnSquare.length > 1" class="mb-3 flex flex-col gap-1">
+        <li
+          v-for="{ ref: other } in refsOnSquare.filter(({ ref: r }) => r.id !== toJudge!.ref.id)"
+          :key="other.id"
+          class="font-mono text-[11px] text-slate-500 dark:text-slate-400"
+          :class="other.state === 'tracked' ? 'opacity-45' : ''"
+        >
+          #{{ other.issueId }} {{ other.title }} · {{ other.state }}
+        </li>
+      </ul>
 
       <div class="flex flex-wrap items-center gap-2">
         <button

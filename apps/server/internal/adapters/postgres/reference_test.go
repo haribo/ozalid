@@ -145,7 +145,7 @@ func TestTheJournalRecordsWhatTheActorSaysItIs(t *testing.T) {
 	if _, err := repo.Track(ctx, project.Slug, comments[0].ID, byHand, appcomment.IssueRef{ID: "142"}); err != nil {
 		t.Fatalf("tracking: %v", err)
 	}
-	if _, err := repo.Deliver(ctx, project.Slug, comments[0].ID, byHand); err != nil {
+	if _, err := repo.Deliver(ctx, project.Slug, comments[0].ID, "", byHand); err != nil {
 		t.Fatalf("delivering: %v", err)
 	}
 

@@ -1382,11 +1382,28 @@ paths:
 
         They may ask without having implemented everything else on the case: one
         issue can depend on the verdict given on another.
+
+        A comment may carry several issue refs (#138): `issueId` names the one
+        delivered. It may be omitted while the comment carries exactly one.
       tags:
         - comments
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                issueId:
+                  type: string
+                  description: |
+                    The ref delivered — its `id` in the comment's `issues` list.
+                    Mandatory once the comment carries more than one.
       responses:
         '200':
           $ref: '#/components/responses/MoveApplied'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -1425,6 +1442,11 @@ paths:
                 remark:
                   type: string
                   description: Mandatory when refusing. It is what the dev has to read.
+                issueId:
+                  type: string
+                  description: |
+                    The ref judged — its `id` in the comment's `issues` list.
+                    Mandatory once the comment carries more than one (#138).
       responses:
         '200':
           $ref: '#/components/responses/MoveApplied'
@@ -2314,6 +2336,34 @@ components:
           description: |
             Shown next to the comment. ozalid never refreshes it, so it is whatever
             the client said at the time.
+    IssueTracking:
+      type: object
+      required:
+        - id
+        - issueId
+        - state
+      properties:
+        id:
+          type: string
+          description: The ref's own id — what `delivery` and `judgment` name.
+        issueId:
+          type: string
+        url:
+          type: string
+          format: uri
+        title:
+          type: string
+          description: What the book reads once attached; the comment's text was the draft.
+        state:
+          type: string
+          enum:
+            - tracked
+            - to-review
+            - refused
+            - validated
+        lastRefusal:
+          type: string
+          description: The remark of the latest refusal on this ref, if any.
     Judgment:
       type: object
       required:
@@ -2367,6 +2417,14 @@ components:
             type: string
         issue:
           $ref: '#/components/schemas/IssueRef'
+          description: The first ref, kept for old readers. The table reads `issues`.
+        issues:
+          type: array
+          description: |
+            One row per attached issue, each on its own delivered-and-judged round
+            (#138). The comment's own state derives from these.
+          items:
+            $ref: '#/components/schemas/IssueTracking'
         discardReason:
           type: string
           description: Mandatory when discarded, and kept forever with its author.

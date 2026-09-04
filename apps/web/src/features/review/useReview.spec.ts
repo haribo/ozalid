@@ -69,7 +69,7 @@ describe('useReview, when the session dies mid-review', () => {
     )
     serverSays('/projects/atlas/comments/k1/judgment', { status: 401, body: problem(401) })
 
-    await review.judge('k1', true)
+    await review.judge('k1', 'ref1', true)
     expect(review.held.value).not.toBeNull()
 
     serverSays('/projects/atlas/comments/k1/judgment', { status: 204 })

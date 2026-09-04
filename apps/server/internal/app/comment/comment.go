@@ -7,6 +7,7 @@ package comment
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -38,8 +39,8 @@ type Outcome struct {
 type Repository interface {
 	Track(ctx context.Context, slug, commentID string, by actor.Actor, issue IssueRef) (Outcome, error)
 	Discard(ctx context.Context, slug, commentID string, by actor.Actor, reason string) (Outcome, error)
-	Deliver(ctx context.Context, slug, commentID string, by actor.Actor) (Outcome, error)
-	Judge(ctx context.Context, slug, commentID string, by actor.Actor, accept bool, remark string) (Outcome, error)
+	Deliver(ctx context.Context, slug, commentID, issueRefID string, by actor.Actor) (Outcome, error)
+	Judge(ctx context.Context, slug, commentID, issueRefID string, by actor.Actor, accept bool, remark string) (Outcome, error)
 	OfCase(ctx context.Context, slug, caseID string) ([]Record, error)
 }
 
@@ -71,13 +72,27 @@ func (s *Service) Discard(ctx context.Context, slug, commentID string, by actor.
 //
 // They may do so without having implemented everything else: one issue can
 // depend on the verdict given on another (ADR 0012).
-func (s *Service) Deliver(ctx context.Context, slug, commentID string, by actor.Actor) (Outcome, error) {
-	return s.repo.Deliver(ctx, slug, commentID, by)
+func (s *Service) Deliver(ctx context.Context, slug, commentID, issueRefID string, by actor.Actor) (Outcome, error) {
+	return s.repo.Deliver(ctx, slug, commentID, issueRefID, by)
 }
 
 // Judge accepts a delivery, or refuses it with a remark.
-func (s *Service) Judge(ctx context.Context, slug, commentID string, by actor.Actor, accept bool, remark string) (Outcome, error) {
-	return s.repo.Judge(ctx, slug, commentID, by, accept, strings.TrimSpace(remark))
+func (s *Service) Judge(ctx context.Context, slug, commentID, issueRefID string, by actor.Actor, accept bool, remark string) (Outcome, error) {
+	return s.repo.Judge(ctx, slug, commentID, issueRefID, by, accept, strings.TrimSpace(remark))
+}
+
+// ErrAmbiguousIssue means the comment carries several refs and the caller
+// named none: the server will not guess which fix was delivered or judged.
+var ErrAmbiguousIssue = errors.New("comment: several issues are attached, name one")
+
+// IssueTracking is one attached issue as the layers above read it.
+type IssueTracking struct {
+	RefID       string
+	ID          string
+	URL         string
+	Title       string
+	State       review.RefState
+	LastRefusal string
 }
 
 // Record is a comment as the layers above read it: what was said, where it
@@ -90,6 +105,7 @@ type Record struct {
 	State         review.CommentState
 	VariantIDs    []string
 	Issue         *IssueRef
+	Issues        []IssueTracking
 	DiscardReason string
 	AuthorID      string
 	CreatedAt     time.Time

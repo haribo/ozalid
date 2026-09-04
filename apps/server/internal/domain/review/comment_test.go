@@ -127,3 +127,52 @@ func TestAMoveIsAFunctionOfTheStateAndNothingElse(t *testing.T) {
 		}
 	}
 }
+
+// One comment, several issues, each on its own round (#138). The derivation is
+// the rule that nothing reads settled while anything is undelivered.
+func TestACommentReadsAsItsFinestOpenRef(t *testing.T) {
+	cases := []struct {
+		name string
+		refs []review.RefState
+		want review.CommentState
+	}{
+		{"no ref yet", nil, review.CommentToTrack},
+		{"one tracked", []review.RefState{review.RefTracked}, review.CommentTracked},
+		{"delivered beats tracked", []review.RefState{review.RefTracked, review.RefToReview}, review.CommentToReview},
+		{"refused beats tracked", []review.RefState{review.RefTracked, review.RefRefused}, review.CommentRefused},
+		{"delivered beats refused", []review.RefState{review.RefRefused, review.RefToReview}, review.CommentToReview},
+		{"one validated, one tracked stays open", []review.RefState{review.RefValidated, review.RefTracked}, review.CommentTracked},
+		{"all validated closes", []review.RefState{review.RefValidated, review.RefValidated}, review.CommentValidated},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := review.DeriveComment(review.CommentTracked, c.refs); got != c.want {
+				t.Errorf("DeriveComment(%v) = %v, want %v", c.refs, got, c.want)
+			}
+		})
+	}
+}
+
+func TestADiscardIsSaidNotDerived(t *testing.T) {
+	// Whatever the refs say, a discard with its reason stands.
+	got := review.DeriveComment(review.CommentDiscarded, []review.RefState{review.RefToReview})
+	if got != review.CommentDiscarded {
+		t.Errorf("a discarded comment re-opened to %v", got)
+	}
+}
+
+func TestARefMovesLikeACommentUsedTo(t *testing.T) {
+	if _, err := review.TransitionRef(review.RefTracked, review.MoveAccept, ""); err == nil {
+		t.Error("accepting an undelivered ref was allowed")
+	}
+	if _, err := review.TransitionRef(review.RefToReview, review.MoveRefuse, ""); err == nil {
+		t.Error("refusing without a remark was allowed")
+	}
+	to, err := review.TransitionRef(review.RefRefused, review.MoveDeliver, "")
+	if err != nil || to != review.RefToReview {
+		t.Errorf("redelivering a refused ref: %v -> %v", err, to)
+	}
+	if _, err := review.TransitionRef(review.RefValidated, review.MoveDeliver, ""); err == nil {
+		t.Error("a validated ref moved again")
+	}
+}

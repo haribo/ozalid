@@ -64,6 +64,15 @@ describe('CommentRecap', () => {
         comments: [
           comment({
             state: 'refused',
+            issues: [
+              {
+                id: 'ref1',
+                issueId: '139',
+                title: 'the button is clipped',
+                state: 'refused',
+                lastRefusal: 'still clipped on iPhone SE',
+              },
+            ],
             judgments: [
               {
                 verdict: 'refused',

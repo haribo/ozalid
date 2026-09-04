@@ -141,6 +141,7 @@ describe('CaptureCarousel', () => {
       createdAt: '2026-08-24T09:00:00Z',
       judgments: [],
       issue: { id: '139' },
+      issues: [{ id: 'ref1', issueId: '139', state: 'to-review' }],
     }
     const w = mountAt('v1', [delivered])
 
@@ -163,6 +164,7 @@ describe('CaptureCarousel', () => {
       authorId: 'nina',
       createdAt: '2026-08-24T09:00:00Z',
       judgments: [],
+      issues: [{ id: 'ref1', issueId: '139', state: 'to-review' }],
     }
     const w = mountAt('v1', [delivered])
 

@@ -90,7 +90,22 @@ Delivery:
 
       They may ask without having implemented everything else on the case: one
       issue can depend on the verdict given on another.
+
+      A comment may carry several issue refs (#138): `issueId` names the one
+      delivered. It may be omitted while the comment carries exactly one.
     tags: [comments]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              issueId:
+                type: string
+                description: |
+                  The ref delivered — its `id` in the comment's `issues` list.
+                  Mandatory once the comment carries more than one.
     responses:
       '401':
         $ref: "../components/responses.yaml#/Unauthenticated"
@@ -98,6 +113,8 @@ Delivery:
         $ref: "../components/responses.yaml#/Forbidden"
       "200":
         $ref: "#/MoveApplied"
+      "400":
+        $ref: "../components/responses.yaml#/BadRequest"
       "404":
         $ref: "../components/responses.yaml#/NotFound"
       "409":
@@ -130,6 +147,11 @@ Judgment:
               remark:
                 type: string
                 description: Mandatory when refusing. It is what the dev has to read.
+              issueId:
+                type: string
+                description: |
+                  The ref judged — its `id` in the comment's `issues` list.
+                  Mandatory once the comment carries more than one (#138).
     responses:
       '401':
         $ref: "../components/responses.yaml#/Unauthenticated"

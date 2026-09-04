@@ -842,7 +842,7 @@ func TestACommentTravelsFromReportToClosureAndTakesTheCaseWithIt(t *testing.T) {
 		t.Errorf("after tracking: %+v, want tracked and the case still with the dev", out)
 	}
 
-	out, err = repo.Deliver(ctx, project.Slug, id, actor.Actor{ID: "ci", Kind: actor.Human})
+	out, err = repo.Deliver(ctx, project.Slug, id, "", actor.Actor{ID: "ci", Kind: actor.Human})
 	if err != nil {
 		t.Fatalf("delivering: %v", err)
 	}
@@ -851,7 +851,7 @@ func TestACommentTravelsFromReportToClosureAndTakesTheCaseWithIt(t *testing.T) {
 		t.Errorf("after delivery: %+v, want the reviewer to hold the ball", out)
 	}
 
-	out, err = repo.Judge(ctx, project.Slug, id, actor.Actor{ID: "nina", Kind: actor.Human}, true, "")
+	out, err = repo.Judge(ctx, project.Slug, id, "", actor.Actor{ID: "nina", Kind: actor.Human}, true, "")
 	if err != nil {
 		t.Fatalf("accepting: %v", err)
 	}
@@ -875,11 +875,11 @@ func TestARefusalSendsItBackAndIsKeptForever(t *testing.T) {
 	if _, err := repo.Track(ctx, project.Slug, id, actor.Actor{ID: "dev", Kind: actor.Human}, comment.IssueRef{ID: "142"}); err != nil {
 		t.Fatalf("tracking: %v", err)
 	}
-	if _, err := repo.Deliver(ctx, project.Slug, id, actor.Actor{ID: "ci", Kind: actor.Human}); err != nil {
+	if _, err := repo.Deliver(ctx, project.Slug, id, "", actor.Actor{ID: "ci", Kind: actor.Human}); err != nil {
 		t.Fatalf("delivering: %v", err)
 	}
 
-	out, err := repo.Judge(ctx, project.Slug, id, actor.Actor{ID: "nina", Kind: actor.Human}, false, "still cropped on iPhone SE")
+	out, err := repo.Judge(ctx, project.Slug, id, "", actor.Actor{ID: "nina", Kind: actor.Human}, false, "still cropped on iPhone SE")
 	if err != nil {
 		t.Fatalf("refusing: %v", err)
 	}
@@ -888,10 +888,10 @@ func TestARefusalSendsItBackAndIsKeptForever(t *testing.T) {
 		t.Errorf("after refusing: %+v, want the dev to hold the ball", out)
 	}
 
-	if _, err := repo.Deliver(ctx, project.Slug, id, actor.Actor{ID: "ci", Kind: actor.Human}); err != nil {
+	if _, err := repo.Deliver(ctx, project.Slug, id, "", actor.Actor{ID: "ci", Kind: actor.Human}); err != nil {
 		t.Fatalf("delivering again: %v", err)
 	}
-	if _, err := repo.Judge(ctx, project.Slug, id, actor.Actor{ID: "nina", Kind: actor.Human}, true, ""); err != nil {
+	if _, err := repo.Judge(ctx, project.Slug, id, "", actor.Actor{ID: "nina", Kind: actor.Human}, true, ""); err != nil {
 		t.Fatalf("accepting the second try: %v", err)
 	}
 
@@ -948,11 +948,11 @@ func TestAMoveTheStateDoesNotAllowIsRefusedWithoutTouchingAnything(t *testing.T)
 	id := commentOn(t, ctx, repo, project.Slug, kase.ID, cells[1])
 
 	// Nothing can be delivered before it is tracked.
-	if _, err := repo.Deliver(ctx, project.Slug, id, actor.Actor{ID: "ci", Kind: actor.Human}); !errors.Is(err, review.ErrMoveNotAllowed) {
+	if _, err := repo.Deliver(ctx, project.Slug, id, "", actor.Actor{ID: "ci", Kind: actor.Human}); !errors.Is(err, review.ErrMoveNotAllowed) {
 		t.Errorf("err = %v, want ErrMoveNotAllowed", err)
 	}
 	// Nor judged before it is delivered.
-	if _, err := repo.Judge(ctx, project.Slug, id, actor.Actor{ID: "nina", Kind: actor.Human}, true, ""); !errors.Is(err, review.ErrMoveNotAllowed) {
+	if _, err := repo.Judge(ctx, project.Slug, id, "", actor.Actor{ID: "nina", Kind: actor.Human}, true, ""); !errors.Is(err, review.ErrMoveNotAllowed) {
 		t.Errorf("err = %v, want ErrMoveNotAllowed", err)
 	}
 

@@ -42,31 +42,6 @@ func (q *Queries) AttachCommentVariant(ctx context.Context, arg AttachCommentVar
 	return err
 }
 
-const attachIssue = `-- name: AttachIssue :exec
-UPDATE comments
-SET state = $2, issue_ref = $3, issue_url = $4, issue_title = $5, updated_at = now()
-WHERE id = $1
-`
-
-type AttachIssueParams struct {
-	ID         string
-	State      string
-	IssueRef   *string
-	IssueUrl   *string
-	IssueTitle *string
-}
-
-func (q *Queries) AttachIssue(ctx context.Context, arg AttachIssueParams) error {
-	_, err := q.db.Exec(ctx, attachIssue,
-		arg.ID,
-		arg.State,
-		arg.IssueRef,
-		arg.IssueUrl,
-		arg.IssueTitle,
-	)
-	return err
-}
-
 const caseCaptureCells = `-- name: CaseCaptureCells :many
 SELECT s.id AS step_id, c.variant_id
 FROM steps s
@@ -105,9 +80,64 @@ func (q *Queries) CaseCaptureCells(ctx context.Context, arg CaseCaptureCellsPara
 	return items, nil
 }
 
+const caseCommentIssues = `-- name: CaseCommentIssues :many
+SELECT ci.id, ci.comment_id, ci.issue_id, ci.url, ci.title, ci.state, ci.created_at, (
+    SELECT j.remark FROM comment_judgments j
+    WHERE j.comment_issue_id = ci.id AND j.verdict = 'refused'
+    ORDER BY j.created_at DESC LIMIT 1
+) AS last_refusal
+FROM comment_issues ci
+JOIN comments c ON c.id = ci.comment_id
+WHERE c.case_id = $1
+ORDER BY ci.comment_id, ci.created_at
+`
+
+type CaseCommentIssuesRow struct {
+	ID          string
+	CommentID   string
+	IssueID     string
+	Url         *string
+	Title       *string
+	State       string
+	CreatedAt   pgtype.Timestamptz
+	LastRefusal *string
+}
+
+// The refs of every comment of one case, with each ref's last refusal remark:
+// what the dev has to read is the remark, and the table shows it under the
+// title (#138).
+func (q *Queries) CaseCommentIssues(ctx context.Context, caseID string) ([]CaseCommentIssuesRow, error) {
+	rows, err := q.db.Query(ctx, caseCommentIssues, caseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CaseCommentIssuesRow{}
+	for rows.Next() {
+		var i CaseCommentIssuesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CommentID,
+			&i.IssueID,
+			&i.Url,
+			&i.Title,
+			&i.State,
+			&i.CreatedAt,
+			&i.LastRefusal,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const caseComments = `-- name: CaseComments :many
-SELECT c.id, c.step_id, c.kind, c.body, c.state, c.issue_ref, c.issue_url,
-       c.issue_title, c.discard_reason, c.author_id, c.created_at, c.updated_at,
+SELECT c.id, c.step_id, c.kind, c.body, c.state,
+       c.discard_reason, c.author_id, c.created_at, c.updated_at,
        array_remove(array_agg(cv.variant_id), NULL)::text[] AS variant_ids
 FROM comments c
 LEFT JOIN comment_variants cv ON cv.comment_id = c.id
@@ -128,9 +158,6 @@ type CaseCommentsRow struct {
 	Kind          string
 	Body          string
 	State         string
-	IssueRef      *string
-	IssueUrl      *string
-	IssueTitle    *string
 	DiscardReason *string
 	AuthorID      string
 	CreatedAt     pgtype.Timestamptz
@@ -155,9 +182,6 @@ func (q *Queries) CaseComments(ctx context.Context, arg CaseCommentsParams) ([]C
 			&i.Kind,
 			&i.Body,
 			&i.State,
-			&i.IssueRef,
-			&i.IssueUrl,
-			&i.IssueTitle,
 			&i.DiscardReason,
 			&i.AuthorID,
 			&i.CreatedAt,
@@ -416,8 +440,32 @@ func (q *Queries) CategoryTreeWithCounts(ctx context.Context, projectID string) 
 	return items, nil
 }
 
+const commentIssueStates = `-- name: CommentIssueStates :many
+SELECT state FROM comment_issues WHERE comment_id = $1
+`
+
+func (q *Queries) CommentIssueStates(ctx context.Context, commentID string) ([]string, error) {
+	rows, err := q.db.Query(ctx, commentIssueStates, commentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var state string
+		if err := rows.Scan(&state); err != nil {
+			return nil, err
+		}
+		items = append(items, state)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const commentJudgments = `-- name: CommentJudgments :many
-SELECT id, comment_id, verdict, remark, actor_id, created_at FROM comment_judgments WHERE comment_id = $1 ORDER BY created_at
+SELECT id, comment_id, verdict, remark, actor_id, created_at, comment_issue_id FROM comment_judgments WHERE comment_id = $1 ORDER BY created_at
 `
 
 func (q *Queries) CommentJudgments(ctx context.Context, commentID string) ([]CommentJudgment, error) {
@@ -436,6 +484,7 @@ func (q *Queries) CommentJudgments(ctx context.Context, commentID string) ([]Com
 			&i.Remark,
 			&i.ActorID,
 			&i.CreatedAt,
+			&i.CommentIssueID,
 		); err != nil {
 			return nil, err
 		}
@@ -450,7 +499,7 @@ func (q *Queries) CommentJudgments(ctx context.Context, commentID string) ([]Com
 const createComment = `-- name: CreateComment :one
 INSERT INTO comments (case_id, step_id, kind, body, author_id)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, case_id, step_id, kind, body, state, issue_ref, issue_url, issue_title, discard_reason, author_id, created_at, updated_at
+RETURNING id, case_id, step_id, kind, body, state, discard_reason, author_id, created_at, updated_at
 `
 
 type CreateCommentParams struct {
@@ -477,13 +526,44 @@ func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (C
 		&i.Kind,
 		&i.Body,
 		&i.State,
-		&i.IssueRef,
-		&i.IssueUrl,
-		&i.IssueTitle,
 		&i.DiscardReason,
 		&i.AuthorID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createCommentIssue = `-- name: CreateCommentIssue :one
+INSERT INTO comment_issues (comment_id, issue_id, url, title)
+VALUES ($1, $2, $3, $4)
+RETURNING id, comment_id, issue_id, url, title, state, created_at
+`
+
+type CreateCommentIssueParams struct {
+	CommentID string
+	IssueID   string
+	Url       *string
+	Title     *string
+}
+
+// One row per attached issue; attaching twice adds a second (#138).
+func (q *Queries) CreateCommentIssue(ctx context.Context, arg CreateCommentIssueParams) (CommentIssue, error) {
+	row := q.db.QueryRow(ctx, createCommentIssue,
+		arg.CommentID,
+		arg.IssueID,
+		arg.Url,
+		arg.Title,
+	)
+	var i CommentIssue
+	err := row.Scan(
+		&i.ID,
+		&i.CommentID,
+		&i.IssueID,
+		&i.Url,
+		&i.Title,
+		&i.State,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -504,7 +584,7 @@ func (q *Queries) DiscardComment(ctx context.Context, arg DiscardCommentParams) 
 }
 
 const getComment = `-- name: GetComment :one
-SELECT c.id, c.case_id, c.step_id, c.kind, c.body, c.state, c.issue_ref, c.issue_url, c.issue_title, c.discard_reason, c.author_id, c.created_at, c.updated_at FROM comments c
+SELECT c.id, c.case_id, c.step_id, c.kind, c.body, c.state, c.discard_reason, c.author_id, c.created_at, c.updated_at FROM comments c
 JOIN cases k ON k.id = c.case_id
 JOIN projects p ON p.id = k.project_id
 WHERE c.id = $1 AND p.slug = $2
@@ -528,9 +608,6 @@ func (q *Queries) GetComment(ctx context.Context, arg GetCommentParams) (Comment
 		&i.Kind,
 		&i.Body,
 		&i.State,
-		&i.IssueRef,
-		&i.IssueUrl,
-		&i.IssueTitle,
 		&i.DiscardReason,
 		&i.AuthorID,
 		&i.CreatedAt,
@@ -539,16 +616,63 @@ func (q *Queries) GetComment(ctx context.Context, arg GetCommentParams) (Comment
 	return i, err
 }
 
+const getCommentIssue = `-- name: GetCommentIssue :many
+SELECT ci.id, ci.comment_id, ci.issue_id, ci.url, ci.title, ci.state, ci.created_at FROM comment_issues ci
+JOIN comments c ON c.id = ci.comment_id
+JOIN cases k ON k.id = c.case_id
+JOIN projects p ON p.id = k.project_id
+WHERE ci.comment_id = $1 AND p.slug = $2
+  AND ($3::text = '' OR ci.id = $3)
+ORDER BY ci.created_at
+LIMIT 2
+`
+
+type GetCommentIssueParams struct {
+	CommentID string
+	Slug      string
+	Column3   string
+}
+
+// Scoped through the comment and its project, like the comment itself (#71).
+func (q *Queries) GetCommentIssue(ctx context.Context, arg GetCommentIssueParams) ([]CommentIssue, error) {
+	rows, err := q.db.Query(ctx, getCommentIssue, arg.CommentID, arg.Slug, arg.Column3)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CommentIssue{}
+	for rows.Next() {
+		var i CommentIssue
+		if err := rows.Scan(
+			&i.ID,
+			&i.CommentID,
+			&i.IssueID,
+			&i.Url,
+			&i.Title,
+			&i.State,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const recordJudgment = `-- name: RecordJudgment :exec
-INSERT INTO comment_judgments (comment_id, verdict, remark, actor_id)
-VALUES ($1, $2, $3, $4)
+INSERT INTO comment_judgments (comment_id, comment_issue_id, verdict, remark, actor_id)
+VALUES ($1, $2, $3, $4, $5)
 `
 
 type RecordJudgmentParams struct {
-	CommentID string
-	Verdict   string
-	Remark    *string
-	ActorID   string
+	CommentID      string
+	CommentIssueID *string
+	Verdict        string
+	Remark         *string
+	ActorID        string
 }
 
 // Every judgment is kept: three round trips on one comment is information
@@ -556,6 +680,7 @@ type RecordJudgmentParams struct {
 func (q *Queries) RecordJudgment(ctx context.Context, arg RecordJudgmentParams) error {
 	_, err := q.db.Exec(ctx, recordJudgment,
 		arg.CommentID,
+		arg.CommentIssueID,
 		arg.Verdict,
 		arg.Remark,
 		arg.ActorID,
@@ -593,6 +718,20 @@ type SetCaseStateParams struct {
 
 func (q *Queries) SetCaseState(ctx context.Context, arg SetCaseStateParams) error {
 	_, err := q.db.Exec(ctx, setCaseState, arg.ID, arg.State)
+	return err
+}
+
+const setCommentIssueState = `-- name: SetCommentIssueState :exec
+UPDATE comment_issues SET state = $2 WHERE id = $1
+`
+
+type SetCommentIssueStateParams struct {
+	ID    string
+	State string
+}
+
+func (q *Queries) SetCommentIssueState(ctx context.Context, arg SetCommentIssueStateParams) error {
+	_, err := q.db.Exec(ctx, setCommentIssueState, arg.ID, arg.State)
 	return err
 }
 

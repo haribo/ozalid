@@ -770,6 +770,9 @@ export interface paths {
          *
          *     They may ask without having implemented everything else on the case: one
          *     issue can depend on the verdict given on another.
+         *
+         *     A comment may carry several issue refs (#138): `issueId` names the one
+         *     delivered. It may be omitted while the comment carries exactly one.
          */
         post: operations["deliverComment"];
         delete?: never;
@@ -1286,6 +1289,19 @@ export interface components {
              */
             title?: string;
         };
+        IssueTracking: {
+            /** @description The ref's own id — what `delivery` and `judgment` name. */
+            id: string;
+            issueId: string;
+            /** Format: uri */
+            url?: string;
+            /** @description What the book reads once attached; the comment's text was the draft. */
+            title?: string;
+            /** @enum {string} */
+            state: "tracked" | "to-review" | "refused" | "validated";
+            /** @description The remark of the latest refusal on this ref, if any. */
+            lastRefusal?: string;
+        };
         Judgment: {
             /** @enum {string} */
             verdict: "accepted" | "refused";
@@ -1304,7 +1320,13 @@ export interface components {
             body: string;
             state: components["schemas"]["CommentState"];
             variantIds: string[];
+            /** @description The first ref, kept for old readers. The table reads `issues`. */
             issue?: components["schemas"]["IssueRef"];
+            /**
+             * @description One row per attached issue, each on its own delivered-and-judged round
+             *     (#138). The comment's own state derives from these.
+             */
+            issues?: components["schemas"]["IssueTracking"][];
             /** @description Mandatory when discarded, and kept forever with its author. */
             discardReason?: string;
             authorId: string;
@@ -2518,9 +2540,20 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description The ref delivered — its `id` in the comment's `issues` list.
+                     *     Mandatory once the comment carries more than one.
+                     */
+                    issueId?: string;
+                };
+            };
+        };
         responses: {
             200: components["responses"]["MoveApplied"];
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
@@ -2543,6 +2576,11 @@ export interface operations {
                     accept: boolean;
                     /** @description Mandatory when refusing. It is what the dev has to read. */
                     remark?: string;
+                    /**
+                     * @description The ref judged — its `id` in the comment's `issues` list.
+                     *     Mandatory once the comment carries more than one (#138).
+                     */
+                    issueId?: string;
                 };
             };
         };
