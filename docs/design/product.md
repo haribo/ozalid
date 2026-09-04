@@ -41,7 +41,7 @@ Two things follow, and they define the product:
 | **Capture** | One image: a given step, in a given variant, at a given edition. Comparable, hashed, referenced. **PNG**: a lossy format re-encodes the same screen into different pixels, which makes "has it changed?" unanswerable ([§3.3](#33-freshness-is-the-evidence-still-the-evidence-that-was-judged)). Intake refuses anything else. |
 | **Recording** | The flow video. Optional, viewable, **never** compared byte-wise and never a source of state ([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md)). |
 | **Edition** | One accepted intake of a run. Immutable once accepted. |
-| **Comment** | A reviewer's report against **a capture and the sibling captures of the variants it covers**. The capture, not the step, is the anchor: steps have no identity of their own, and their names are labels. A comment shows the image it was written about for as long as it lives. A durable entity with its own lifecycle ([§6](#6-comments)). Formerly called a *problem*. |
+| **Comment** | A reviewer's report against **a capture and the sibling captures of the variants it covers**. The capture, not the step, is the anchor: steps have no identity of their own, and their names are labels. A comment shows the image it was written about for as long as it lives. Its text is the reviewer's **draft**: it is what the issues are written from, and once a ref is attached the book reads the issue's title. A durable entity with its own lifecycle ([§6](#6-comments)). Formerly called a *problem*. |
 | **Verdict** | The stored status of one capture: `to-review`, `to-fix`, `validated`. Computed by the server from the comments covering it. |
 | **Reference** | The capture bytes a given capture was last approved against. What "has it changed?" is measured from. |
 
@@ -225,7 +225,15 @@ A comment is a durable entity, not a scratch note
 *problem* until 2026-08-20.
 
 - Fields: kind (`defect` | `improvement`), text, **the anchoring captures (one
-  per covered variant)**, its state, and its history. The step and variant a
+  per covered variant)**, its state, and its history.
+- A comment carries **one or more issue refs**, each with its own
+  delivered-and-judged cycle (`tracked → to-review → validated | refused`, a
+  refusal redelivered as many rounds as it takes). The comment's own state
+  derives from its refs — the finest open ref decides — and the comment closes
+  when its last ref does.
+- The recap under the grid is a **summary and carries no action**: judging
+  happens in the carousel, in front of the capture (frontend ADR 0003). An
+  undelivered ref stays visible there, dimmed. The step and variant a
   comment displays under are read from its anchoring capture, never stored
   beside it.
 - A step is matched **by name** at intake and never renamed: a new name at an

@@ -79,6 +79,25 @@ IssueRef:
         Shown next to the comment. ozalid never refreshes it, so it is whatever
         the client said at the time.
 
+IssueTracking:
+  type: object
+  required: [id, issueId, state]
+  properties:
+    id:
+      type: string
+      description: The ref's own id — what `delivery` and `judgment` name.
+    issueId: { type: string }
+    url: { type: string, format: uri }
+    title:
+      type: string
+      description: What the book reads once attached; the comment's text was the draft.
+    state:
+      type: string
+      enum: [tracked, to-review, refused, validated]
+    lastRefusal:
+      type: string
+      description: The remark of the latest refusal on this ref, if any.
+
 CommentState:
   type: string
   enum: [to-track, tracked, to-review, refused, validated, discarded]
@@ -105,6 +124,14 @@ Comment:
       items: { type: string }
     issue:
       $ref: "#/IssueRef"
+      description: The first ref, kept for old readers. The table reads `issues`.
+    issues:
+      type: array
+      description: |
+        One row per attached issue, each on its own delivered-and-judged round
+        (#138). The comment's own state derives from these.
+      items:
+        $ref: "#/IssueTracking"
     discardReason:
       type: string
       description: Mandatory when discarded, and kept forever with its author.

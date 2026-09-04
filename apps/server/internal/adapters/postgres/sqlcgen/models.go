@@ -79,22 +79,30 @@ type Comment struct {
 	Kind          string
 	Body          string
 	State         string
-	IssueRef      *string
-	IssueUrl      *string
-	IssueTitle    *string
 	DiscardReason *string
 	AuthorID      string
 	CreatedAt     pgtype.Timestamptz
 	UpdatedAt     pgtype.Timestamptz
 }
 
-type CommentJudgment struct {
+type CommentIssue struct {
 	ID        string
 	CommentID string
-	Verdict   string
-	Remark    *string
-	ActorID   string
+	IssueID   string
+	Url       *string
+	Title     *string
+	State     string
 	CreatedAt pgtype.Timestamptz
+}
+
+type CommentJudgment struct {
+	ID             string
+	CommentID      string
+	Verdict        string
+	Remark         *string
+	ActorID        string
+	CreatedAt      pgtype.Timestamptz
+	CommentIssueID *string
 }
 
 type CommentVariant struct {

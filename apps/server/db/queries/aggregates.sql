@@ -73,8 +73,8 @@ SELECT step_id, variant_id FROM capture_verdicts
 WHERE case_id = $1 AND status = 'validated';
 
 -- name: CaseComments :many
-SELECT c.id, c.step_id, c.kind, c.body, c.state, c.issue_ref, c.issue_url,
-       c.issue_title, c.discard_reason, c.author_id, c.created_at, c.updated_at,
+SELECT c.id, c.step_id, c.kind, c.body, c.state,
+       c.discard_reason, c.author_id, c.created_at, c.updated_at,
        array_remove(array_agg(cv.variant_id), NULL)::text[] AS variant_ids
 FROM comments c
 LEFT JOIN comment_variants cv ON cv.comment_id = c.id
@@ -135,10 +135,42 @@ WHERE c.id = $1 AND p.slug = $2;
 -- name: SetCommentState :exec
 UPDATE comments SET state = $2, updated_at = now() WHERE id = $1;
 
--- name: AttachIssue :exec
-UPDATE comments
-SET state = $2, issue_ref = $3, issue_url = $4, issue_title = $5, updated_at = now()
-WHERE id = $1;
+-- One row per attached issue; attaching twice adds a second (#138).
+-- name: CreateCommentIssue :one
+INSERT INTO comment_issues (comment_id, issue_id, url, title)
+VALUES ($1, $2, $3, $4)
+RETURNING *;
+
+-- name: CommentIssueStates :many
+SELECT state FROM comment_issues WHERE comment_id = $1;
+
+-- Scoped through the comment and its project, like the comment itself (#71).
+-- name: GetCommentIssue :many
+SELECT ci.* FROM comment_issues ci
+JOIN comments c ON c.id = ci.comment_id
+JOIN cases k ON k.id = c.case_id
+JOIN projects p ON p.id = k.project_id
+WHERE ci.comment_id = $1 AND p.slug = $2
+  AND ($3::text = '' OR ci.id = $3)
+ORDER BY ci.created_at
+LIMIT 2;
+
+-- name: SetCommentIssueState :exec
+UPDATE comment_issues SET state = $2 WHERE id = $1;
+
+-- The refs of every comment of one case, with each ref's last refusal remark:
+-- what the dev has to read is the remark, and the table shows it under the
+-- title (#138).
+-- name: CaseCommentIssues :many
+SELECT ci.*, (
+    SELECT j.remark FROM comment_judgments j
+    WHERE j.comment_issue_id = ci.id AND j.verdict = 'refused'
+    ORDER BY j.created_at DESC LIMIT 1
+) AS last_refusal
+FROM comment_issues ci
+JOIN comments c ON c.id = ci.comment_id
+WHERE c.case_id = $1
+ORDER BY ci.comment_id, ci.created_at;
 
 -- name: DiscardComment :exec
 UPDATE comments SET state = $2, discard_reason = $3, updated_at = now() WHERE id = $1;
@@ -146,8 +178,8 @@ UPDATE comments SET state = $2, discard_reason = $3, updated_at = now() WHERE id
 -- Every judgment is kept: three round trips on one comment is information
 -- (ADR 0012).
 -- name: RecordJudgment :exec
-INSERT INTO comment_judgments (comment_id, verdict, remark, actor_id)
-VALUES ($1, $2, $3, $4);
+INSERT INTO comment_judgments (comment_id, comment_issue_id, verdict, remark, actor_id)
+VALUES ($1, $2, $3, $4, $5);
 
 -- name: CommentJudgments :many
 SELECT * FROM comment_judgments WHERE comment_id = $1 ORDER BY created_at;

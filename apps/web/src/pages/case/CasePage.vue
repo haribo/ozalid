@@ -116,8 +116,8 @@ async function onComment(input: Parameters<typeof review.comment>[0]) {
   await refreshCase()
 }
 
-async function onJudge(commentId: string, accept: boolean, remark: string) {
-  await review.judge(commentId, accept, remark)
+async function onJudge(commentId: string, issueRefId: string, accept: boolean, remark: string) {
+  await review.judge(commentId, issueRefId, accept, remark)
   await refreshCase()
 }
 

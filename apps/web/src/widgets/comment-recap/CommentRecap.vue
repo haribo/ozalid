@@ -18,13 +18,19 @@ import type { Tone } from '@/shared/lib'
 
 type Grid = components['schemas']['Grid']
 type Comment = components['schemas']['Comment']
+type IssueTracking = components['schemas']['IssueTracking']
+
+/** One table row: a ref on its own round, or the draft a comment still is.
+ * The comment's text is what the issues are written from; once a ref exists,
+ * the book reads the issue's title (#138). */
+type Row = { comment: Comment; ref: IssueTracking | null; first: boolean }
 
 const props = defineProps<{ grid: Grid; comments: Comment[] }>()
 const emit = defineEmits<{ open: [stepId: string, variantId: string] }>()
 
 const TONE: Record<string, Tone> = {
   'to-track': 'dev',
-  tracked: 'dev',
+  tracked: 'idle',
   'to-review': 'reviewer',
   refused: 'dev',
   validated: 'done',
@@ -52,11 +58,15 @@ const openCount = computed(
  * still shows its comments — losing them would be worse than an odd row. */
 const groups = computed(() => {
   const rank = new Map(props.grid.steps.map((s, i) => [s.id, i]))
-  const byStep = new Map<string, Comment[]>()
+  const byStep = new Map<string, Row[]>()
   for (const c of props.comments) {
+    const rows: Row[] =
+      c.issues && c.issues.length > 0
+        ? c.issues.map((ref, i) => ({ comment: c, ref, first: i === 0 }))
+        : [{ comment: c, ref: null, first: true }]
     const bucket = byStep.get(c.stepId)
-    if (bucket) bucket.push(c)
-    else byStep.set(c.stepId, [c])
+    if (bucket) bucket.push(...rows)
+    else byStep.set(c.stepId, rows)
   }
   return [...byStep.entries()]
     .map(([stepId, items]) => ({
@@ -70,16 +80,19 @@ const groups = computed(() => {
 
 /** Which capture the step's name opens: the one the first comment was written
  * against, so the reviewer lands on what is being talked about. */
-function entryVariant(items: Comment[]) {
+function entryVariant(items: Row[]) {
   const known = new Set(props.grid.variants.map((v) => v.id))
   return (
-    items.flatMap((c) => c.variantIds).find((id) => known.has(id)) ?? props.grid.variants[0]?.id
+    items.flatMap((r) => r.comment.variantIds).find((id) => known.has(id)) ??
+    props.grid.variants[0]?.id
   )
 }
 
-/** The last refusal's remark: it is what the dev has to read, not the state. */
-function lastRefusal(c: Comment) {
-  return c.judgments.toReversed().find((j) => j.verdict === 'refused')?.remark
+/** What one row is doing: the ref's own state, or the comment's while it is
+ * still a draft or was discarded. */
+function rowState(r: Row) {
+  if (r.comment.state === 'discarded') return 'discarded'
+  return r.ref ? r.ref.state : r.comment.state
 }
 </script>
 
@@ -111,15 +124,18 @@ function lastRefusal(c: Comment) {
         <tbody>
           <template v-for="g in groups" :key="g.stepId">
             <tr
-              v-for="(c, i) in g.items"
-              :key="c.id"
+              v-for="(r, i) in g.items"
+              :key="(r.ref?.id ?? r.comment.id) + i"
               class="border-t border-slate-200 dark:border-slate-700"
-              :class="SETTLED.has(c.state) ? 'opacity-50' : ''"
+              :class="{
+                'opacity-50': SETTLED.has(rowState(r)),
+                'opacity-45': rowState(r) === 'tracked',
+              }"
             >
               <td
                 v-if="i === 0"
                 :rowspan="g.items.length"
-                class="border-r border-slate-200 px-3 py-2.5 align-middle font-semibold dark:border-slate-700"
+                class="border-r border-slate-200 px-3 py-2.5 align-middle font-semibold opacity-100 dark:border-slate-700"
               >
                 <a
                   v-if="entryVariant(g.items)"
@@ -131,52 +147,48 @@ function lastRefusal(c: Comment) {
                 <template v-else>{{ g.name }}</template>
               </td>
               <td class="px-2 py-2.5 text-center align-middle">
-                <a
-                  v-if="c.issue?.url"
-                  :href="c.issue.url"
-                  target="_blank"
-                  rel="noopener"
-                  :title="`issue ${c.issue.id}`"
-                  :class="
-                    c.kind === 'defect'
-                      ? 'text-amber-700 dark:text-amber-400'
-                      : 'text-indigo-700 dark:text-indigo-300'
-                  "
-                >
-                  <KindIcon :kind="c.kind" :size="14" class="mx-auto" />
-                </a>
                 <span
-                  v-else
                   :class="
-                    c.kind === 'defect'
+                    r.comment.kind === 'defect'
                       ? 'text-amber-700 dark:text-amber-400'
                       : 'text-indigo-700 dark:text-indigo-300'
                   "
                 >
-                  <KindIcon :kind="c.kind" :size="14" class="mx-auto" />
+                  <KindIcon :kind="r.comment.kind" :size="14" class="mx-auto" />
                 </span>
               </td>
               <td class="max-w-[44ch] px-3 py-2.5 align-top">
-                {{ c.body }}
-                <a
-                  v-if="c.issue"
-                  :href="c.issue.url ?? '#'"
-                  target="_blank"
-                  rel="noopener"
-                  class="font-mono text-[11px] text-indigo-700 dark:text-indigo-300"
-                  >#{{ c.issue.id }}</a
-                >
+                <!-- The issue's title once tracked; the free text was the
+                     draft it was written from (#138). -->
+                <template v-if="r.ref">
+                  <a
+                    :href="r.ref.url ?? '#'"
+                    target="_blank"
+                    rel="noopener"
+                    class="text-indigo-700 dark:text-indigo-300"
+                    ><span class="font-mono text-[11px]">#{{ r.ref.issueId }}</span>
+                    {{ r.ref.title }}</a
+                  >
+                  <span
+                    v-if="r.first"
+                    class="mt-1 block font-mono text-[10.5px] text-slate-500 dark:text-slate-400"
+                    >was: {{ r.comment.body }}</span
+                  >
+                  <span
+                    v-if="r.ref.lastRefusal"
+                    class="mt-1 flex gap-1.5 font-mono text-[10.5px] text-amber-700 dark:text-amber-400"
+                  >
+                    <ActionIcon name="refuse" :size="12" label="refused" />{{ r.ref.lastRefusal }}
+                  </span>
+                </template>
+                <template v-else>
+                  <span class="italic">{{ r.comment.body }}</span>
+                </template>
                 <span
-                  v-if="c.discardReason"
+                  v-if="r.first && r.comment.discardReason"
                   class="mt-1 block font-mono text-[10.5px] text-slate-500 dark:text-slate-400"
-                  >discarded: {{ c.discardReason }}</span
+                  >discarded: {{ r.comment.discardReason }}</span
                 >
-                <span
-                  v-if="lastRefusal(c)"
-                  class="mt-1 flex gap-1.5 font-mono text-[10.5px] text-amber-700 dark:text-amber-400"
-                >
-                  <ActionIcon name="refuse" :size="12" label="refused" />{{ lastRefusal(c) }}
-                </span>
               </td>
               <td
                 v-for="v in grid.variants"
@@ -184,7 +196,7 @@ function lastRefusal(c: Comment) {
                 class="px-1 py-2.5 text-center align-middle"
               >
                 <ActionIcon
-                  v-if="c.variantIds.includes(v.id)"
+                  v-if="r.comment.variantIds.includes(v.id)"
                   name="check"
                   :size="13"
                   :label="`applies to ${v.label}`"
@@ -194,9 +206,11 @@ function lastRefusal(c: Comment) {
               <td class="px-3 py-2.5 align-middle whitespace-nowrap">
                 <span
                   class="inline-flex items-center gap-1.5 rounded border px-1.5 py-0.5 font-mono text-[10.5px]"
-                  :class="PILL[TONE[c.state]]"
+                  :class="PILL[TONE[rowState(r)]]"
                 >
-                  <StateIcon :tone="TONE[c.state]" :size="11" :label="c.state" />{{ c.state }}
+                  <StateIcon :tone="TONE[rowState(r)]" :size="11" :label="rowState(r)" />{{
+                    rowState(r)
+                  }}
                 </span>
               </td>
             </tr>

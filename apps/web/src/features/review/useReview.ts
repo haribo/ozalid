@@ -56,17 +56,20 @@ export function useReview(slug: () => string, caseId: () => string) {
     await send({ comments: [input] })
   }
 
-  /** Accept a delivered fix, or refuse it with a remark. */
-  async function judge(commentId: string, accept: boolean, remark?: string) {
+  /** Accept one delivered fix, or refuse it with a remark.
+   *
+   * Per ref: a comment may carry several issues, each judged on its own
+   * round (#138). */
+  async function judge(commentId: string, issueId: string, accept: boolean, remark?: string) {
     saving.value = true
     const result = await api.POST('/projects/{slug}/comments/{commentId}/judgment', {
       params: { path: { slug: slug(), commentId } },
-      body: { accept, remark },
+      body: { accept, remark, issueId },
     })
     saving.value = false
     if (result.error) {
       if (expired(result.response)) {
-        held.value = () => judge(commentId, accept, remark)
+        held.value = () => judge(commentId, issueId, accept, remark)
         return
       }
       error.value = result.error.title
