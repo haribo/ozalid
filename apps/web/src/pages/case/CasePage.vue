@@ -176,9 +176,7 @@ async function refreshCase() {
           class="inline-flex items-center gap-1.5 rounded border border-red-600 bg-red-50 px-1.5 py-0.5 text-red-700 dark:border-red-500 dark:bg-red-950/60 dark:text-red-400"
         >
           <MissingIcon :size="10" />
-          {{ tally.missing }} capture{{ tally.missing > 1 ? 's' : '' }} manquante{{
-            tally.missing > 1 ? 's' : ''
-          }}
+          {{ tally.missing }} missing capture{{ tally.missing > 1 ? 's' : '' }}
         </span>
       </div>
 
