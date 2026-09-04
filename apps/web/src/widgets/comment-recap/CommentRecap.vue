@@ -170,11 +170,6 @@ function rowState(r: Row) {
                     {{ r.ref.title }}</a
                   >
                   <span
-                    v-if="r.first"
-                    class="mt-1 block font-mono text-[10.5px] text-slate-500 dark:text-slate-400"
-                    >was: {{ r.comment.body }}</span
-                  >
-                  <span
                     v-if="r.ref.lastRefusal"
                     class="mt-1 flex gap-1.5 font-mono text-[10.5px] text-amber-700 dark:text-amber-400"
                   >
