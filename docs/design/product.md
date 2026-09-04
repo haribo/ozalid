@@ -290,6 +290,13 @@ Intake is governed by a **per-project policy** ([ADR 0007](../adr/0007-run-intak
   unfinished review.
 - `per-case` — intake is always accepted and stored; each case keeps pointing
   at the edition its reviewer is judging, and advances when that review ends.
+  **A delivery advances the case at once**: judging a fix means reading the
+  bytes that claim to fix it, so `deliver` releases the case onto the latest
+  edition even mid-review. The pin only protects what is still being judged of
+  the current sweep — validated cells keep their verdicts, and a capture that
+  changed under one comes back marked `moved`, as always. Decided when a
+  reviewer was asked to judge a fix while the pin showed them the screen from
+  before it (#142).
 
 Running the test suite is never gated. Only intake is.
 

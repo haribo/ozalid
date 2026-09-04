@@ -8,6 +8,7 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
 	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
 	"github.com/haribo/ozalid/apps/server/internal/domain/review"
+	"github.com/haribo/ozalid/internal/contract"
 )
 
 func TestValidatingASquareRemembersTheBytesThatWereApproved(t *testing.T) {
@@ -162,5 +163,72 @@ func TestTheJournalRecordsWhatTheActorSaysItIs(t *testing.T) {
 	}
 	if id != "dev" {
 		t.Errorf("actor id = %q, want the actor that was carried", id)
+	}
+}
+
+// A delivery advances the case onto the edition that carries the fix: judging
+// it means reading those bytes, and the pin was showing the reviewer the
+// screen from before it (#142).
+func TestADeliveryAdvancesTheCaseOntoItsEdition(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+
+	before := storeBlob(t, ctx, repo, "before the fix")
+	after := storeBlob(t, ctx, repo, "after the fix")
+	manifest := func(rev, hash string) contract.Manifest {
+		return contract.Manifest{Revision: rev, Cases: []contract.ManifestCase{{
+			ID: kase.ID,
+			Steps: []contract.ManifestStep{{Name: "the door", Captures: []contract.ManifestCapture{
+				{Variant: map[string]string{"theme": "light"}, Hash: hash},
+			}}},
+		}}}
+	}
+	first, err := repo.WriteEdition(ctx, project.Slug, manifest("one", before), nil)
+	if err != nil {
+		t.Fatalf("first edition: %v", err)
+	}
+
+	// A comment, tracked — the case sits at to-review and is pinned there.
+	comments, err := repo.OfCase(ctx, project.Slug, kase.ID)
+	if err != nil {
+		t.Fatalf("reading comments: %v", err)
+	}
+	_ = comments
+	q := sqlcgen.New(repo.Pool())
+	author := person(t, ctx, q, "delivery-author", false)
+	var stepID, variantID string
+	if err := repo.Pool().QueryRow(ctx,
+		`SELECT c.step_id, c.variant_id FROM captures c WHERE c.edition_id = $1`, first.EditionID,
+	).Scan(&stepID, &variantID); err != nil {
+		t.Fatalf("finding the capture: %v", err)
+	}
+	created, err := q.CreateComment(ctx, sqlcgen.CreateCommentParams{
+		CaseID: kase.ID, StepID: stepID, Kind: "defect", Body: "off", AuthorID: author.ID,
+	})
+	if err != nil {
+		t.Fatalf("creating the comment: %v", err)
+	}
+	byHand := actor.Actor{ID: author.ID, Kind: actor.Human}
+	if _, err := repo.Track(ctx, project.Slug, created.ID, byHand, appcomment.IssueRef{ID: "9"}); err != nil {
+		t.Fatalf("tracking: %v", err)
+	}
+
+	// The fix lands as a second edition; the pinned case does not follow yet.
+	if _, err := repo.WriteEdition(ctx, project.Slug, manifest("two", after), nil); err != nil {
+		t.Fatalf("second edition: %v", err)
+	}
+
+	// Delivering is what moves it: the reviewer must read the fix's bytes.
+	if _, err := repo.Deliver(ctx, project.Slug, created.ID, "", byHand); err != nil {
+		t.Fatalf("delivering: %v", err)
+	}
+	grid, err := repo.CaseGrid(ctx, project.Slug, kase.ID, nil)
+	if err != nil {
+		t.Fatalf("reading the grid: %v", err)
+	}
+	if len(grid.Steps) != 1 || len(grid.Steps[0].Cells) != 1 {
+		t.Fatalf("grid = %+v, want the single fixed cell", grid.Steps)
+	}
+	if grid.Steps[0].Cells[0].Hash != after {
+		t.Errorf("the case still shows %s, want the delivered %s", grid.Steps[0].Cells[0].Hash, after)
 	}
 }
