@@ -1039,3 +1039,65 @@ func TestAStepInsertedMidFlowRenamesNothing(t *testing.T) {
 		t.Errorf("captures on the shifted step = %d, want 2 (one per edition)", captures)
 	}
 }
+
+// The production scenario of #137: a case pinned to an older edition showed a
+// step born later as a row of missing marks — and `missing` means a failed
+// run (ADR 0016), not a screen from the future.
+func TestAnOlderEditionDoesNotDrawAStepBornLater(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+
+	door := storeBlob(t, ctx, repo, "the door, again")
+	sent := storeBlob(t, ctx, repo, "the sent state, again")
+	typed := storeBlob(t, ctx, repo, "an address typed, again")
+
+	step := func(name, hash string) contract.ManifestStep {
+		return contract.ManifestStep{Name: name, Captures: []contract.ManifestCapture{
+			{Variant: map[string]string{"theme": "light"}, Hash: hash},
+		}}
+	}
+	first, err := repo.WriteEdition(ctx, project.Slug, contract.Manifest{
+		Revision: "one",
+		Cases: []contract.ManifestCase{{ID: kase.ID, Steps: []contract.ManifestStep{
+			step("arrive at the door", door), step("ask for a link", sent),
+		}}},
+	}, nil)
+	if err != nil {
+		t.Fatalf("first edition: %v", err)
+	}
+	second, err := repo.WriteEdition(ctx, project.Slug, contract.Manifest{
+		Revision: "two",
+		Cases: []contract.ManifestCase{{ID: kase.ID, Steps: []contract.ManifestStep{
+			step("arrive at the door", door), step("enter an address", typed), step("ask for a link", sent),
+		}}},
+	}, nil)
+	if err != nil {
+		t.Fatalf("second edition: %v", err)
+	}
+
+	// The older view holds its own two steps, whole — and not the third.
+	old, err := repo.CaseGrid(ctx, project.Slug, kase.ID, &first.EditionID)
+	if err != nil {
+		t.Fatalf("reading the old edition: %v", err)
+	}
+	names := make([]string, 0, len(old.Steps))
+	for _, s := range old.Steps {
+		names = append(names, s.Name)
+		if len(s.Cells) == 0 {
+			t.Errorf("step %q drawn with no cells", s.Name)
+		}
+	}
+	if len(names) != 2 || names[0] != "arrive at the door" || names[1] != "ask for a link" {
+		t.Errorf("old edition draws %v, want its own two steps", names)
+	}
+
+	// The newer view holds all three. Asked for by id: the case is pinned to
+	// the first edition while its review runs, so the default read is the old
+	// view — which is the very situation #137 was reported from.
+	now, err := repo.CaseGrid(ctx, project.Slug, kase.ID, &second.EditionID)
+	if err != nil {
+		t.Fatalf("reading the second edition: %v", err)
+	}
+	if len(now.Steps) != 3 {
+		t.Errorf("second edition draws %d steps, want 3", len(now.Steps))
+	}
+}

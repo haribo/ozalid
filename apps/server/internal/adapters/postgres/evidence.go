@@ -64,19 +64,15 @@ func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionI
 			byStep[row.StepID] = idx
 		}
 
-		// A step with no capture at this edition still exists: the left join
-		// gives it a row with no variant.
-		if row.VariantID == nil {
-			continue
-		}
-
-		if _, known := variants[*row.VariantID]; !known {
+		// Every row carries a capture now: a step the displayed edition never
+		// captured is absent from the view rather than drawn as missing (#137).
+		if _, known := variants[row.VariantID]; !known {
 			values := map[string]string{}
 			if err := json.Unmarshal(row.VariantValues, &values); err != nil {
 				return evidence.Grid{}, fmt.Errorf("decoding a variant: %w", err)
 			}
-			variants[*row.VariantID] = evidence.Variant{
-				ID: *row.VariantID, Label: *row.VariantLabel, Values: values,
+			variants[row.VariantID] = evidence.Variant{
+				ID: row.VariantID, Label: row.VariantLabel, Values: values,
 			}
 		}
 
@@ -88,7 +84,7 @@ func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionI
 		}
 
 		cell := evidence.Cell{
-			ID: *row.CaptureID, VariantID: *row.VariantID, Hash: *row.BlobHash,
+			ID: row.CaptureID, VariantID: row.VariantID, Hash: row.BlobHash,
 			Status: row.Status, Provenance: provenance,
 		}
 		if row.Freshness != nil {

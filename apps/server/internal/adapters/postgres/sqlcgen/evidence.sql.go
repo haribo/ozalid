@@ -49,8 +49,8 @@ SELECT
     -- the ball on it (ADR 0012).
     coalesce(cv.status, 'to-review') AS status
 FROM steps s
-LEFT JOIN captures c ON c.step_id = s.id AND c.edition_id = $2
-LEFT JOIN variants v ON v.id = c.variant_id
+JOIN captures c ON c.step_id = s.id AND c.edition_id = $2
+JOIN variants v ON v.id = c.variant_id
 LEFT JOIN capture_verdicts cv
        ON cv.case_id = s.case_id AND cv.step_id = s.id AND cv.variant_id = c.variant_id
 WHERE s.case_id = $1
@@ -66,11 +66,11 @@ type CaseEvidenceRow struct {
 	StepID        string
 	StepName      string
 	StepPosition  int32
-	VariantID     *string
-	VariantLabel  *string
+	VariantID     string
+	VariantLabel  string
 	VariantValues []byte
-	CaptureID     *string
-	BlobHash      *string
+	CaptureID     string
+	BlobHash      string
 	Provenance    []byte
 	Freshness     *string
 	MovedPixels   *int32
@@ -80,6 +80,10 @@ type CaseEvidenceRow struct {
 // Every capture of one case at one edition, joined with its step and variant.
 // One query rather than a walk over steps: a case with thirty steps in eight
 // variants would otherwise be two hundred and forty round trips.
+// A step belongs to the view only if the displayed edition captured it: since
+// steps outlive editions (#135), one born in a later edition would otherwise
+// render in an older view as a row of `missing` marks — and `missing` means a
+// failed run (ADR 0016), not a screen from the future (#137).
 func (q *Queries) CaseEvidence(ctx context.Context, arg CaseEvidenceParams) ([]CaseEvidenceRow, error) {
 	rows, err := q.db.Query(ctx, caseEvidence, arg.CaseID, arg.EditionID)
 	if err != nil {
