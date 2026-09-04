@@ -182,6 +182,15 @@ func (r *Repository) move(
 	}
 	before := review.CaseState(kase.State)
 
+	// A delivery advances the case at once: judging a fix means reading the
+	// bytes that claim to fix it, and the pin was showing the reviewer the
+	// screen from before the fix (product.md §7, #142).
+	if m == review.MoveDeliver {
+		if err := q.ReleaseToLatestEdition(ctx, kase.ID); err != nil {
+			return appcomment.Outcome{}, translate("advancing onto the delivery", err)
+		}
+	}
+
 	facts, err := gatherFacts(ctx, q, kase)
 	if err != nil {
 		return appcomment.Outcome{}, err
