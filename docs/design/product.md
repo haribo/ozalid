@@ -181,6 +181,13 @@ square takes the validation back — a misclick, or a second look. The journal
 keeps both moves, and the reference stamped at validation stays: freshness is
 history, not a verdict. Verified by `TestAValidationCanBeTakenBack`.
 
+**Taking a validation back applies whatever made the capture validated**
+(#167). An explicit validation is deleted. A validation derived from a settled
+reference takes the judgment back instead: the reference returns to to-review,
+and the capture with it. The take-back joins the judgment history — who
+un-accepted, and when, is information exactly like the acceptance was.
+Verified by `TestUnvalidateTakesASettledJudgmentBack`.
+
 A cell covered by a comment whose **every open ref is delivered** reads
 `to-review`: the ball is the reviewer's, and the grid says so. It reads
 `to-fix` only while some ref still sits with the dev — tracked or refused —
