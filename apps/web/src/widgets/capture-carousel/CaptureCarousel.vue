@@ -8,7 +8,7 @@
  */
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import type { components } from '@/shared/api'
-import { ActionIcon, KindIcon, MovedIcon, StateIcon } from '@/shared/ui'
+import { AppButton, ActionIcon, KindIcon, MovedIcon, StateIcon } from '@/shared/ui'
 import { hasMoved, type Tone } from '@/shared/lib'
 
 type Grid = components['schemas']['Grid']
@@ -322,22 +322,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </ul>
 
       <div class="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          class="inline-flex items-center gap-1.5 rounded border border-emerald-600 px-3 py-1.5 text-body text-emerald-700 disabled:opacity-50 dark:border-emerald-500 dark:text-emerald-400"
-          :disabled="busy"
-          @click="accept"
-        >
+        <AppButton variant="secondary" :disabled="busy" @click="accept">
           <ActionIcon name="accept" :size="13" />accept
-        </button>
-        <button
-          type="button"
-          class="inline-flex items-center gap-1.5 rounded border border-amber-600 px-3 py-1.5 text-body text-amber-700 disabled:opacity-50 dark:border-amber-500 dark:text-amber-400"
+        </AppButton>
+        <AppButton
           :disabled="busy || (refusing && remark.trim() === '')"
+          variant="destructive"
           @click="refuse"
         >
           <ActionIcon name="refuse" :size="13" />refuse
-        </button>
+        </AppButton>
         <span v-if="!refusing" class="font-mono text-mono text-slate-500"
           >refusing will ask for your remark</span
         >
@@ -357,23 +351,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       v-else-if="!composing"
       class="flex flex-wrap items-center gap-2 border-t border-slate-200 p-3 dark:border-slate-700"
     >
-      <button
-        type="button"
-        class="inline-flex items-center gap-1.5 rounded border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-body text-white disabled:opacity-50"
+      <AppButton
         :disabled="busy || cell?.status === 'validated'"
         @click="emit('validate', stepId, variantId)"
       >
         <ActionIcon name="check" :size="13" />validate
         <kbd class="rounded border border-current px-1 text-body">space</kbd>
-      </button>
-      <button
-        type="button"
-        class="inline-flex items-center gap-1.5 rounded border border-amber-600 px-3 py-1.5 text-body text-amber-700 dark:border-amber-500 dark:text-amber-400"
-        :disabled="busy"
-        @click="openComposer"
-      >
+      </AppButton>
+      <AppButton :disabled="busy" variant="destructive" @click="openComposer">
         <ActionIcon name="comment" :size="13" />comment
-      </button>
+      </AppButton>
       <span
         v-if="cell?.status === 'validated'"
         class="inline-flex items-center gap-1.5 font-mono text-mono text-emerald-700 dark:text-emerald-400"
@@ -398,6 +385,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </p>
 
       <div class="mb-2.5 flex gap-1.5">
+        <!-- eslint-disable-next-line vue/no-restricted-html-elements -- a toggle chip, not an action (#155) -->
         <button
           type="button"
           class="inline-flex items-center gap-1.5 rounded border px-2.5 py-1 font-mono text-mono"
@@ -410,6 +398,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         >
           <KindIcon kind="defect" :size="12" />defect
         </button>
+        <!-- eslint-disable-next-line vue/no-restricted-html-elements -- a toggle chip, not an action (#155) -->
         <button
           type="button"
           class="inline-flex items-center gap-1.5 rounded border px-2.5 py-1 font-mono text-mono"
@@ -446,41 +435,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           {{ v.label }}
         </label>
         <span class="ml-auto flex flex-wrap gap-1.5">
-          <button
+          <AppButton
             v-for="value in groups"
             :key="value"
-            type="button"
-            class="rounded-full border border-slate-300 px-2 py-0.5 text-body text-slate-500 hover:border-indigo-500 hover:text-indigo-600 dark:border-slate-600 dark:text-slate-400"
+            variant="secondary"
             @click="pickValue(value)"
           >
             {{ value }}
-          </button>
-          <button
-            type="button"
-            class="rounded-full border border-slate-300 px-2 py-0.5 text-body text-slate-500 hover:border-indigo-500 hover:text-indigo-600 dark:border-slate-600 dark:text-slate-400"
-            @click="pickAll"
-          >
-            all
-          </button>
+          </AppButton>
+          <AppButton variant="secondary" @click="pickAll"> all </AppButton>
         </span>
       </div>
 
       <div class="mt-3 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body text-white disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:border-slate-600 dark:disabled:bg-slate-800"
-          :disabled="!canAdd || busy"
-          @click="add"
-        >
-          add
-        </button>
-        <button
-          type="button"
-          class="rounded border border-slate-300 px-3 py-1.5 text-body text-slate-600 dark:border-slate-600 dark:text-slate-300"
-          @click="composing = false"
-        >
-          cancel
-        </button>
+        <AppButton :disabled="!canAdd || busy" @click="add"> add </AppButton>
+        <AppButton variant="secondary" @click="composing = false"> cancel </AppButton>
         <span class="font-mono text-mono text-slate-500">
           {{ chosen.length }} variant{{ chosen.length > 1 ? 's' : '' }} ticked
         </span>

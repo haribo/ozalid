@@ -233,6 +233,8 @@ describe('the group shortcuts', () => {
   })
 })
 
+const press = (key: string) => window.dispatchEvent(new KeyboardEvent('keydown', { key }))
+
 describe('arrows walk the steps (#149)', () => {
   const three: Grid = {
     caseId: 'c1',
@@ -263,8 +265,6 @@ describe('arrows walk the steps (#149)', () => {
       props: { slug: 'atlas', grid: three, comments: [], stepId, variantId },
       attachTo: document.body,
     })
-
-  const press = (key: string) => window.dispatchEvent(new KeyboardEvent('keydown', { key }))
 
   it('moves to the next step and keeps the variant', () => {
     const w = at('s1', 'v2')

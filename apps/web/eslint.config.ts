@@ -23,7 +23,19 @@ export default defineConfigWithVueTs(
     files: ['src/**/*.vue'],
     rules: {
       'vue/no-restricted-class': ['error', '/^text-\\[/'],
+      // A raw <button> is how the cursor, the disabled look and the focus
+      // ring drifted apart (#155): AppButton is the one way. Toggle chips are
+      // the documented exception, disabled inline where they live.
+      'vue/no-restricted-html-elements': [
+        'error',
+        { element: 'button', message: 'use AppButton (shared/ui) — #155' },
+      ],
     },
+  },
+  {
+    // The one raw <button>: the primitive itself.
+    files: ['src/shared/ui/AppButton.vue'],
+    rules: { 'vue/no-restricted-html-elements': 'off' },
   },
   ...LAYERS.map((layer) => ({
     files: [`src/${layer}/**/*.{ts,vue}`],

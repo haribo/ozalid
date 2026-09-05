@@ -8,7 +8,7 @@
  * whatever this screen offers.
  */
 import { onMounted, ref } from 'vue'
-import { AdminIcon } from '@/shared/ui'
+import { AppButton, AdminIcon } from '@/shared/ui'
 import { useProjects } from '@/features/projects'
 import { useSession } from '@/features/session'
 
@@ -34,14 +34,9 @@ async function submit() {
   <main class="mx-auto max-w-5xl px-6 py-8">
     <div class="mb-4 flex items-end gap-3">
       <h1 class="text-title font-semibold">Projects</h1>
-      <button
-        v-if="person?.isAdmin"
-        type="button"
-        class="ml-auto inline-flex items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 dark:border-indigo-500 dark:bg-indigo-500"
-        @click="making = !making"
-      >
+      <AppButton v-if="person?.isAdmin" @click="making = !making">
         <AdminIcon name="add" :size="12" />New project
-      </button>
+      </AppButton>
     </div>
 
     <form
@@ -66,12 +61,7 @@ async function submit() {
           class="rounded border border-slate-300 bg-white px-2.5 py-1.5 font-mono text-mono dark:border-slate-600 dark:bg-slate-900"
         />
       </label>
-      <button
-        type="submit"
-        class="justify-self-start rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white dark:border-indigo-500 dark:bg-indigo-500"
-      >
-        Create
-      </button>
+      <AppButton type="submit"> Create </AppButton>
     </form>
 
     <p v-if="error" class="font-mono text-mono text-red-700 dark:text-red-400">{{ error }}</p>

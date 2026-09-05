@@ -7,7 +7,7 @@
  * question — who reaches it — and drops them.
  */
 import { computed, onMounted, ref } from 'vue'
-import { AdminIcon } from '@/shared/ui'
+import { AppButton, AdminIcon } from '@/shared/ui'
 import { formatMoment } from '@/shared/lib'
 import { useAccounts } from '@/features/accounts'
 
@@ -43,13 +43,9 @@ async function submit() {
   <main class="mx-auto max-w-5xl px-6 py-8">
     <div class="mb-4 flex items-end gap-3">
       <h1 class="text-title font-semibold">Accounts</h1>
-      <button
-        type="button"
-        class="ml-auto inline-flex items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 dark:border-indigo-500 dark:bg-indigo-500"
-        @click="making = !making"
-      >
+      <AppButton @click="making = !making">
         <AdminIcon name="add" :size="12" />New account
-      </button>
+      </AppButton>
     </div>
 
     <label
@@ -88,13 +84,7 @@ async function submit() {
           administers the instance
         </span>
       </label>
-      <button
-        type="submit"
-        :disabled="busy"
-        class="justify-self-start rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
-      >
-        Create the account
-      </button>
+      <AppButton :disabled="busy" type="submit"> Create the account </AppButton>
     </form>
 
     <p v-if="error" class="mb-3 font-mono text-mono text-red-700 dark:text-red-400">
@@ -155,25 +145,20 @@ async function submit() {
           <td class="py-2 pr-3 font-mono text-mono">{{ formatMoment(a.createdAt) }}</td>
           <td class="py-2 text-right whitespace-nowrap">
             <template v-if="!a.deactivatedAt">
-              <button
-                type="button"
+              <AppButton
                 :disabled="busy"
-                class="mr-1.5 inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 text-indigo-700 disabled:opacity-50 dark:border-slate-600 dark:text-indigo-300"
+                variant="secondary"
+                icon
                 @click="setAdmin(a.id, !a.isAdmin)"
               >
                 <AdminIcon
                   name="swap"
                   :label="a.isAdmin ? 'stop being an admin' : 'make an admin'"
                 />
-              </button>
-              <button
-                type="button"
-                :disabled="busy"
-                class="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 text-indigo-700 disabled:opacity-50 dark:border-slate-600 dark:text-indigo-300"
-                @click="deactivate(a.id)"
-              >
+              </AppButton>
+              <AppButton :disabled="busy" variant="secondary" icon @click="deactivate(a.id)">
                 <AdminIcon name="remove" label="deactivate the account" />
-              </button>
+              </AppButton>
             </template>
           </td>
         </tr>

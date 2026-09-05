@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { AppButton } from '@/shared/ui'
 /**
  * The door. One field, one button, then one message.
  *
@@ -48,13 +49,7 @@ const floating = computed(() => focused.value || email.value.length > 0)
         <span class="text-slate-500 dark:text-slate-400">
           Nothing yet? Check the address, then your spam.
         </span>
-        <button
-          type="button"
-          class="mt-2 block font-mono text-mono text-indigo-700 underline underline-offset-2 dark:text-indigo-300"
-          @click="askAgain"
-        >
-          Use another address
-        </button>
+        <AppButton variant="ghost" @click="askAgain"> Use another address </AppButton>
       </div>
     </div>
 
@@ -105,13 +100,7 @@ const floating = computed(() => focused.value || email.value.length > 0)
 
       <p v-if="error" class="text-body text-rose-700 dark:text-rose-400">{{ error }}</p>
 
-      <button
-        type="submit"
-        :disabled="busy"
-        class="rounded border border-indigo-600 bg-indigo-600 px-3.5 py-2 text-body font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
-      >
-        Send the link
-      </button>
+      <AppButton :disabled="busy" type="submit"> Send the link </AppButton>
     </form>
   </div>
 </template>
