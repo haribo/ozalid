@@ -363,7 +363,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <AppButton
         :disabled="busy"
         :success="cell?.status === 'validated'"
-        @click="emit('validate', stepId, variantId)"
+        @click="
+          cell?.status === 'validated'
+            ? emit('unvalidate', stepId, variantId)
+            : emit('validate', stepId, variantId)
+        "
       >
         {{ cell?.status === 'validated' ? '✓ validated' : 'to validate' }}
       </AppButton>

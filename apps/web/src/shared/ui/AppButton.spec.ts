@@ -13,12 +13,14 @@ describe('AppButton', () => {
     expect(w.emitted('click')).toHaveLength(1)
   })
 
-  it('is inert in success, and holds its width so the row does not move', async () => {
+  it('still clicks in success, and holds its width so the row does not move', async () => {
     const w = mount(AppButton, { slots: { default: 'to validate' } })
     await w.setProps({ success: true })
     await w.trigger('click')
-    // Inert: success is feedback, not a target (#155, after tribnest ADR-0008).
-    expect(w.emitted('click')).toBeUndefined()
+    // The click passes through: whether success is inert feedback or a toggle
+    // is the caller's decision — a mouse user must be able to take a
+    // validation back (#156).
+    expect(w.emitted('click')).toHaveLength(1)
     // The width at the switch is pinned, so the shorter label shifts nothing.
     expect(w.attributes('style')).toContain('min-width')
   })

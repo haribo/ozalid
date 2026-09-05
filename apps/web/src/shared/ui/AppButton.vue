@@ -6,7 +6,10 @@
  * never content. `success` is the transient save-feedback state: inert, and
  * it keeps the width it had at the switch so nothing in the row moves. An
  * icon-only button squares itself and must be given a `label`, since the icon
- * alone says nothing to a screen reader.
+ * alone says nothing to a screen reader. A success button still emits click:
+ * whether it is inert feedback or a toggle is the caller's decision — the
+ * carousel's validated square untoggles on it (#156, learnt when a mouse
+ * user could not take a validation back).
  *
  * A raw `<button>` outside shared/ui is a lint error, which is what keeps the
  * cursor, the disabled look and the focus ring from drifting ever again.
@@ -75,7 +78,7 @@ const ICON_SIZE: Record<Size, string> = {
 }
 
 function onClick() {
-  if (!props.disabled && !props.success) emit('click')
+  if (!props.disabled) emit('click')
 }
 </script>
 
@@ -89,10 +92,10 @@ function onClick() {
     class="inline-flex items-center justify-center gap-1.5 rounded border font-medium focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500"
     :class="[
       success
-        ? 'cursor-default border-emerald-600 text-emerald-700 dark:border-emerald-500 dark:text-emerald-400'
+        ? 'cursor-pointer border-emerald-600 text-emerald-700 dark:border-emerald-500 dark:text-emerald-400'
         : VARIANT[variant],
       icon ? ICON_SIZE[size] : SIZE[size],
-      disabled ? 'cursor-not-allowed opacity-50' : success ? '' : 'cursor-pointer',
+      disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
     ]"
     @click="onClick"
   >
