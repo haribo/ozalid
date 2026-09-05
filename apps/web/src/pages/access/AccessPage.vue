@@ -9,7 +9,7 @@
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { AppButton, AdminIcon, MintedTokenPanel, RightsPill } from '@/shared/ui'
+import { EmptyState, AppButton, AdminIcon, MintedTokenPanel, RightsPill } from '@/shared/ui'
 import { formatMoment } from '@/shared/lib'
 import { useAccess } from '@/features/access'
 import { useAccounts } from '@/features/accounts'
@@ -192,12 +192,7 @@ async function addProgram() {
          The same treatment as the tokens screen, which ends on a sentence
          (#112). Guarded on `ready` so the empty answer is only given once
          there is one. -->
-    <p
-      v-if="ready && !members.length"
-      class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center font-mono text-mono text-slate-500 dark:border-slate-600 dark:text-slate-400"
-    >
-      nobody reaches this project
-    </p>
+    <EmptyState v-if="ready && !members.length"> nobody reaches this project </EmptyState>
 
     <table v-else class="w-full border-collapse text-body">
       <thead>

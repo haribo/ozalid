@@ -14,7 +14,7 @@
  */
 import { computed } from 'vue'
 import type { components } from '@/shared/api'
-import { AppButton, MissingIcon, MovedIcon, StateIcon, VariantHead } from '@/shared/ui'
+import { EmptyState, AppButton, MissingIcon, MovedIcon, StateIcon, VariantHead } from '@/shared/ui'
 import { hasMoved, type Tone } from '@/shared/lib'
 
 type Grid = components['schemas']['Grid']
@@ -90,12 +90,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
 </script>
 
 <template>
-  <p
-    v-if="grid.steps.length === 0"
-    class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center font-mono text-mono text-slate-500 dark:border-slate-600 dark:text-slate-400"
-  >
-    no capture on this case
-  </p>
+  <EmptyState v-if="grid.steps.length === 0"> no capture on this case </EmptyState>
 
   <template v-else>
     <div class="overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700">
@@ -223,12 +218,14 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
                    one was not. That is a failed run, not a deliberate
                    absence. -->
               <template v-else>
+                <!-- eslint-disable vue/no-restricted-class -- the missing mark's own dashes (ADR 0016), not an empty state -->
                 <span
                   class="inline-grid place-items-center border-2 border-dashed border-red-600 bg-red-50 text-red-700 dark:border-red-500 dark:bg-red-950/50 dark:text-red-400"
                   :class="isPortrait(v.values) ? SIZE.tall : SIZE.wide"
                 >
                   <MissingIcon :size="18" />
                 </span>
+                <!-- eslint-enable vue/no-restricted-class -->
               </template>
             </td>
           </tr>
