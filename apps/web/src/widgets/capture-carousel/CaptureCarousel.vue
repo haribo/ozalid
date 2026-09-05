@@ -33,18 +33,9 @@ const emit = defineEmits<{
   judge: [commentId: string, issueRefId: string, accept: boolean, remark: string]
 }>()
 
-/** Every square that exists, in reading order: steps down, variants across. */
-const squares = computed(() =>
-  props.grid.steps.flatMap((step) =>
-    props.grid.variants
-      .filter((v) => step.cells.some((c) => c.variantId === v.id))
-      .map((v) => ({ stepId: step.id, variantId: v.id })),
-  ),
-)
-
-const index = computed(() =>
-  squares.value.findIndex((s) => s.stepId === props.stepId && s.variantId === props.variantId),
-)
+/** Where the open step sits in the flow. The counter counts steps: the
+ * horizontal walk is the flow, and the variant is a lens on it (#149). */
+const stepIndex = computed(() => props.grid.steps.findIndex((s) => s.id === props.stepId))
 
 const step = computed(() => props.grid.steps.find((s) => s.id === props.stepId))
 const variant = computed(() => props.grid.variants.find((v) => v.id === props.variantId))
@@ -84,13 +75,19 @@ const judged = computed(
   () => cell.value !== undefined && cell.value.status in VERDICT_TONE && !moved.value,
 )
 
+/** Left and right walk the steps, keeping the variant; a step that lacks it
+ * is skipped rather than switching the lens under the reviewer (#149). */
 function go(delta: number) {
-  const next = squares.value[index.value + delta]
-  if (next) emit('move', next.stepId, next.variantId)
+  for (let i = stepIndex.value + delta; i >= 0 && i < props.grid.steps.length; i += delta) {
+    const candidate = props.grid.steps[i]
+    if (candidate.cells.some((c) => c.variantId === props.variantId)) {
+      emit('move', candidate.id, props.variantId)
+      return
+    }
+  }
 }
 
-/** Up and down move to the same step's next variant; left and right walk the
- * whole grid in reading order. */
+/** Up and down move to the same step's next variant. */
 function goVariant(delta: number) {
   const here = props.grid.variants.findIndex((v) => v.id === props.variantId)
   const next = props.grid.variants[here + delta]
@@ -248,11 +245,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         · {{ variant?.label }}
       </span>
       <span>
-        {{ index + 1 }} / {{ squares.length }} ·
+        {{ stepIndex + 1 }} / {{ grid.steps.length }} ·
         <!-- Arrow glyphs are missing from most monospace faces and render as
              empty boxes; the system font has them. -->
         <kbd class="rounded border border-current px-1 font-sans">←</kbd>
-        <kbd class="rounded border border-current px-1 font-sans">→</kbd> capture ·
+        <kbd class="rounded border border-current px-1 font-sans">→</kbd> step ·
         <kbd class="rounded border border-current px-1 font-sans">↑</kbd>
         <kbd class="rounded border border-current px-1 font-sans">↓</kbd> variant ·
         <kbd class="rounded border border-current px-1">Esc</kbd> close

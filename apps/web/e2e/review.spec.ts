@@ -35,7 +35,7 @@ test('clicking a capture opens the carousel on that exact square', async ({ page
 
   const carousel = page.getByRole('dialog', { name: 'capture' })
   await expect(carousel).toContainText('opens the link received by e-mail')
-  await expect(carousel).toContainText('3 / 6')
+  await expect(carousel).toContainText('2 / 3')
 })
 
 test('space validates, and the server is what says so', async ({ page }) => {
