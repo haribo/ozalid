@@ -17,6 +17,14 @@ export default defineConfigWithVueTs(
   // this the two disagree on line breaks and every file reports warnings
   // nobody can fix.
   prettier,
+  {
+    // Four type roles and nothing else (#145): an arbitrary text size is how
+    // the scale rotted the first time. The roles live in style.css's @theme.
+    files: ['src/**/*.vue'],
+    rules: {
+      'vue/no-restricted-class': ['error', '/^text-\\[/'],
+    },
+  },
   ...LAYERS.map((layer) => ({
     files: [`src/${layer}/**/*.{ts,vue}`],
     rules: {

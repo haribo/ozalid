@@ -92,17 +92,17 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
 <template>
   <p
     v-if="grid.steps.length === 0"
-    class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center font-mono text-[12px] text-slate-500 dark:border-slate-600 dark:text-slate-400"
+    class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center font-mono text-mono text-slate-500 dark:border-slate-600 dark:text-slate-400"
   >
     no capture on this case
   </p>
 
   <template v-else>
     <div class="overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700">
-      <table class="w-full border-separate border-spacing-0 text-[13.5px]">
+      <table class="w-full border-separate border-spacing-0 text-body">
         <thead>
           <tr
-            class="bg-slate-50 font-mono text-[10.5px] text-slate-500 dark:bg-slate-800/60 dark:text-slate-400"
+            class="bg-slate-50 font-mono text-mono text-slate-500 dark:bg-slate-800/60 dark:text-slate-400"
           >
             <th
               class="border-r border-b border-slate-200 px-3 py-2 text-left font-medium dark:border-slate-700"
@@ -121,11 +121,11 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
         <tbody>
           <tr v-if="hasRecordings" class="bg-slate-50/60 dark:bg-slate-800/30">
             <th
-              class="border-r border-b border-slate-200 px-3 py-2.5 text-left align-middle text-[12.5px] font-semibold dark:border-slate-700"
+              class="border-r border-b border-slate-200 px-3 py-2.5 text-left align-middle text-body font-semibold dark:border-slate-700"
             >
               recording
               <i
-                class="mt-0.5 block font-mono text-[10px] font-normal text-slate-500 not-italic dark:text-slate-400"
+                class="mt-0.5 block font-mono text-mono font-normal text-slate-500 not-italic dark:text-slate-400"
               >
                 the whole flow
               </i>
@@ -156,11 +156,11 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
 
           <tr v-for="step in grid.steps" :key="step.id">
             <th
-              class="border-r border-b border-slate-200 px-3 py-2.5 text-left align-middle text-[12.5px] font-semibold last:border-b-0 dark:border-slate-700"
+              class="border-r border-b border-slate-200 px-3 py-2.5 text-left align-middle text-body font-semibold last:border-b-0 dark:border-slate-700"
             >
               {{ step.name }}
               <i
-                class="mt-0.5 block font-mono text-[10px] font-normal text-slate-500 not-italic dark:text-slate-400"
+                class="mt-0.5 block font-mono text-mono font-normal text-slate-500 not-italic dark:text-slate-400"
               >
                 step {{ step.position + 1 }}
               </i>
@@ -240,7 +240,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
     <!-- The words are gone from under the thumbnails, so the language is learnt
          here instead — once, rather than translated under every cell. -->
     <div
-      class="mt-2.5 flex flex-wrap justify-center gap-x-5 gap-y-1.5 font-mono text-[10.5px] text-slate-500 dark:text-slate-400"
+      class="mt-2.5 flex flex-wrap justify-center gap-x-5 gap-y-1.5 font-mono text-mono text-slate-500 dark:text-slate-400"
     >
       <span class="flex items-center gap-1.5">
         <StateIcon tone="reviewer" :size="12" label="to review" />to review

@@ -43,14 +43,14 @@ const floating = computed(() => focused.value || email.value.length > 0)
           <path d="m2.8 8.6 3.4 3.4 7-7.4" />
         </svg>
       </span>
-      <div class="text-[13px] leading-relaxed">
+      <div class="text-body leading-relaxed">
         <b class="block font-semibold">The link is on its way.</b>
         <span class="text-slate-500 dark:text-slate-400">
           Nothing yet? Check the address, then your spam.
         </span>
         <button
           type="button"
-          class="mt-2 block font-mono text-[11.5px] text-indigo-700 underline underline-offset-2 dark:text-indigo-300"
+          class="mt-2 block font-mono text-mono text-indigo-700 underline underline-offset-2 dark:text-indigo-300"
           @click="askAgain"
         >
           Use another address
@@ -59,7 +59,7 @@ const floating = computed(() => focused.value || email.value.length > 0)
     </div>
 
     <form v-else class="flex flex-col gap-3" @submit.prevent="requestLink(email)">
-      <h1 class="text-lg font-semibold">Sign in</h1>
+      <h1 class="text-title font-semibold">Sign in</h1>
 
       <div class="relative">
         <input
@@ -68,7 +68,7 @@ const floating = computed(() => focused.value || email.value.length > 0)
           type="email"
           required
           autocomplete="email"
-          class="h-[42px] w-full rounded border-2 bg-slate-100 px-3 text-[13.5px] text-slate-900 outline-none dark:bg-slate-800 dark:text-slate-100"
+          class="h-[42px] w-full rounded border-2 bg-slate-100 px-3 text-body text-slate-900 outline-none dark:bg-slate-800 dark:text-slate-100"
           :class="
             focused
               ? 'border-indigo-500 dark:border-indigo-400'
@@ -83,8 +83,8 @@ const floating = computed(() => focused.value || email.value.length > 0)
           :class="[
             focused ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-400',
             floating
-              ? '-top-2 left-2 gap-1.5 rounded bg-white px-1.5 font-mono text-[10px] tracking-wider uppercase dark:bg-slate-950'
-              : 'top-1/2 left-3 -translate-y-1/2 gap-2 text-[13.5px]',
+              ? '-top-2 left-2 gap-1.5 rounded bg-white px-1.5 font-mono text-label tracking-wider uppercase dark:bg-slate-950'
+              : 'top-1/2 left-3 -translate-y-1/2 gap-2 text-label',
           ]"
         >
           <svg
@@ -103,12 +103,12 @@ const floating = computed(() => focused.value || email.value.length > 0)
         </label>
       </div>
 
-      <p v-if="error" class="text-[13px] text-rose-700 dark:text-rose-400">{{ error }}</p>
+      <p v-if="error" class="text-body text-rose-700 dark:text-rose-400">{{ error }}</p>
 
       <button
         type="submit"
         :disabled="busy"
-        class="rounded border border-indigo-600 bg-indigo-600 px-3.5 py-2 text-[13px] font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
+        class="rounded border border-indigo-600 bg-indigo-600 px-3.5 py-2 text-body font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
       >
         Send the link
       </button>

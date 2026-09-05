@@ -38,7 +38,7 @@ const TEXT: Record<string, string> = {
         :style="{ flexGrow: p.count }"
       />
     </div>
-    <div class="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-1 font-mono text-[10.5px]">
+    <div class="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-1 font-mono text-mono">
       <span
         v-for="p in shown"
         :key="p.tone"
@@ -51,5 +51,5 @@ const TEXT: Record<string, string> = {
       </span>
     </div>
   </div>
-  <span v-else class="font-mono text-[11px] text-slate-400 dark:text-slate-500">—</span>
+  <span v-else class="font-mono text-mono text-slate-400 dark:text-slate-500">—</span>
 </template>

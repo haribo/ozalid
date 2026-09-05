@@ -241,7 +241,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     class="flex flex-col overflow-hidden bg-white dark:bg-slate-950"
   >
     <div
-      class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 font-mono text-[11px] text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+      class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 font-mono text-mono text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
     >
       <span>
         <b class="font-medium text-slate-900 dark:text-slate-100">{{ step?.name }}</b>
@@ -268,7 +268,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
              walk and never saw the grid's mark. -->
         <span
           v-if="moved"
-          class="absolute -top-3 -right-3 z-10 flex items-center gap-1.5 rounded border border-indigo-500 bg-white px-2 py-1 font-mono text-[10.5px] text-indigo-700 dark:border-indigo-400 dark:bg-slate-900 dark:text-indigo-300"
+          class="absolute -top-3 -right-3 z-10 flex items-center gap-1.5 rounded border border-indigo-500 bg-white px-2 py-1 font-mono text-mono text-indigo-700 dark:border-indigo-400 dark:bg-slate-900 dark:text-indigo-300"
         >
           <MovedIcon :size="12" />moved<template v-if="cell.movedPixels !== undefined">
             · {{ cell.movedPixels }} px</template
@@ -303,12 +303,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       v-if="toJudge"
       class="border-t border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900"
     >
-      <p class="mb-2.5 font-mono text-[10.5px] tracking-widest text-slate-500 uppercase">
+      <p class="mb-2.5 font-mono text-label tracking-widest text-slate-500 uppercase">
         fix delivered · issue {{ toJudge.ref.issueId }}
       </p>
       <!-- The title once tracked; the free text was the draft it was written
            from (#138). -->
-      <p class="mb-3 text-[13px] text-slate-600 dark:text-slate-300">
+      <p class="mb-3 text-body text-slate-600 dark:text-slate-300">
         {{ toJudge.ref.title || toJudge.comment.body }}
       </p>
       <!-- The square's other refs, in sight while one is judged: dimmed when
@@ -317,7 +317,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <li
           v-for="{ ref: other } in refsOnSquare.filter(({ ref: r }) => r.id !== toJudge!.ref.id)"
           :key="other.id"
-          class="font-mono text-[11px] text-slate-500 dark:text-slate-400"
+          class="font-mono text-mono text-slate-500 dark:text-slate-400"
           :class="other.state === 'tracked' ? 'opacity-45' : ''"
         >
           #{{ other.issueId }} {{ other.title }} · {{ other.state }}
@@ -327,7 +327,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <div class="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded border border-emerald-600 px-3 py-1.5 text-[12.5px] text-emerald-700 disabled:opacity-50 dark:border-emerald-500 dark:text-emerald-400"
+          class="inline-flex items-center gap-1.5 rounded border border-emerald-600 px-3 py-1.5 text-body text-emerald-700 disabled:opacity-50 dark:border-emerald-500 dark:text-emerald-400"
           :disabled="busy"
           @click="accept"
         >
@@ -335,13 +335,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded border border-amber-600 px-3 py-1.5 text-[12.5px] text-amber-700 disabled:opacity-50 dark:border-amber-500 dark:text-amber-400"
+          class="inline-flex items-center gap-1.5 rounded border border-amber-600 px-3 py-1.5 text-body text-amber-700 disabled:opacity-50 dark:border-amber-500 dark:text-amber-400"
           :disabled="busy || (refusing && remark.trim() === '')"
           @click="refuse"
         >
           <ActionIcon name="refuse" :size="13" />refuse
         </button>
-        <span v-if="!refusing" class="font-mono text-[11px] text-slate-500"
+        <span v-if="!refusing" class="font-mono text-mono text-slate-500"
           >refusing will ask for your remark</span
         >
       </div>
@@ -349,7 +349,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <textarea
         v-if="refusing"
         v-model="remark"
-        class="mt-2.5 w-full rounded border border-slate-300 bg-white p-2 text-[13px] dark:border-slate-600 dark:bg-slate-950"
+        class="mt-2.5 w-full rounded border border-slate-300 bg-white p-2 text-body dark:border-slate-600 dark:bg-slate-950"
         rows="2"
         placeholder="what the developer must take back"
       ></textarea>
@@ -362,16 +362,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     >
       <button
         type="button"
-        class="inline-flex items-center gap-1.5 rounded border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-[12.5px] text-white disabled:opacity-50"
+        class="inline-flex items-center gap-1.5 rounded border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-body text-white disabled:opacity-50"
         :disabled="busy || cell?.status === 'validated'"
         @click="emit('validate', stepId, variantId)"
       >
         <ActionIcon name="check" :size="13" />validate
-        <kbd class="rounded border border-current px-1 text-[10px]">space</kbd>
+        <kbd class="rounded border border-current px-1 text-body">space</kbd>
       </button>
       <button
         type="button"
-        class="inline-flex items-center gap-1.5 rounded border border-amber-600 px-3 py-1.5 text-[12.5px] text-amber-700 dark:border-amber-500 dark:text-amber-400"
+        class="inline-flex items-center gap-1.5 rounded border border-amber-600 px-3 py-1.5 text-body text-amber-700 dark:border-amber-500 dark:text-amber-400"
         :disabled="busy"
         @click="openComposer"
       >
@@ -379,14 +379,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </button>
       <span
         v-if="cell?.status === 'validated'"
-        class="inline-flex items-center gap-1.5 font-mono text-[11px] text-emerald-700 dark:text-emerald-400"
+        class="inline-flex items-center gap-1.5 font-mono text-mono text-emerald-700 dark:text-emerald-400"
       >
         <StateIcon tone="done" :size="12" />validated
       </span>
       <span
         v-for="c in onSquare"
         :key="c.id"
-        class="font-mono text-[11px] text-amber-700 dark:text-amber-400"
+        class="font-mono text-mono text-amber-700 dark:text-amber-400"
       >
         {{ c.body }}
       </span>
@@ -396,14 +396,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       v-else
       class="border-t border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900"
     >
-      <p class="mb-2.5 font-mono text-[10.5px] tracking-widest text-slate-500 uppercase">
+      <p class="mb-2.5 font-mono text-label tracking-widest text-slate-500 uppercase">
         comment on this step
       </p>
 
       <div class="mb-2.5 flex gap-1.5">
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded border px-2.5 py-1 font-mono text-[11px]"
+          class="inline-flex items-center gap-1.5 rounded border px-2.5 py-1 font-mono text-mono"
           :class="
             kind === 'defect'
               ? 'border-amber-600 bg-amber-50 text-amber-800 dark:border-amber-500 dark:bg-amber-950 dark:text-amber-300'
@@ -415,7 +415,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded border px-2.5 py-1 font-mono text-[11px]"
+          class="inline-flex items-center gap-1.5 rounded border px-2.5 py-1 font-mono text-mono"
           :class="
             kind === 'improvement'
               ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-950 dark:text-indigo-300'
@@ -429,12 +429,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
       <textarea
         v-model="body"
-        class="w-full rounded border border-slate-300 bg-white p-2 text-[13px] dark:border-slate-600 dark:bg-slate-950"
+        class="w-full rounded border border-slate-300 bg-white p-2 text-body dark:border-slate-600 dark:bg-slate-950"
         rows="3"
         placeholder="what you see, in your words"
       ></textarea>
 
-      <div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-[11px]">
+      <div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-mono">
         <label
           v-for="v in grid.variants"
           :key="v.id"
@@ -453,14 +453,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             v-for="value in groups"
             :key="value"
             type="button"
-            class="rounded-full border border-slate-300 px-2 py-0.5 text-[10px] text-slate-500 hover:border-indigo-500 hover:text-indigo-600 dark:border-slate-600 dark:text-slate-400"
+            class="rounded-full border border-slate-300 px-2 py-0.5 text-body text-slate-500 hover:border-indigo-500 hover:text-indigo-600 dark:border-slate-600 dark:text-slate-400"
             @click="pickValue(value)"
           >
             {{ value }}
           </button>
           <button
             type="button"
-            class="rounded-full border border-slate-300 px-2 py-0.5 text-[10px] text-slate-500 hover:border-indigo-500 hover:text-indigo-600 dark:border-slate-600 dark:text-slate-400"
+            class="rounded-full border border-slate-300 px-2 py-0.5 text-body text-slate-500 hover:border-indigo-500 hover:text-indigo-600 dark:border-slate-600 dark:text-slate-400"
             @click="pickAll"
           >
             all
@@ -471,7 +471,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <div class="mt-3 flex flex-wrap items-center gap-2">
         <button
           type="button"
-          class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12.5px] text-white disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:border-slate-600 dark:disabled:bg-slate-800"
+          class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body text-white disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:border-slate-600 dark:disabled:bg-slate-800"
           :disabled="!canAdd || busy"
           @click="add"
         >
@@ -479,12 +479,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </button>
         <button
           type="button"
-          class="rounded border border-slate-300 px-3 py-1.5 text-[12.5px] text-slate-600 dark:border-slate-600 dark:text-slate-300"
+          class="rounded border border-slate-300 px-3 py-1.5 text-body text-slate-600 dark:border-slate-600 dark:text-slate-300"
           @click="composing = false"
         >
           cancel
         </button>
-        <span class="font-mono text-[11px] text-slate-500">
+        <span class="font-mono text-mono text-slate-500">
           {{ chosen.length }} variant{{ chosen.length > 1 ? 's' : '' }} ticked
         </span>
       </div>

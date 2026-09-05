@@ -27,10 +27,10 @@ function parts(c: Case) {
 
 <template>
   <div class="overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700">
-    <table class="w-full border-collapse text-[13.5px]">
+    <table class="w-full border-collapse text-body">
       <thead>
         <tr
-          class="bg-slate-50 font-mono text-[10.5px] tracking-widest text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400"
+          class="bg-slate-50 font-mono text-label tracking-widest text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400"
         >
           <th class="px-3 py-2 text-left font-medium">id</th>
           <th class="px-3 py-2 text-left font-medium">cases</th>
@@ -46,7 +46,7 @@ function parts(c: Case) {
           class="border-t border-slate-200 dark:border-slate-700"
         >
           <td
-            class="px-3 py-2.5 font-mono text-[11px] whitespace-nowrap text-slate-500 dark:text-slate-400"
+            class="px-3 py-2.5 font-mono text-mono whitespace-nowrap text-slate-500 dark:text-slate-400"
           >
             {{ c.id }}
           </td>
@@ -65,7 +65,7 @@ function parts(c: Case) {
             <StateGauge :parts="parts(c)" />
           </td>
           <td
-            class="px-3 py-2.5 font-mono text-[11px] whitespace-nowrap text-slate-500 dark:text-slate-400"
+            class="px-3 py-2.5 font-mono text-mono whitespace-nowrap text-slate-500 dark:text-slate-400"
           >
             {{ formatMoment(c.lastEdition) }}
           </td>

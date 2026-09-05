@@ -34,7 +34,7 @@ async function submit() {
 
 <template>
   <main class="mx-auto max-w-5xl px-6 py-8">
-    <nav class="mb-4 font-mono text-[11.5px] text-slate-500 dark:text-slate-400">
+    <nav class="mb-4 font-mono text-mono text-slate-500 dark:text-slate-400">
       <RouterLink to="/" class="text-indigo-700 dark:text-indigo-300">projects</RouterLink>
       ›
       <RouterLink :to="`/projects/${slug}/access`" class="text-indigo-700 dark:text-indigo-300">
@@ -48,44 +48,44 @@ async function submit() {
     <MintedTokenPanel v-if="minted" class="mb-6" :token="minted.token" @dismiss="dismiss" />
 
     <form class="mb-5 flex flex-wrap items-end gap-3" @submit.prevent="submit">
-      <h1 class="mr-auto text-lg font-semibold">Tokens</h1>
+      <h1 class="mr-auto text-title font-semibold">Tokens</h1>
       <label class="flex flex-col gap-1.5">
-        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">label</span>
+        <span class="font-mono text-label tracking-wider text-slate-500 uppercase">label</span>
         <input
           v-model="label"
           required
           placeholder="github actions"
-          class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
+          class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-body dark:border-slate-600 dark:bg-slate-900"
         />
       </label>
       <button
         type="submit"
         :disabled="busy"
-        class="inline-flex items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
+        class="inline-flex items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
       >
         <AdminIcon name="keys" :size="12" />Mint a token
       </button>
     </form>
 
-    <p v-if="error" class="mb-3 font-mono text-[12px] text-red-700 dark:text-red-400">
+    <p v-if="error" class="mb-3 font-mono text-mono text-red-700 dark:text-red-400">
       {{ error }}
     </p>
 
-    <table v-if="tokens.length" class="w-full border-collapse text-[13px]">
+    <table v-if="tokens.length" class="w-full border-collapse text-body">
       <thead>
         <tr class="border-b border-slate-300 dark:border-slate-600">
           <th
-            class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
+            class="py-1.5 pr-3 text-left font-mono text-label tracking-wider text-slate-500 uppercase"
           >
             label
           </th>
           <th
-            class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
+            class="py-1.5 pr-3 text-left font-mono text-label tracking-wider text-slate-500 uppercase"
           >
             created
           </th>
           <th
-            class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
+            class="py-1.5 pr-3 text-left font-mono text-label tracking-wider text-slate-500 uppercase"
           >
             last used
           </th>
@@ -95,11 +95,11 @@ async function submit() {
       <tbody>
         <tr v-for="t in tokens" :key="t.id" class="border-b border-slate-200 dark:border-slate-700">
           <td class="py-2 pr-3 font-medium">{{ t.label }}</td>
-          <td class="py-2 pr-3 font-mono text-[12px] text-slate-500 dark:text-slate-400">
+          <td class="py-2 pr-3 font-mono text-mono text-slate-500 dark:text-slate-400">
             {{ formatMoment(t.createdAt) }}
           </td>
           <td
-            class="py-2 pr-3 font-mono text-[12px]"
+            class="py-2 pr-3 font-mono text-mono"
             :class="
               t.lastUsedAt
                 ? 'text-slate-500 dark:text-slate-400'
@@ -124,7 +124,7 @@ async function submit() {
 
     <p
       v-else
-      class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center font-mono text-[12px] text-slate-500 dark:border-slate-600 dark:text-slate-400"
+      class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center font-mono text-mono text-slate-500 dark:border-slate-600 dark:text-slate-400"
     >
       this program presents no token
     </p>
