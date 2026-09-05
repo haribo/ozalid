@@ -4,6 +4,7 @@ import { AccessPage, TokensPage } from '@/pages/access'
 import { CataloguePage } from '@/pages/catalogue'
 import { ProjectsPage } from '@/pages/projects'
 import { CasePage } from '@/pages/case'
+import { DesignSystemPage } from '@/pages/dev'
 import { SignInPage, ClaimPage } from '@/pages/sign-in'
 import { useSession } from '@/features/session'
 
@@ -32,6 +33,9 @@ export const router = createRouter({
       path: '/projects/:slug/cases/:caseId/steps/:stepId/variants/:variantId',
       component: CasePage,
     },
+    // The gallery exists only in a dev build: no end user ever sees it, and
+    // the production bundle does not carry it (#155).
+    ...(import.meta.env.DEV ? [{ path: '/dev/design-system', component: DesignSystemPage, meta: { anonymous: true } }] : []),
     { path: '/sign-in', component: SignInPage, meta: { anonymous: true } },
     { path: '/sign-in/:link', component: ClaimPage, meta: { anonymous: true } },
   ],
