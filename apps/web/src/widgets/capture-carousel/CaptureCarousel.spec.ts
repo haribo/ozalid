@@ -94,10 +94,15 @@ describe('CaptureCarousel', () => {
     expect(w.emitted('validate')?.[0]).toEqual(['s1', 'v1'])
   })
 
-  it('does not offer to validate a square that already is', () => {
+  it('does not offer to validate a square that already is', async () => {
     const w = mountAt('v2')
-    const validate = w.findAll('button').find((b) => b.text().includes('validate'))
-    expect(validate?.attributes('disabled')).toBeDefined()
+    const validate = w.findAll('button').find((b) => b.text().includes('validated'))!
+    expect(validate.text()).toContain('✓ validated')
+    await validate.trigger('click')
+    expect(w.emitted('validate')).toBeUndefined()
+    // And commenting a settled square is off too (#157).
+    const comment = w.findAll('button').find((b) => b.text().includes('comment'))!
+    expect(comment.attributes('disabled')).toBeDefined()
   })
 
   it('changes variant on the vertical arrows and leaves on Escape', () => {
@@ -124,7 +129,7 @@ describe('CaptureCarousel', () => {
   })
 
   it('ticks the variant on screen to start with — it is the one being looked at', async () => {
-    const w = mountAt('v2')
+    const w = mountAt('v1')
     await w
       .findAll('button')
       .find((b) => b.text().includes('comment'))!
@@ -284,5 +289,43 @@ describe('arrows walk the steps (#149)', () => {
   it('counts steps, and follows the walk', () => {
     expect(at('s2', 'v2').text()).toContain('2 / 3')
     expect(at('s3', 'v2').text()).toContain('3 / 3')
+  })
+})
+
+describe('the judgment bar (#157)', () => {
+  it('keeps space inert while a comment is being written', async () => {
+    const w = mountAt('v1')
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('comment'))!
+      .trigger('click')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }))
+    expect(w.emitted('validate')).toBeUndefined()
+  })
+
+  it('shows a draft body only while it is the reading', () => {
+    const draft: Comment = {
+      id: 'k9',
+      stepId: 's1',
+      kind: 'defect',
+      body: 'a draft nobody tracked yet',
+      state: 'to-track',
+      variantIds: ['v1'],
+      authorId: 'nina',
+      createdAt: '2026-08-24T09:00:00Z',
+      judgments: [],
+    }
+    // On the unjudged square: the draft is the reading.
+    expect(mountAt('v1', [draft]).text()).toContain('a draft nobody tracked yet')
+    // Tracked: the issue title speaks, the draft retires.
+    expect(
+      mountAt('v1', [
+        { ...draft, state: 'tracked', issues: [{ id: 'r1', issueId: '9', state: 'tracked' }] },
+      ]).text(),
+    ).not.toContain('a draft nobody tracked yet')
+    // On a validated square: nothing temporary remains.
+    expect(mountAt('v2', [{ ...draft, variantIds: ['v2'] }]).text()).not.toContain(
+      'a draft nobody tracked yet',
+    )
   })
 })
