@@ -131,7 +131,7 @@ watch(
 
 <template>
   <div class="mx-auto max-w-5xl px-6 py-8">
-    <nav class="mb-4 font-mono text-[11.5px] text-slate-500 dark:text-slate-400">
+    <nav class="mb-4 font-mono text-mono text-slate-500 dark:text-slate-400">
       <RouterLink :to="`/projects/${slug}`" class="text-indigo-700 dark:text-indigo-300">
         {{ slug }}
       </RouterLink>
@@ -147,11 +147,11 @@ watch(
     </nav>
 
     <div class="mb-4 flex items-end gap-3">
-      <h1 class="text-lg font-semibold">Catalogue</h1>
+      <h1 class="text-title font-semibold">Catalogue</h1>
       <button
         v-if="mayWrite"
         type="button"
-        class="ml-auto inline-flex items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 dark:border-indigo-500 dark:bg-indigo-500"
+        class="ml-auto inline-flex items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 dark:border-indigo-500 dark:bg-indigo-500"
         @click="making = !making"
       >
         <AdminIcon name="add" :size="12" />New category
@@ -167,11 +167,11 @@ watch(
       @submit.prevent="create"
     >
       <label class="flex flex-col gap-1.5">
-        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">name</span>
+        <span class="font-mono text-label tracking-wider text-slate-500 uppercase">name</span>
         <input
           v-model="newName"
           required
-          class="rounded border bg-white px-2.5 py-1.5 text-[13px] dark:bg-slate-900"
+          class="rounded border bg-white px-2.5 py-1.5 text-body dark:bg-slate-900"
           :class="
             createError
               ? 'border-red-600 dark:border-red-500'
@@ -182,33 +182,33 @@ watch(
       <button
         type="submit"
         :disabled="creating"
-        class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
+        class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
       >
         Create
       </button>
       <button
         type="button"
-        class="rounded border border-slate-300 px-3 py-1.5 text-[12px] text-slate-600 dark:border-slate-600 dark:text-slate-400"
+        class="rounded border border-slate-300 px-3 py-1.5 text-body text-slate-600 dark:border-slate-600 dark:text-slate-400"
         @click=";((making = false), (createError = ''), (newName = ''))"
       >
         Cancel
       </button>
-      <p v-if="createError" class="w-full font-mono text-[12px] text-red-700 dark:text-red-400">
+      <p v-if="createError" class="w-full font-mono text-mono text-red-700 dark:text-red-400">
         {{ createError }}
       </p>
     </form>
 
-    <p v-if="error" class="font-mono text-[12px] text-red-700 dark:text-red-400">
+    <p v-if="error" class="font-mono text-mono text-red-700 dark:text-red-400">
       {{ error }}
     </p>
-    <p v-else-if="loading" class="font-mono text-[12px] text-slate-500">loading…</p>
+    <p v-else-if="loading" class="font-mono text-mono text-slate-500">loading…</p>
 
     <template v-else>
       <CategoryTable v-if="children.length" :slug="slug" :categories="children" class="mb-6" />
       <CaseTable v-if="cases.length" :slug="slug" :cases="cases" />
       <p
         v-if="!children.length && !cases.length"
-        class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center font-mono text-[12px] text-slate-500 dark:border-slate-600 dark:text-slate-400"
+        class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center font-mono text-mono text-slate-500 dark:border-slate-600 dark:text-slate-400"
       >
         nothing here yet
       </p>

@@ -26,8 +26,8 @@ async function leave() {
     <header
       class="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-6 py-2.5 dark:border-slate-700 dark:bg-slate-900"
     >
-      <RouterLink to="/" class="text-[15px] font-semibold"> ozalid </RouterLink>
-      <nav v-if="person" class="flex gap-1 font-mono text-[11px]">
+      <RouterLink to="/" class="text-title font-semibold"> ozalid </RouterLink>
+      <nav v-if="person" class="flex gap-1 font-mono text-mono">
         <RouterLink
           to="/"
           class="rounded px-2 py-1 text-slate-500 dark:text-slate-400"
@@ -49,7 +49,7 @@ async function leave() {
       </nav>
       <span
         v-if="person"
-        class="ml-auto flex items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400"
+        class="ml-auto flex items-center gap-2 font-mono text-mono text-slate-500 dark:text-slate-400"
       >
         <b class="font-medium text-slate-900 dark:text-slate-100">{{ person.name }}</b>
         ·

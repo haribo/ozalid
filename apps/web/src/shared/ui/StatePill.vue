@@ -18,7 +18,7 @@ const CLASSES: Record<string, string> = {
 
 <template>
   <span
-    class="inline-flex items-center gap-1.5 rounded border px-1.5 py-0.5 font-mono text-[10.5px] whitespace-nowrap"
+    class="inline-flex items-center gap-1.5 rounded border px-1.5 py-0.5 font-mono text-mono whitespace-nowrap"
     :class="CLASSES[tone]"
   >
     <StateIcon :tone="tone" :size="11" />{{ state }}

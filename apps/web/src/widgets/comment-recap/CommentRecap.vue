@@ -98,15 +98,15 @@ function rowState(r: Row) {
 
 <template>
   <div v-if="comments.length" class="mt-5">
-    <p class="mb-2 font-mono text-[10.5px] tracking-widest text-slate-500 uppercase">
+    <p class="mb-2 font-mono text-label tracking-widest text-slate-500 uppercase">
       comments · {{ openCount }} open of {{ comments.length }}
     </p>
 
     <div class="overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700">
-      <table class="w-full border-collapse text-[13.5px]">
+      <table class="w-full border-collapse text-body">
         <thead>
           <tr
-            class="bg-slate-50 font-mono text-[10.5px] tracking-widest text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400"
+            class="bg-slate-50 font-mono text-label tracking-widest text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400"
           >
             <th class="px-3 py-2 text-left font-medium">step</th>
             <th class="px-2 py-2"></th>
@@ -166,12 +166,12 @@ function rowState(r: Row) {
                     target="_blank"
                     rel="noopener"
                     class="text-indigo-700 dark:text-indigo-300"
-                    ><span class="font-mono text-[11px]">#{{ r.ref.issueId }}</span>
+                    ><span class="font-mono text-mono">#{{ r.ref.issueId }}</span>
                     {{ r.ref.title }}</a
                   >
                   <span
                     v-if="r.ref.lastRefusal"
-                    class="mt-1 flex gap-1.5 font-mono text-[10.5px] text-amber-700 dark:text-amber-400"
+                    class="mt-1 flex gap-1.5 font-mono text-mono text-amber-700 dark:text-amber-400"
                   >
                     <ActionIcon name="refuse" :size="12" label="refused" />{{ r.ref.lastRefusal }}
                   </span>
@@ -181,7 +181,7 @@ function rowState(r: Row) {
                 </template>
                 <span
                   v-if="r.first && r.comment.discardReason"
-                  class="mt-1 block font-mono text-[10.5px] text-slate-500 dark:text-slate-400"
+                  class="mt-1 block font-mono text-mono text-slate-500 dark:text-slate-400"
                   >discarded: {{ r.comment.discardReason }}</span
                 >
               </td>
@@ -200,7 +200,7 @@ function rowState(r: Row) {
               </td>
               <td class="px-3 py-2.5 align-middle whitespace-nowrap">
                 <span
-                  class="inline-flex items-center gap-1.5 rounded border px-1.5 py-0.5 font-mono text-[10.5px]"
+                  class="inline-flex items-center gap-1.5 rounded border px-1.5 py-0.5 font-mono text-mono"
                   :class="PILL[TONE[rowState(r)]]"
                 >
                   <StateIcon :tone="TONE[rowState(r)]" :size="11" :label="rowState(r)" />{{

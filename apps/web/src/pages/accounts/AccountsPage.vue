@@ -42,10 +42,10 @@ async function submit() {
 <template>
   <main class="mx-auto max-w-5xl px-6 py-8">
     <div class="mb-4 flex items-end gap-3">
-      <h1 class="text-lg font-semibold">Accounts</h1>
+      <h1 class="text-title font-semibold">Accounts</h1>
       <button
         type="button"
-        class="ml-auto inline-flex items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 dark:border-indigo-500 dark:bg-indigo-500"
+        class="ml-auto inline-flex items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 dark:border-indigo-500 dark:bg-indigo-500"
         @click="making = !making"
       >
         <AdminIcon name="add" :size="12" />New account
@@ -54,7 +54,7 @@ async function submit() {
 
     <label
       v-if="retired"
-      class="mb-3 inline-flex items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-slate-400"
+      class="mb-3 inline-flex items-center gap-2 font-mono text-mono text-slate-500 dark:text-slate-400"
     >
       <input v-model="showRetired" type="checkbox" class="accent-indigo-600" />
       show the {{ retired }} retired account{{ retired > 1 ? 's' : '' }}
@@ -66,61 +66,61 @@ async function submit() {
       @submit.prevent="submit"
     >
       <label class="flex flex-col gap-1.5">
-        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">name</span>
+        <span class="font-mono text-label tracking-wider text-slate-500 uppercase">name</span>
         <input
           v-model="name"
           required
-          class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
+          class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-body dark:border-slate-600 dark:bg-slate-900"
         />
       </label>
       <label class="flex flex-col gap-1.5">
-        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">address</span>
+        <span class="font-mono text-label tracking-wider text-slate-500 uppercase">address</span>
         <input
           v-model="email"
           type="email"
           required
-          class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
+          class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-body dark:border-slate-600 dark:bg-slate-900"
         />
       </label>
       <label class="flex items-center gap-2 self-end pb-1.5">
         <input v-model="admin" type="checkbox" class="accent-indigo-600" />
-        <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">
+        <span class="font-mono text-label tracking-wider text-slate-500 uppercase">
           administers the instance
         </span>
       </label>
       <button
         type="submit"
         :disabled="busy"
-        class="justify-self-start rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
+        class="justify-self-start rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
       >
         Create the account
       </button>
     </form>
 
-    <p v-if="error" class="mb-3 font-mono text-[12px] text-red-700 dark:text-red-400">
+    <p v-if="error" class="mb-3 font-mono text-mono text-red-700 dark:text-red-400">
       {{ error }}
     </p>
 
-    <table class="w-full border-collapse text-[13px]">
+    <table class="w-full border-collapse text-body">
       <thead>
         <tr class="border-b border-slate-300 dark:border-slate-600">
           <th
-            class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
+            class="py-1.5 pr-3 text-left font-mono text-label tracking-wider text-slate-500 uppercase"
           >
             name
           </th>
           <th
-            class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
+            class="py-1.5 pr-3 text-left font-mono text-label tracking-wider text-slate-500 uppercase"
           >
             address
           </th>
           <th
-            class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
+            class="py-1.5 pr-3 text-left font-mono text-label tracking-wider text-slate-500 uppercase"
           >
             admin
           </th>
           <th
-            class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
+            class="py-1.5 pr-3 text-left font-mono text-label tracking-wider text-slate-500 uppercase"
           >
             since
           </th>
@@ -137,22 +137,22 @@ async function submit() {
           <td class="py-2 pr-3 font-medium" :class="a.deactivatedAt ? 'line-through' : ''">
             {{ a.name }}
           </td>
-          <td class="py-2 pr-3 font-mono text-[12px]">{{ a.email }}</td>
+          <td class="py-2 pr-3 font-mono text-mono">{{ a.email }}</td>
           <td class="py-2 pr-3">
             <span
               v-if="a.deactivatedAt"
-              class="rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] whitespace-nowrap text-slate-500 dark:border-slate-600 dark:bg-slate-800"
+              class="rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 font-mono text-mono whitespace-nowrap text-slate-500 dark:border-slate-600 dark:bg-slate-800"
             >
               retired on {{ formatMoment(a.deactivatedAt) }}
             </span>
             <span
               v-else-if="a.isAdmin"
-              class="rounded border border-amber-500 bg-amber-50 px-1.5 py-0.5 font-mono text-[10px] tracking-wide text-amber-800 uppercase dark:bg-amber-950 dark:text-amber-300"
+              class="rounded border border-amber-500 bg-amber-50 px-1.5 py-0.5 font-mono text-label tracking-wide text-amber-800 uppercase dark:bg-amber-950 dark:text-amber-300"
             >
               admin
             </span>
           </td>
-          <td class="py-2 pr-3 font-mono text-[12px]">{{ formatMoment(a.createdAt) }}</td>
+          <td class="py-2 pr-3 font-mono text-mono">{{ formatMoment(a.createdAt) }}</td>
           <td class="py-2 text-right whitespace-nowrap">
             <template v-if="!a.deactivatedAt">
               <button

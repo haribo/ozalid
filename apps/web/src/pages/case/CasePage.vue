@@ -133,16 +133,16 @@ async function refreshCase() {
 
 <template>
   <div class="mx-auto max-w-6xl px-6 py-8">
-    <p v-if="review.error.value" class="font-mono text-[12px] text-red-700 dark:text-red-400">
+    <p v-if="review.error.value" class="font-mono text-mono text-red-700 dark:text-red-400">
       {{ review.error.value }}
     </p>
-    <p v-else-if="loading" class="font-mono text-[12px] text-slate-500">loading…</p>
+    <p v-else-if="loading" class="font-mono text-mono text-slate-500">loading…</p>
 
     <template v-else-if="kase">
-      <h1 class="mb-2.5 text-[21px] font-semibold">{{ kase.title }}</h1>
+      <h1 class="mb-2.5 text-display font-semibold">{{ kase.title }}</h1>
 
       <div
-        class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-[11px] text-slate-500 dark:text-slate-400"
+        class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-mono text-slate-500 dark:text-slate-400"
       >
         <StatePill :state="kase.state as CaseState" />
         <span>#{{ kase.id }}</span>

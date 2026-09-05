@@ -16,7 +16,7 @@ const { person, linkSent, busy, requestLink } = useSession()
 
 <template>
   <div
-    class="flex flex-wrap items-center gap-3 border-b border-amber-500 bg-amber-50 px-6 py-2.5 text-[13px] text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+    class="flex flex-wrap items-center gap-3 border-b border-amber-500 bg-amber-50 px-6 py-2.5 text-body text-amber-800 dark:bg-amber-950 dark:text-amber-300"
     role="alert"
   >
     <template v-if="linkSent">
@@ -29,7 +29,7 @@ const { person, linkSent, busy, requestLink } = useSession()
       <button
         type="button"
         :disabled="busy || !person"
-        class="rounded border border-amber-600 bg-amber-600 px-3 py-1.5 text-[13px] font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-500 disabled:opacity-60"
+        class="rounded border border-amber-600 bg-amber-600 px-3 py-1.5 text-body font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-500 disabled:opacity-60"
         @click="person && requestLink(person.email)"
       >
         Sign in again

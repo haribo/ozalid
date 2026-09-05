@@ -81,16 +81,16 @@ async function addProgram() {
 
 <template>
   <main class="mx-auto max-w-5xl px-6 py-8">
-    <nav class="mb-4 font-mono text-[11.5px] text-slate-500 dark:text-slate-400">
+    <nav class="mb-4 font-mono text-mono text-slate-500 dark:text-slate-400">
       <RouterLink to="/" class="text-indigo-700 dark:text-indigo-300">projects</RouterLink>
       › <b class="font-medium text-slate-900 dark:text-slate-100">{{ slug }}</b>
     </nav>
 
     <div class="mb-4 flex items-end gap-3">
-      <h1 class="text-lg font-semibold">Access</h1>
+      <h1 class="text-title font-semibold">Access</h1>
       <button
         type="button"
-        class="ml-auto inline-flex items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 dark:border-indigo-500 dark:bg-indigo-500"
+        class="ml-auto inline-flex items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 dark:border-indigo-500 dark:bg-indigo-500"
         @click="adding = !adding"
       >
         <AdminIcon name="add" :size="12" />Add
@@ -107,7 +107,7 @@ async function addProgram() {
           v-for="k in ['person', 'program'] as const"
           :key="k"
           type="button"
-          class="flex flex-1 items-center gap-2 rounded-md border px-3 py-2 text-[13px]"
+          class="flex flex-1 items-center gap-2 rounded-md border px-3 py-2 text-body"
           :class="
             kind === k
               ? 'border-indigo-600 bg-indigo-50 font-semibold text-indigo-700 dark:border-indigo-500 dark:bg-indigo-950 dark:text-indigo-300'
@@ -124,13 +124,11 @@ async function addProgram() {
       <template v-if="kind === 'person'">
         <!-- An empty list is an answer, not a failure: without a sentence saying
              which, a select holding only "choisir…" reads as a broken screen. -->
-        <p v-if="!ready" class="font-mono text-[12px] text-slate-500 dark:text-slate-400">
-          loading…
-        </p>
-        <p v-else-if="accountsError" class="font-mono text-[12px] text-red-700 dark:text-red-400">
+        <p v-if="!ready" class="font-mono text-mono text-slate-500 dark:text-slate-400">loading…</p>
+        <p v-else-if="accountsError" class="font-mono text-mono text-red-700 dark:text-red-400">
           {{ accountsError }}
         </p>
-        <p v-else-if="!addable.length" class="text-[13px] text-slate-600 dark:text-slate-400">
+        <p v-else-if="!addable.length" class="text-body text-slate-600 dark:text-slate-400">
           Every account on this instance is already on this project.
           <RouterLink to="/accounts" class="text-indigo-700 underline dark:text-indigo-300">
             Create an account
@@ -138,25 +136,23 @@ async function addProgram() {
         </p>
         <form v-else class="flex flex-wrap items-end gap-3" @submit.prevent="addPerson">
           <label class="flex flex-col gap-1.5">
-            <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase"
+            <span class="font-mono text-label tracking-wider text-slate-500 uppercase"
               >account</span
             >
             <select
               v-model="chosen"
               required
-              class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
+              class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-body dark:border-slate-600 dark:bg-slate-900"
             >
               <option value="" disabled>choose…</option>
               <option v-for="a in addable" :key="a.id" :value="a.id">{{ a.name }}</option>
             </select>
           </label>
           <label class="flex flex-col gap-1.5">
-            <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase"
-              >rights</span
-            >
+            <span class="font-mono text-label tracking-wider text-slate-500 uppercase">rights</span>
             <select
               v-model="rights"
-              class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
+              class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-body dark:border-slate-600 dark:bg-slate-900"
             >
               <option value="member">member</option>
               <option value="reader">reader</option>
@@ -165,7 +161,7 @@ async function addProgram() {
           <button
             type="submit"
             :disabled="busy"
-            class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
+            class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
           >
             Add
           </button>
@@ -176,19 +172,19 @@ async function addProgram() {
            never moves (ADR 0018), so one is made here rather than imported. -->
       <form v-else class="flex flex-wrap items-end gap-3" @submit.prevent="addProgram">
         <label class="flex flex-col gap-1.5">
-          <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">name</span>
+          <span class="font-mono text-label tracking-wider text-slate-500 uppercase">name</span>
           <input
             v-model="programName"
             required
             placeholder="ci-captures"
-            class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
+            class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-body dark:border-slate-600 dark:bg-slate-900"
           />
         </label>
         <label class="flex flex-col gap-1.5">
-          <span class="font-mono text-[10px] tracking-wider text-slate-500 uppercase">rights</span>
+          <span class="font-mono text-label tracking-wider text-slate-500 uppercase">rights</span>
           <select
             v-model="rights"
-            class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] dark:border-slate-600 dark:bg-slate-900"
+            class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-body dark:border-slate-600 dark:bg-slate-900"
           >
             <option value="member">member</option>
             <option value="reader">reader</option>
@@ -197,14 +193,14 @@ async function addProgram() {
         <button
           type="submit"
           :disabled="busy"
-          class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
+          class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
         >
           Create
         </button>
       </form>
     </div>
 
-    <p v-if="error" class="mb-3 font-mono text-[12px] text-red-700 dark:text-red-400">
+    <p v-if="error" class="mb-3 font-mono text-mono text-red-700 dark:text-red-400">
       {{ error }}
     </p>
 
@@ -215,27 +211,27 @@ async function addProgram() {
          there is one. -->
     <p
       v-if="ready && !members.length"
-      class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center font-mono text-[12px] text-slate-500 dark:border-slate-600 dark:text-slate-400"
+      class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center font-mono text-mono text-slate-500 dark:border-slate-600 dark:text-slate-400"
     >
       nobody reaches this project
     </p>
 
-    <table v-else class="w-full border-collapse text-[13px]">
+    <table v-else class="w-full border-collapse text-body">
       <thead>
         <tr class="border-b border-slate-300 dark:border-slate-600">
           <th
-            class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
+            class="py-1.5 pr-3 text-left font-mono text-label tracking-wider text-slate-500 uppercase"
           >
             name
           </th>
           <th />
           <th
-            class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
+            class="py-1.5 pr-3 text-left font-mono text-label tracking-wider text-slate-500 uppercase"
           >
             rights
           </th>
           <th
-            class="py-1.5 pr-3 text-left font-mono text-[10px] tracking-wider text-slate-500 uppercase"
+            class="py-1.5 pr-3 text-left font-mono text-label tracking-wider text-slate-500 uppercase"
           >
             since
           </th>
@@ -260,7 +256,7 @@ async function addProgram() {
           </td>
           <td class="py-2 pr-3">
             <span
-              class="inline-flex items-center gap-1.5 font-mono text-[10.5px] text-slate-500 dark:text-slate-400"
+              class="inline-flex items-center gap-1.5 font-mono text-mono text-slate-500 dark:text-slate-400"
             >
               <!-- The icon carries it, and it names itself to a screen reader.
                    Spelling it out beside would be the same word twice. -->
@@ -269,7 +265,7 @@ async function addProgram() {
             </span>
           </td>
           <td class="py-2 pr-3"><RightsPill :rights="m.rights" /></td>
-          <td class="py-2 pr-3 font-mono text-[12px] text-slate-500 dark:text-slate-400">
+          <td class="py-2 pr-3 font-mono text-mono text-slate-500 dark:text-slate-400">
             {{ formatMoment(m.addedAt) }}
           </td>
           <td class="py-2 text-right whitespace-nowrap">
