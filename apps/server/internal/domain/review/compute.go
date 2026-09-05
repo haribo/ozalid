@@ -134,8 +134,22 @@ func verdictsOf(f Facts) map[Cell]CaptureStatus {
 		}
 	}
 
+	// A delivered comment hands its cells back to the reviewer: the ball is
+	// theirs, and the grid says so. The dev-side pass runs second, so a cell
+	// also claimed by a tracked or refused comment stays to-fix — the finest
+	// open claim wins, exactly as for the comment itself (#150).
 	for _, c := range f.Comments {
-		if !c.State.Open() {
+		if c.State != CommentToReview {
+			continue
+		}
+		for _, cell := range c.Cells {
+			if _, exists := verdicts[cell]; exists {
+				verdicts[cell] = CaptureToReview
+			}
+		}
+	}
+	for _, c := range f.Comments {
+		if !c.State.Open() || c.State == CommentToReview {
 			continue
 		}
 		for _, cell := range c.Cells {

@@ -176,6 +176,13 @@ Facts that trigger a recomputation:
 | A delivery is accepted or refused | comment → `validated` or `refused` |
 | An edition is accepted | freshness only — never the cycle state |
 
+A cell covered by a comment whose **every open ref is delivered** reads
+`to-review`: the ball is the reviewer's, and the grid says so. It reads
+`to-fix` only while some ref still sits with the dev — tracked or refused —
+and a dev-side claim on the same cell outranks a delivered one, exactly as for
+the comment itself. Decided when two delivered issues showed beside the dev's
+amber bubble (#150).
+
 Returning to `to-review` is **requested by the dev**, never inferred from
 captures moving: images also move for a refactor or a dependency bump, and
 summoning the reviewer for that is noise. The dev may ask without having

@@ -187,3 +187,39 @@ func TestASquareWithOneSettledAndOneOpenCommentStillNeedsFixing(t *testing.T) {
 		t.Errorf("state = %q, want to-fix", got.State)
 	}
 }
+
+// The production scenario of #150: every ref of the covering comment is
+// delivered, and the grid still showed the dev's amber bubble. The ball is the
+// reviewer's, and the cell must say so.
+func TestADeliveredCommentHandsItsCellsBackToTheReviewer(t *testing.T) {
+	got := review.Compute(review.Facts{
+		Captures: cells("v1", "v2"),
+		Comments: []review.Comment{
+			// Delivered: the reviewer holds these cells.
+			{State: review.CommentToReview, Cells: cells("v1")},
+			// Still with the dev: the bubble stays.
+			{State: review.CommentTracked, Cells: cells("v2")},
+		},
+	})
+	if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v1"}] != review.CaptureToReview {
+		t.Error("a delivered comment's cell does not read to-review")
+	}
+	if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v2"}] != review.CaptureToFix {
+		t.Error("a dev-side comment's cell no longer reads to-fix")
+	}
+}
+
+// A cell both delivered and still reported by a second, dev-side comment stays
+// to-fix: the finest open claim wins, exactly as for the comment itself.
+func TestADevSideCommentOutweighsADeliveredOneOnTheSameCell(t *testing.T) {
+	got := review.Compute(review.Facts{
+		Captures: cells("v1"),
+		Comments: []review.Comment{
+			{State: review.CommentToReview, Cells: cells("v1")},
+			{State: review.CommentRefused, Cells: cells("v1")},
+		},
+	})
+	if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v1"}] != review.CaptureToFix {
+		t.Error("the refused comment's claim was outranked by the delivered one")
+	}
+}
