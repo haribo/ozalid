@@ -176,3 +176,22 @@ func TestARefMovesLikeACommentUsedTo(t *testing.T) {
 		t.Error("a validated ref moved again")
 	}
 }
+
+// Unjudge takes an acceptance back (#167): the ref returns to the reviewer's
+// court, and from nowhere else — a refusal is answered by delivering again,
+// not by unjudging it.
+func TestUnjudgeReopensAnAcceptedRef(t *testing.T) {
+	to, err := review.TransitionRef(review.RefValidated, review.MoveUnjudge, "")
+	if err != nil {
+		t.Fatalf("unjudging an accepted ref: %v", err)
+	}
+	if to != review.RefToReview {
+		t.Errorf("ref = %q, want to-review", to)
+	}
+
+	for _, from := range []review.RefState{review.RefTracked, review.RefToReview, review.RefRefused} {
+		if _, err := review.TransitionRef(from, review.MoveUnjudge, ""); err == nil {
+			t.Errorf("unjudge from %q was allowed — only an acceptance can be taken back", from)
+		}
+	}
+}

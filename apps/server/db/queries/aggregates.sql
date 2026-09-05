@@ -230,3 +230,14 @@ SELECT step_id, variant_id, environment_id, blob_hash, approved_by, approved_at
 FROM capture_references
 WHERE case_id = $1
 ORDER BY step_id, variant_id, environment_id;
+
+-- The accepted refs whose settling made one capture read validated: the ones
+-- an unvalidate on that capture must take back (#167). A discarded comment
+-- keeps its refs untouched — discarding was said with a reason and it stands.
+-- name: SettledRefsOnCell :many
+SELECT ci.id, ci.comment_id, ci.state, c.state AS comment_state
+FROM comment_issues ci
+JOIN comments c ON c.id = ci.comment_id
+JOIN comment_variants cv ON cv.comment_id = c.id
+WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
+  AND c.state = 'validated' AND ci.state = 'validated';

@@ -1303,8 +1303,11 @@ export interface components {
             lastRefusal?: string;
         };
         Judgment: {
-            /** @enum {string} */
-            verdict: "accepted" | "refused";
+            /**
+             * @description taken-back is a reviewer reconsidering an acceptance: unvalidating a capture whose validation derived from the settled reference (#167).
+             * @enum {string}
+             */
+            verdict: "accepted" | "refused" | "taken-back";
             /** @description Mandatory on a refusal. It is what the dev has to read. */
             remark?: string;
             actorId: string;

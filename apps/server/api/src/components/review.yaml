@@ -157,7 +157,10 @@ Judgment:
   properties:
     verdict:
       type: string
-      enum: [accepted, refused]
+      description: >-
+        taken-back is a reviewer reconsidering an acceptance: unvalidating a
+        capture whose validation derived from the settled reference (#167).
+      enum: [accepted, refused, taken-back]
     remark:
       type: string
       description: Mandatory on a refusal. It is what the dev has to read.

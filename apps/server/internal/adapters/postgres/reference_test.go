@@ -1,8 +1,10 @@
 package postgres_test
 
 import (
+	"context"
 	"testing"
 
+	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres"
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres/sqlcgen"
 	appcomment "github.com/haribo/ozalid/apps/server/internal/app/comment"
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
@@ -282,4 +284,107 @@ func TestAValidationCanBeTakenBack(t *testing.T) {
 	if refs == 0 {
 		t.Error("the reference stamp vanished with the verdict")
 	}
+}
+
+// A capture can read validated without anyone having validated it: accepting
+// the issue that covered it settles the reference, and settling was the
+// judgment. Taking that validation back must then take the judgment back —
+// the reference returns to to-review and the capture with it (#167). Before
+// the fix, unvalidate deleted a verdict that did not exist and the recompute
+// stamped validated right back: the button did nothing, forever.
+func TestUnvalidateTakesASettledJudgmentBack(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	pushEdition(t, ctx, repo, project, kase, "the door before judging", "ci")
+	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	nina := actor.Actor{ID: "nina", Kind: actor.Human}
+	q := repo.Queries()
+
+	created, err := q.CreateComment(ctx, sqlcgen.CreateCommentParams{
+		CaseID: kase.ID, StepID: cell.StepID, Kind: "improvement", Body: "label inside the frame", AuthorID: nina.ID,
+	})
+	if err != nil {
+		t.Fatalf("creating the comment: %v", err)
+	}
+	if err := q.AttachCommentVariant(ctx, sqlcgen.AttachCommentVariantParams{
+		CommentID: created.ID, VariantID: cell.VariantID,
+	}); err != nil {
+		t.Fatalf("attaching the variant: %v", err)
+	}
+	if _, err := repo.Track(ctx, project.Slug, created.ID, nina, appcomment.IssueRef{ID: "129"}); err != nil {
+		t.Fatalf("tracking: %v", err)
+	}
+	if _, err := repo.Deliver(ctx, project.Slug, created.ID, "", nina); err != nil {
+		t.Fatalf("delivering: %v", err)
+	}
+	if _, err := repo.Judge(ctx, project.Slug, created.ID, "", nina, true, ""); err != nil {
+		t.Fatalf("accepting: %v", err)
+	}
+
+	// Accepting settled the reference, so the capture derives validated — the
+	// exact state the production case sat in.
+	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, cell); status != "validated" {
+		t.Fatalf("after accepting, cell = %q, want validated", status)
+	}
+
+	out, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
+		Unvalidated: []review.Cell{cell},
+	})
+	if err != nil {
+		t.Fatalf("taking the validation back: %v", err)
+	}
+
+	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, cell); status == "validated" {
+		t.Error("the capture still reads validated: the take-back did nothing")
+	}
+	if out.State != review.CaseToReview {
+		t.Errorf("case = %q after the take-back, want to-review", out.State)
+	}
+
+	states, err := q.CommentIssueStates(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("reading the ref states: %v", err)
+	}
+	if len(states) != 1 || states[0] != "to-review" {
+		t.Errorf("ref states = %v, want the acceptance taken back to to-review", states)
+	}
+
+	comment, err := q.GetComment(ctx, sqlcgen.GetCommentParams{ID: created.ID, Slug: project.Slug})
+	if err != nil {
+		t.Fatalf("reading the comment: %v", err)
+	}
+	if comment.State != "to-review" {
+		t.Errorf("comment = %q, want to-review derived from its ref", comment.State)
+	}
+
+	// The take-back joins the judgment history: who un-accepted, and when, is
+	// information exactly like the acceptance was (ADR 0012).
+	judgments, err := q.CommentJudgments(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("reading the judgments: %v", err)
+	}
+	if len(judgments) != 2 || judgments[len(judgments)-1].Verdict != "taken-back" {
+		got := make([]string, len(judgments))
+		for i, j := range judgments {
+			got[i] = j.Verdict
+		}
+		t.Errorf("judgments = %v, want [accepted taken-back]", got)
+	}
+}
+
+// statusOf reads one cell's status off the grid, as the client would.
+func statusOf(t *testing.T, ctx context.Context, repo *postgres.Repository, slug, caseID string, cell review.Cell) string {
+	t.Helper()
+	grid, err := repo.CaseGrid(ctx, slug, caseID, nil)
+	if err != nil {
+		t.Fatalf("reading the grid: %v", err)
+	}
+	for _, s := range grid.Steps {
+		for _, c := range s.Cells {
+			if s.ID == cell.StepID && c.VariantID == cell.VariantID {
+				return c.Status
+			}
+		}
+	}
+	t.Fatalf("cell %v not on the grid", cell)
+	return ""
 }

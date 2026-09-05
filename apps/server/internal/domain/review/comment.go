@@ -41,6 +41,10 @@ const (
 	MoveAccept Move = "accept"
 	// MoveRefuse sends it back, with a remark.
 	MoveRefuse Move = "refuse"
+	// MoveUnjudge takes an acceptance back: the reviewer reconsiders, and the
+	// ref returns to their court (#167). It exists on refs only — a comment
+	// never settles or reopens on its own, it derives from its refs.
+	MoveUnjudge Move = "unjudge"
 )
 
 // allowed is the whole machine, in one table. Reading it is reading the rules.
@@ -118,13 +122,14 @@ var refMoves = map[Move]map[RefState]RefState{
 		// as many rounds as it takes (ADR 0012).
 		RefRefused: RefToReview,
 	},
-	MoveAccept: {RefToReview: RefValidated},
-	MoveRefuse: {RefToReview: RefRefused},
+	MoveAccept:  {RefToReview: RefValidated},
+	MoveRefuse:  {RefToReview: RefRefused},
+	MoveUnjudge: {RefValidated: RefToReview},
 }
 
 // TransitionRef reports what a move does to one issue ref, or why it cannot.
 func TransitionRef(from RefState, move Move, remark string) (RefState, error) {
-	if from == RefValidated {
+	if from == RefValidated && move != MoveUnjudge {
 		return from, ErrNotOpen
 	}
 	if move == MoveRefuse && remark == "" {

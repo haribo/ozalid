@@ -85,14 +85,48 @@ func (r *Repository) SaveReview(
 		}
 	}
 
-	// Taking a validation back: the row goes, the recompute below re-derives
-	// the cell, and the journal keeps both moves (#156). The reference stamp
-	// stays — freshness is history, not a verdict.
+	// Taking a validation back applies whatever made the capture validated
+	// (#156, #167). An explicit validation is a row, and the row goes. A
+	// validation derived from a settled reference has no row to delete —
+	// deleting blindly left the recompute to stamp validated right back — so
+	// the judgment itself is taken back: the ref returns to to-review, the
+	// comment re-derives, and the capture follows. Either way the journal
+	// keeps every move, and the reference stamp stays — freshness is history,
+	// not a verdict.
 	for _, cell := range save.Unvalidated {
 		if err := q.DeleteCaptureVerdict(ctx, sqlcgen.DeleteCaptureVerdictParams{
 			CaseID: caseID, StepID: cell.StepID, VariantID: cell.VariantID,
 		}); err != nil {
 			return session.Result{}, translate("taking a verdict back", err)
+		}
+
+		refs, err := q.SettledRefsOnCell(ctx, sqlcgen.SettledRefsOnCellParams{
+			CaseID: caseID, StepID: cell.StepID, VariantID: cell.VariantID,
+		})
+		if err != nil {
+			return session.Result{}, translate("reading the settled refs", err)
+		}
+		for _, ref := range refs {
+			to, err := review.TransitionRef(review.RefState(ref.State), review.MoveUnjudge, "")
+			if err != nil {
+				return session.Result{}, err
+			}
+			if err := q.SetCommentIssueState(ctx, sqlcgen.SetCommentIssueStateParams{
+				ID: ref.ID, State: string(to),
+			}); err != nil {
+				return session.Result{}, translate("taking the judgment back", err)
+			}
+			if err := q.RecordJudgment(ctx, sqlcgen.RecordJudgmentParams{
+				CommentID: ref.CommentID, CommentIssueID: &ref.ID,
+				Verdict: "taken-back", ActorID: by.ID,
+			}); err != nil {
+				return session.Result{}, translate("recording the take-back", err)
+			}
+			if _, err := r.derive(ctx, q, sqlcgen.Comment{
+				ID: ref.CommentID, State: ref.CommentState,
+			}); err != nil {
+				return session.Result{}, err
+			}
 		}
 	}
 
