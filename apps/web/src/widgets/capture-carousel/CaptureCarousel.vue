@@ -27,6 +27,7 @@ const emit = defineEmits<{
   close: []
   move: [stepId: string, variantId: string]
   validate: [stepId: string, variantId: string]
+  unvalidate: [stepId: string, variantId: string]
   comment: [
     input: { stepId: string; kind: 'defect' | 'improvement'; body: string; variantIds: string[] },
   ]
@@ -216,7 +217,12 @@ function onKey(event: KeyboardEvent) {
       break
     case ' ':
       event.preventDefault()
-      if (!toJudge.value && !composing.value && cell.value?.status !== 'validated') {
+      if (toJudge.value || composing.value) break
+      // A toggle until the review ends: the same key takes a misclick back
+      // (#156).
+      if (cell.value?.status === 'validated') {
+        emit('unvalidate', props.stepId, props.variantId)
+      } else {
         emit('validate', props.stepId, props.variantId)
       }
       break

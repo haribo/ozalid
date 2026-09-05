@@ -85,6 +85,17 @@ func (r *Repository) SaveReview(
 		}
 	}
 
+	// Taking a validation back: the row goes, the recompute below re-derives
+	// the cell, and the journal keeps both moves (#156). The reference stamp
+	// stays — freshness is history, not a verdict.
+	for _, cell := range save.Unvalidated {
+		if err := q.DeleteCaptureVerdict(ctx, sqlcgen.DeleteCaptureVerdictParams{
+			CaseID: caseID, StepID: cell.StepID, VariantID: cell.VariantID,
+		}); err != nil {
+			return session.Result{}, translate("taking a verdict back", err)
+		}
+	}
+
 	facts, err := gatherFacts(ctx, q, kase)
 	if err != nil {
 		return session.Result{}, err

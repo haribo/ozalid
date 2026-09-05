@@ -118,6 +118,13 @@ VALUES ($1, $2, $3, $4)
 ON CONFLICT (case_id, step_id, variant_id)
 DO UPDATE SET status = EXCLUDED.status, updated_at = now();
 
+-- Taking a validation back deletes the row rather than writing a state: the
+-- recompute below re-derives the cell from what remains, and the journal is
+-- what remembers both moves (#156).
+-- name: DeleteCaptureVerdict :exec
+DELETE FROM capture_verdicts
+WHERE case_id = $1 AND step_id = $2 AND variant_id = $3 AND status = 'validated';
+
 -- name: SetCaseState :exec
 UPDATE cases SET state = $2, updated_at = now() WHERE id = $1;
 

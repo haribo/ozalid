@@ -329,3 +329,12 @@ describe('the judgment bar (#157)', () => {
     )
   })
 })
+
+describe('space is a toggle (#156)', () => {
+  it('takes a validation back on the same key', () => {
+    const w = mountAt('v2') // v2 is validated in the fixture
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }))
+    expect(w.emitted('unvalidate')?.[0]).toEqual(['s1', 'v2'])
+    expect(w.emitted('validate')).toBeUndefined()
+  })
+})

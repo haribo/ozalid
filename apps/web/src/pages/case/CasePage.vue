@@ -111,6 +111,11 @@ async function onValidate(stepId: string, variantId: string) {
   await refreshCase()
 }
 
+async function onUnvalidate(stepId: string, variantId: string) {
+  await review.unvalidate(stepId, variantId)
+  await refreshCase()
+}
+
 async function onComment(input: Parameters<typeof review.comment>[0]) {
   await review.comment(input)
   await refreshCase()
@@ -200,6 +205,7 @@ async function refreshCase() {
         @close="closeCarousel"
         @move="moveTo"
         @validate="onValidate"
+        @unvalidate="onUnvalidate"
         @comment="onComment"
         @judge="onJudge"
       />
