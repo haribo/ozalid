@@ -243,7 +243,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
       class="mt-2.5 flex flex-wrap justify-center gap-x-5 gap-y-1.5 font-mono text-[10.5px] text-slate-500 dark:text-slate-400"
     >
       <span class="flex items-center gap-1.5">
-        <StateIcon tone="reviewer" :size="12" label="to judge" />to judge
+        <StateIcon tone="reviewer" :size="12" label="to review" />to review
       </span>
       <span class="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
         <StateIcon tone="done" :size="12" label="validated" />validated

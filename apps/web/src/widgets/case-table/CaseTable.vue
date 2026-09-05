@@ -19,7 +19,7 @@ function parts(c: Case) {
   if (!k) return []
   return [
     { tone: 'done' as const, count: k.validated, label: 'validated' },
-    { tone: 'reviewer' as const, count: k.toJudge, label: 'to judge' },
+    { tone: 'reviewer' as const, count: k.toJudge, label: 'to review' },
     { tone: 'dev' as const, count: k.commented, label: 'commented' },
   ]
 }

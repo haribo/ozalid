@@ -6,7 +6,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, type components } from '@/shared/api'
-import { MissingIcon, MovedIcon, StatePill } from '@/shared/ui'
+import { MissingIcon, MovedIcon, StateIcon, StatePill } from '@/shared/ui'
 import { formatMoment, hasMoved, type CaseState } from '@/shared/lib'
 import { useReview } from '@/features/review'
 import { useSession } from '@/features/session'
@@ -159,7 +159,13 @@ async function refreshCase() {
           <span>
             {{ tally.validated }} validated
             <template v-if="tally.commented"> · {{ tally.commented }} commented</template>
-            <template v-if="tally.toJudge"> · {{ tally.toJudge }} to judge</template>
+          </span>
+          <span
+            v-if="tally.toJudge"
+            class="inline-flex items-center gap-1.5 rounded border border-indigo-400 bg-indigo-50 px-1.5 py-0.5 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-950/60 dark:text-indigo-300"
+          >
+            <StateIcon tone="reviewer" :size="10" label="to review" />
+            {{ tally.toJudge }} to review
           </span>
         </template>
         <span
