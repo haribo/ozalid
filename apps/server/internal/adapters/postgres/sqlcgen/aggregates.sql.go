@@ -568,6 +568,25 @@ func (q *Queries) CreateCommentIssue(ctx context.Context, arg CreateCommentIssue
 	return i, err
 }
 
+const deleteCaptureVerdict = `-- name: DeleteCaptureVerdict :exec
+DELETE FROM capture_verdicts
+WHERE case_id = $1 AND step_id = $2 AND variant_id = $3 AND status = 'validated'
+`
+
+type DeleteCaptureVerdictParams struct {
+	CaseID    string
+	StepID    string
+	VariantID string
+}
+
+// Taking a validation back deletes the row rather than writing a state: the
+// recompute below re-derives the cell from what remains, and the journal is
+// what remembers both moves (#156).
+func (q *Queries) DeleteCaptureVerdict(ctx context.Context, arg DeleteCaptureVerdictParams) error {
+	_, err := q.db.Exec(ctx, deleteCaptureVerdict, arg.CaseID, arg.StepID, arg.VariantID)
+	return err
+}
+
 const discardComment = `-- name: DiscardComment :exec
 UPDATE comments SET state = $2, discard_reason = $3, updated_at = now() WHERE id = $1
 `

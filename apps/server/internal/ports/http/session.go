@@ -64,6 +64,13 @@ func toSave(body openapi.ReviewSave) session.Save {
 			})
 		}
 	}
+	if body.Unvalidated != nil {
+		for _, cell := range *body.Unvalidated {
+			save.Unvalidated = append(save.Unvalidated, review.Cell{
+				StepID: cell.StepId, VariantID: cell.VariantId,
+			})
+		}
+	}
 	if body.Comments != nil {
 		for _, c := range *body.Comments {
 			save.Comments = append(save.Comments, session.NewComment{

@@ -38,7 +38,10 @@ type NewComment struct {
 type Save struct {
 	// Validated are the squares the reviewer looked at with nothing to say.
 	Validated []review.Cell
-	Comments  []NewComment
+	// Unvalidated are validations taken back — a misclick, or a second look.
+	// Validating is a toggle until the review ends (#156).
+	Unvalidated []review.Cell
+	Comments    []NewComment
 }
 
 // Result reports what the save amounted to.

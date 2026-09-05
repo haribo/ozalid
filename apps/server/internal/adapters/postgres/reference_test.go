@@ -232,3 +232,54 @@ func TestADeliveryAdvancesTheCaseOntoItsEdition(t *testing.T) {
 		t.Errorf("the case still shows %s, want the delivered %s", grid.Steps[0].Cells[0].Hash, after)
 	}
 }
+
+// Validating is a toggle until the review ends (#156): a misclick is taken
+// back with the same key, the journal keeps both moves, and the reference
+// stamp stays — freshness is history, not a verdict.
+func TestAValidationCanBeTakenBack(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	pushEdition(t, ctx, repo, project, kase, "the form to toggle", "ci")
+	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	nina := actor.Actor{ID: "nina", Kind: actor.Human}
+
+	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
+		Validated: []review.Cell{cell},
+	}); err != nil {
+		t.Fatalf("validating: %v", err)
+	}
+
+	out, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
+		Unvalidated: []review.Cell{cell},
+	})
+	if err != nil {
+		t.Fatalf("taking it back: %v", err)
+	}
+	if out.State != review.CaseToReview {
+		t.Errorf("case = %q after the take-back, want to-review", out.State)
+	}
+
+	grid, err := repo.CaseGrid(ctx, project.Slug, kase.ID, nil)
+	if err != nil {
+		t.Fatalf("reading the grid: %v", err)
+	}
+	for _, s := range grid.Steps {
+		for _, c := range s.Cells {
+			if c.VariantID == cell.VariantID && c.Status == "validated" {
+				t.Error("the cell still reads validated")
+			}
+		}
+	}
+
+	// The reference written at validation stays: it is what "has it moved
+	// since somebody approved it" is measured from, whoever took the verdict
+	// back afterwards.
+	var refs int
+	if err := repo.Pool().QueryRow(ctx,
+		"SELECT count(*) FROM capture_references WHERE case_id = $1", kase.ID,
+	).Scan(&refs); err != nil {
+		t.Fatalf("counting references: %v", err)
+	}
+	if refs == 0 {
+		t.Error("the reference stamp vanished with the verdict")
+	}
+}

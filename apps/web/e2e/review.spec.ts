@@ -50,6 +50,15 @@ test('space validates, and the server is what says so', async ({ page }) => {
   // browser (ADR 0002) — so it survives a reload.
   await page.reload()
   await expect(page.locator('table').first().locator('[aria-label="validated"]')).toHaveCount(1)
+
+  // And the same key takes it back (#156): a misclick is not a life
+  // sentence. The carousel route survived the reload, so the square is still
+  // under the keyboard.
+  await page.keyboard.press(' ')
+  await page.keyboard.press('Escape')
+  await expect(page.locator('table').first().locator('[aria-label="validated"]')).toHaveCount(0)
+  await page.reload()
+  await expect(page.locator('table').first().locator('[aria-label="validated"]')).toHaveCount(0)
 })
 
 test('one defect over two variants is one comment, not two', async ({ page }) => {

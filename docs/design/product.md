@@ -176,6 +176,11 @@ Facts that trigger a recomputation:
 | A delivery is accepted or refused | comment → `validated` or `refused` |
 | An edition is accepted | freshness only — never the cycle state |
 
+**Validating is a toggle until the review ends** (#156): space on a validated
+square takes the validation back — a misclick, or a second look. The journal
+keeps both moves, and the reference stamped at validation stays: freshness is
+history, not a verdict. Verified by `TestAValidationCanBeTakenBack`.
+
 A cell covered by a comment whose **every open ref is delivered** reads
 `to-review`: the ball is the reviewer's, and the grid says so. It reads
 `to-fix` only while some ref still sits with the dev — tracked or refused —

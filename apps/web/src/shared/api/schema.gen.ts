@@ -1363,6 +1363,12 @@ export interface components {
             validated?: components["schemas"]["CellRef"][];
             /** @description What the reviewer wrote during the sitting. */
             comments?: components["schemas"]["NewComment"][];
+            /**
+             * @description Squares whose validation the reviewer takes back — a misclick, or a
+             *     second look. Validating is a toggle until the review ends (#156); the
+             *     journal keeps both moves.
+             */
+            unvalidated?: components["schemas"]["CellRef"][];
         };
         CellVerdict: components["schemas"]["CellRef"] & {
             /** @enum {string} */

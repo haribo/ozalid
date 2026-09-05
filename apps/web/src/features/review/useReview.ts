@@ -42,6 +42,11 @@ export function useReview(slug: () => string, caseId: () => string) {
   }
 
   /** Validate one square: looked at, nothing to say. */
+  /** Take a validation back — a misclick, or a second look (#156). */
+  async function unvalidate(stepId: string, variantId: string) {
+    await send({ unvalidated: [{ stepId, variantId }] })
+  }
+
   async function validate(stepId: string, variantId: string) {
     await send({ validated: [{ stepId, variantId }] })
   }
@@ -114,7 +119,7 @@ export function useReview(slug: () => string, caseId: () => string) {
     await load()
   }
 
-  return { grid, comments, error, saving, held, load, validate, comment, judge, resume }
+  return { grid, comments, error, saving, held, load, validate, unvalidate, comment, judge, resume }
 }
 
 /**

@@ -11,6 +11,14 @@ ReviewSave:
       description: What the reviewer wrote during the sitting.
       items:
         $ref: "#/NewComment"
+    unvalidated:
+      type: array
+      description: |
+        Squares whose validation the reviewer takes back — a misclick, or a
+        second look. Validating is a toggle until the review ends (#156); the
+        journal keeps both moves.
+      items:
+        $ref: "#/CellRef"
 
 CellRef:
   type: object
