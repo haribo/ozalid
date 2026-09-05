@@ -216,7 +216,7 @@ function onKey(event: KeyboardEvent) {
       break
     case ' ':
       event.preventDefault()
-      if (!toJudge.value && cell.value?.status !== 'validated') {
+      if (!toJudge.value && !composing.value && cell.value?.status !== 'validated') {
         emit('validate', props.stepId, props.variantId)
       }
       break
@@ -252,6 +252,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <kbd class="rounded border border-current px-1 font-sans">→</kbd> step ·
         <kbd class="rounded border border-current px-1 font-sans">↑</kbd>
         <kbd class="rounded border border-current px-1 font-sans">↓</kbd> variant ·
+        <kbd class="rounded border border-current px-1">space</kbd> validate ·
         <kbd class="rounded border border-current px-1">Esc</kbd> close
       </span>
     </div>
@@ -346,29 +347,38 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       ></textarea>
     </div>
 
-    <!-- Otherwise: the two things a reviewer does in front of a capture. -->
+    <!-- Otherwise: the two things a reviewer does in front of a capture,
+         centred. The verdict lives on the image's disc; the button says where
+         the toggle stands and repeats no icon (#157). -->
     <div
       v-else-if="!composing"
-      class="flex flex-wrap items-center gap-2 border-t border-slate-200 p-3 dark:border-slate-700"
+      class="flex flex-wrap items-center justify-center gap-2 border-t border-slate-200 p-3 dark:border-slate-700"
     >
       <AppButton
-        :disabled="busy || cell?.status === 'validated'"
+        :disabled="busy"
+        :success="cell?.status === 'validated'"
         @click="emit('validate', stepId, variantId)"
       >
-        <ActionIcon name="check" :size="13" />validate
-        <kbd class="rounded border border-current px-1 text-body">space</kbd>
+        {{ cell?.status === 'validated' ? '✓ validated' : 'to validate' }}
       </AppButton>
-      <AppButton :disabled="busy" variant="destructive" @click="openComposer">
+      <AppButton
+        :disabled="busy || cell?.status === 'validated'"
+        variant="destructive"
+        @click="openComposer"
+      >
         <ActionIcon name="comment" :size="13" />comment
       </AppButton>
+      <!-- A comment is temporary: its body reads only while it is a draft on
+           a square still being judged. Tracked ones speak through their issue
+           titles, settled ones through the verdict (#157). -->
       <span
-        v-if="cell?.status === 'validated'"
-        class="inline-flex items-center gap-1.5 font-mono text-mono text-emerald-700 dark:text-emerald-400"
-      >
-        <StateIcon tone="done" :size="12" />validated
-      </span>
-      <span
-        v-for="c in onSquare"
+        v-for="c in onSquare.filter(
+          (x) =>
+            cell?.status !== 'validated' &&
+            (x.issues ?? []).length === 0 &&
+            x.state !== 'validated' &&
+            x.state !== 'discarded',
+        )"
         :key="c.id"
         class="font-mono text-mono text-amber-700 dark:text-amber-400"
       >
