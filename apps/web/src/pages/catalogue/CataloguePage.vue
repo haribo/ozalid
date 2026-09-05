@@ -6,7 +6,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { api, type components } from '@/shared/api'
-import { AppButton, AdminIcon } from '@/shared/ui'
+import { EmptyState, AppButton, AdminIcon } from '@/shared/ui'
 import { useSession } from '@/features/session'
 import { CategoryTable } from '@/widgets/category-table'
 import { CaseTable } from '@/widgets/case-table'
@@ -194,12 +194,7 @@ watch(
     <template v-else>
       <CategoryTable v-if="children.length" :slug="slug" :categories="children" class="mb-6" />
       <CaseTable v-if="cases.length" :slug="slug" :cases="cases" />
-      <p
-        v-if="!children.length && !cases.length"
-        class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center font-mono text-mono text-slate-500 dark:border-slate-600 dark:text-slate-400"
-      >
-        nothing here yet
-      </p>
+      <EmptyState v-if="!children.length && !cases.length"> nothing here yet </EmptyState>
     </template>
   </div>
 </template>

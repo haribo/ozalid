@@ -8,7 +8,7 @@
  * whatever this screen offers.
  */
 import { onMounted, ref } from 'vue'
-import { AppButton, AdminIcon } from '@/shared/ui'
+import { EmptyState, AppButton, AdminIcon } from '@/shared/ui'
 import { useProjects } from '@/features/projects'
 import { useSession } from '@/features/session'
 
@@ -124,12 +124,9 @@ async function submit() {
       </tbody>
     </table>
 
-    <p
-      v-else
-      class="rounded-md border border-dashed border-slate-300 px-4 py-8 text-center text-slate-600 dark:border-slate-600 dark:text-slate-400"
-    >
+    <EmptyState v-else prose>
       <b class="mb-1 block text-slate-900 dark:text-slate-100"> You belong to no project. </b>
       Ask whoever runs the instance to add you.
-    </p>
+    </EmptyState>
   </main>
 </template>

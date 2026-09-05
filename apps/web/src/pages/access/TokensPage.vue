@@ -8,7 +8,7 @@
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { AppButton, AdminIcon, MintedTokenPanel } from '@/shared/ui'
+import { EmptyState, AppButton, AdminIcon, MintedTokenPanel } from '@/shared/ui'
 import { formatMoment } from '@/shared/lib'
 import { useTokens } from '@/features/access'
 
@@ -113,11 +113,6 @@ async function submit() {
       </tbody>
     </table>
 
-    <p
-      v-else
-      class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center font-mono text-mono text-slate-500 dark:border-slate-600 dark:text-slate-400"
-    >
-      this program presents no token
-    </p>
+    <EmptyState v-else> this program presents no token </EmptyState>
   </main>
 </template>

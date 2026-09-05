@@ -22,7 +22,7 @@ export default defineConfigWithVueTs(
     // the scale rotted the first time. The roles live in style.css's @theme.
     files: ['src/**/*.vue'],
     rules: {
-      'vue/no-restricted-class': ['error', '/^text-\\[/'],
+      'vue/no-restricted-class': ['error', '/^text-\\[/', 'border-dashed'],
       // A raw <button> is how the cursor, the disabled look and the focus
       // ring drifted apart (#155): AppButton is the one way. Toggle chips are
       // the documented exception, disabled inline where they live.
@@ -33,9 +33,12 @@ export default defineConfigWithVueTs(
     },
   },
   {
-    // The one raw <button>: the primitive itself.
-    files: ['src/shared/ui/AppButton.vue'],
-    rules: { 'vue/no-restricted-html-elements': 'off' },
+    // The primitives themselves: the one raw <button>, the one dashed border.
+    files: ['src/shared/ui/AppButton.vue', 'src/shared/ui/EmptyState.vue', 'src/shared/ui/StateIcon.vue'],
+    rules: {
+      'vue/no-restricted-html-elements': 'off',
+      'vue/no-restricted-class': ['error', '/^text-\\[/'],
+    },
   },
   ...LAYERS.map((layer) => ({
     files: [`src/${layer}/**/*.{ts,vue}`],
