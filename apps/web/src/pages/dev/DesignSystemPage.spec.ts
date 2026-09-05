@@ -1,23 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import DesignSystemPage from './DesignSystemPage.vue'
+import * as ui from '@/shared/ui'
 
 describe('DesignSystemPage', () => {
-  // The gallery's contract: every primitive of shared/ui has its section, so
-  // a new one without a home here is caught the day it lands (#155).
-  it('shows a section for every primitive', () => {
-    const w = mount(DesignSystemPage)
-    for (const name of [
-      'AppButton',
-      'StatePill',
-      'RightsPill',
-      'KindIcon',
-      'ActionIcon',
-      'AdminIcon',
-      'VariantHead',
-      'MintedTokenPanel',
-    ]) {
-      expect(w.text(), name).toContain(name)
+  // Derived from the exports, not from a list somebody keeps by hand: the
+  // first version hardcoded the names, two primitives landed after it, and
+  // nothing noticed — precisely what this test claims to prevent (#155).
+  it('shows a section for every primitive shared/ui exports', () => {
+    const text = mount(DesignSystemPage).text()
+    for (const name of Object.keys(ui)) {
+      expect(text, name).toContain(name)
     }
   })
 

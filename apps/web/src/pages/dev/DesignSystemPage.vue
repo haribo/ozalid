@@ -12,6 +12,7 @@ import {
   ActionIcon,
   AdminIcon,
   AppButton,
+  EmptyState,
   KindIcon,
   MintedTokenPanel,
   MissingIcon,
@@ -20,6 +21,7 @@ import {
   StateGauge,
   StateIcon,
   StatePill,
+  TextField,
   VariantHead,
 } from '@/shared/ui'
 import type { CaseState, Tone } from '@/shared/lib'
@@ -88,7 +90,9 @@ const GAUGE = [
     </section>
 
     <section class="mb-10">
-      <h2 class="text-body font-semibold">StatePill · StateIcon · StateGauge</h2>
+      <h2 class="text-body font-semibold">
+        StatePill · StateIcon · StateGauge · MovedIcon · MissingIcon
+      </h2>
       <p class="mb-3 font-mono text-label text-slate-500 uppercase">
         the states of product.md §3 · frontend ADR 0004, a status is a glyph on a disc
       </p>
@@ -135,6 +139,33 @@ const GAUGE = [
           label="an·axis·nobody·predicted"
           :values="{ locale: 'fr', density: 'crowded' }"
         />
+      </div>
+    </section>
+
+    <section class="mb-10">
+      <h2 class="text-body font-semibold">TextField</h2>
+      <p class="mb-3 font-mono text-label text-slate-500 uppercase">
+        shared/ui/TextField.vue · two shapes, one contract (#129, #155)
+      </p>
+      <div class="flex max-w-sm flex-col gap-4">
+        <TextField label="name" placeholder="checkout" />
+        <TextField label="name" invalid model-value="checkout" />
+        <TextField floating label="address" type="email" />
+        <TextField floating label="address" model-value="nicolas@ozalid.org" />
+      </div>
+    </section>
+
+    <section class="mb-10">
+      <h2 class="text-body font-semibold">EmptyState</h2>
+      <p class="mb-3 font-mono text-label text-slate-500 uppercase">
+        an empty list is an answer, not a failure (#109, #112)
+      </p>
+      <div class="flex flex-col gap-3">
+        <EmptyState>nothing here yet</EmptyState>
+        <EmptyState prose>
+          <b class="mb-1 block text-slate-900 dark:text-slate-100">You belong to no project.</b>
+          Ask whoever runs the instance to add you.
+        </EmptyState>
       </div>
     </section>
 
