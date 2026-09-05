@@ -12,14 +12,12 @@ import { AppButton } from '@/shared/ui'
  * for in the first real review of these screens (#129). The icon lives in the
  * label and follows it.
  */
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
+import { TextField } from '@/shared/ui'
 import { useSession } from './useSession'
 
 const { linkSent, busy, error, requestLink, askAgain } = useSession()
 const email = ref('')
-const focused = ref(false)
-
-const floating = computed(() => focused.value || email.value.length > 0)
 </script>
 
 <template>
@@ -56,35 +54,18 @@ const floating = computed(() => focused.value || email.value.length > 0)
     <form v-else class="flex flex-col gap-3" @submit.prevent="requestLink(email)">
       <h1 class="text-title font-semibold">Sign in</h1>
 
-      <div class="relative">
-        <input
-          id="sign-in-address"
-          v-model="email"
-          type="email"
-          required
-          autocomplete="email"
-          class="h-[42px] w-full rounded border-2 bg-slate-100 px-3 text-body text-slate-900 outline-none dark:bg-slate-800 dark:text-slate-100"
-          :class="
-            focused
-              ? 'border-indigo-500 dark:border-indigo-400'
-              : 'border-slate-300 dark:border-slate-600'
-          "
-          @focus="focused = true"
-          @blur="focused = false"
-        />
-        <label
-          for="sign-in-address"
-          class="pointer-events-none absolute flex items-center transition-all select-none"
-          :class="[
-            focused ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-400',
-            floating
-              ? '-top-2 left-2 gap-1.5 rounded bg-white px-1.5 font-mono text-label tracking-wider uppercase dark:bg-slate-950'
-              : 'top-1/2 left-3 -translate-y-1/2 gap-2 text-label',
-          ]"
-        >
+      <TextField
+        v-model="email"
+        floating
+        label="address"
+        type="email"
+        required
+        autocomplete="email"
+      >
+        <template #icon="{ landed }">
           <svg
-            :width="floating ? 12 : 17"
-            :height="floating ? 12 : 17"
+            :width="landed ? 12 : 17"
+            :height="landed ? 12 : 17"
             viewBox="0 0 16 16"
             fill="none"
             stroke="currentColor"
@@ -94,9 +75,8 @@ const floating = computed(() => focused.value || email.value.length > 0)
             <rect x="1.8" y="3.4" width="12.4" height="9.2" rx="1.4" />
             <path d="m2.4 4.4 5.6 4.4 5.6-4.4" />
           </svg>
-          address
-        </label>
-      </div>
+        </template>
+      </TextField>
 
       <p v-if="error" class="text-body text-rose-700 dark:text-rose-400">{{ error }}</p>
 

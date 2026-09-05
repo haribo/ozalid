@@ -35,7 +35,9 @@ export const router = createRouter({
     },
     // The gallery exists only in a dev build: no end user ever sees it, and
     // the production bundle does not carry it (#155).
-    ...(import.meta.env.DEV ? [{ path: '/dev/design-system', component: DesignSystemPage, meta: { anonymous: true } }] : []),
+    ...(import.meta.env.DEV
+      ? [{ path: '/dev/design-system', component: DesignSystemPage, meta: { anonymous: true } }]
+      : []),
     { path: '/sign-in', component: SignInPage, meta: { anonymous: true } },
     { path: '/sign-in/:link', component: ClaimPage, meta: { anonymous: true } },
   ],

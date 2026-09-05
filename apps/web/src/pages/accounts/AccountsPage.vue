@@ -7,7 +7,7 @@
  * question — who reaches it — and drops them.
  */
 import { computed, onMounted, ref } from 'vue'
-import { AppButton, AdminIcon } from '@/shared/ui'
+import { TextField, AppButton, AdminIcon } from '@/shared/ui'
 import { formatMoment } from '@/shared/lib'
 import { useAccounts } from '@/features/accounts'
 
@@ -52,6 +52,7 @@ async function submit() {
       v-if="retired"
       class="mb-3 inline-flex items-center gap-2 font-mono text-mono text-slate-500 dark:text-slate-400"
     >
+      <!-- eslint-disable-next-line vue/no-restricted-html-elements -- a checkbox, not a text field (#155) -->
       <input v-model="showRetired" type="checkbox" class="accent-indigo-600" />
       show the {{ retired }} retired account{{ retired > 1 ? 's' : '' }}
     </label>
@@ -61,24 +62,10 @@ async function submit() {
       class="mb-5 grid gap-3 rounded-md border border-slate-200 p-4 sm:grid-cols-3 dark:border-slate-700"
       @submit.prevent="submit"
     >
-      <label class="flex flex-col gap-1.5">
-        <span class="font-mono text-label tracking-wider text-slate-500 uppercase">name</span>
-        <input
-          v-model="name"
-          required
-          class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-body dark:border-slate-600 dark:bg-slate-900"
-        />
-      </label>
-      <label class="flex flex-col gap-1.5">
-        <span class="font-mono text-label tracking-wider text-slate-500 uppercase">address</span>
-        <input
-          v-model="email"
-          type="email"
-          required
-          class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-body dark:border-slate-600 dark:bg-slate-900"
-        />
-      </label>
+      <TextField v-model="name" label="name" required />
+      <TextField v-model="email" label="address" type="email" required />
       <label class="flex items-center gap-2 self-end pb-1.5">
+        <!-- eslint-disable-next-line vue/no-restricted-html-elements -- a checkbox, not a text field (#155) -->
         <input v-model="admin" type="checkbox" class="accent-indigo-600" />
         <span class="font-mono text-label tracking-wider text-slate-500 uppercase">
           administers the instance

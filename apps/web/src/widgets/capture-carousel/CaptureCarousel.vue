@@ -442,6 +442,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           :key="v.id"
           class="inline-flex cursor-pointer items-center gap-1.5"
         >
+          <!-- eslint-disable-next-line vue/no-restricted-html-elements -- a checkbox, not a text field (#155) -->
           <input
             type="checkbox"
             :checked="chosen.includes(v.id)"

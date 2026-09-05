@@ -9,7 +9,14 @@
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { EmptyState, AppButton, AdminIcon, MintedTokenPanel, RightsPill } from '@/shared/ui'
+import {
+  TextField,
+  EmptyState,
+  AppButton,
+  AdminIcon,
+  MintedTokenPanel,
+  RightsPill,
+} from '@/shared/ui'
 import { formatMoment } from '@/shared/lib'
 import { useAccess } from '@/features/access'
 import { useAccounts } from '@/features/accounts'
@@ -160,15 +167,7 @@ async function addProgram() {
       <!-- Nothing to pick from: a service account belongs to one project and
            never moves (ADR 0018), so one is made here rather than imported. -->
       <form v-else class="flex flex-wrap items-end gap-3" @submit.prevent="addProgram">
-        <label class="flex flex-col gap-1.5">
-          <span class="font-mono text-label tracking-wider text-slate-500 uppercase">name</span>
-          <input
-            v-model="programName"
-            required
-            placeholder="ci-captures"
-            class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-body dark:border-slate-600 dark:bg-slate-900"
-          />
-        </label>
+        <TextField v-model="programName" label="name" required placeholder="ci-captures" />
         <label class="flex flex-col gap-1.5">
           <span class="font-mono text-label tracking-wider text-slate-500 uppercase">rights</span>
           <select
