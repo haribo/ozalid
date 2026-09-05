@@ -29,12 +29,18 @@ export default defineConfigWithVueTs(
       'vue/no-restricted-html-elements': [
         'error',
         { element: 'button', message: 'use AppButton (shared/ui) — #155' },
+        { element: 'input', message: 'use TextField (shared/ui) — #155; a checkbox is the scoped exception' },
       ],
     },
   },
   {
     // The primitives themselves: the one raw <button>, the one dashed border.
-    files: ['src/shared/ui/AppButton.vue', 'src/shared/ui/EmptyState.vue', 'src/shared/ui/StateIcon.vue'],
+    files: [
+      'src/shared/ui/AppButton.vue',
+      'src/shared/ui/EmptyState.vue',
+      'src/shared/ui/StateIcon.vue',
+      'src/shared/ui/TextField.vue',
+    ],
     rules: {
       'vue/no-restricted-html-elements': 'off',
       'vue/no-restricted-class': ['error', '/^text-\\[/'],

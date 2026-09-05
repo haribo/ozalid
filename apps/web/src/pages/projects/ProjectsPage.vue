@@ -8,7 +8,7 @@
  * whatever this screen offers.
  */
 import { onMounted, ref } from 'vue'
-import { EmptyState, AppButton, AdminIcon } from '@/shared/ui'
+import { TextField, EmptyState, AppButton, AdminIcon } from '@/shared/ui'
 import { useProjects } from '@/features/projects'
 import { useSession } from '@/features/session'
 
@@ -44,23 +44,8 @@ async function submit() {
       class="mb-5 grid gap-3 rounded-md border border-slate-200 p-4 sm:grid-cols-2 dark:border-slate-700"
       @submit.prevent="submit"
     >
-      <label class="flex flex-col gap-1.5">
-        <span class="font-mono text-label tracking-wider text-slate-500 uppercase">name</span>
-        <input
-          v-model="name"
-          required
-          class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-body dark:border-slate-600 dark:bg-slate-900"
-        />
-      </label>
-      <label class="flex flex-col gap-1.5">
-        <span class="font-mono text-label tracking-wider text-slate-500 uppercase">id</span>
-        <input
-          v-model="slug"
-          required
-          pattern="[a-z0-9][a-z0-9-]{1,62}"
-          class="rounded border border-slate-300 bg-white px-2.5 py-1.5 font-mono text-mono dark:border-slate-600 dark:bg-slate-900"
-        />
-      </label>
+      <TextField v-model="name" label="name" required />
+      <TextField v-model="slug" label="id" required />
       <AppButton type="submit"> Create </AppButton>
     </form>
 

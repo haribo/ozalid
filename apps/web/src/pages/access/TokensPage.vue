@@ -8,7 +8,7 @@
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { EmptyState, AppButton, AdminIcon, MintedTokenPanel } from '@/shared/ui'
+import { TextField, EmptyState, AppButton, AdminIcon, MintedTokenPanel } from '@/shared/ui'
 import { formatMoment } from '@/shared/lib'
 import { useTokens } from '@/features/access'
 
@@ -49,15 +49,7 @@ async function submit() {
 
     <form class="mb-5 flex flex-wrap items-end gap-3" @submit.prevent="submit">
       <h1 class="mr-auto text-title font-semibold">Tokens</h1>
-      <label class="flex flex-col gap-1.5">
-        <span class="font-mono text-label tracking-wider text-slate-500 uppercase">label</span>
-        <input
-          v-model="label"
-          required
-          placeholder="github actions"
-          class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-body dark:border-slate-600 dark:bg-slate-900"
-        />
-      </label>
+      <TextField v-model="label" label="label" required placeholder="github actions" />
       <AppButton :disabled="busy" type="submit">
         <AdminIcon name="keys" :size="12" />Mint a token
       </AppButton>

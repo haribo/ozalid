@@ -6,7 +6,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { api, type components } from '@/shared/api'
-import { EmptyState, AppButton, AdminIcon } from '@/shared/ui'
+import { TextField, EmptyState, AppButton, AdminIcon } from '@/shared/ui'
 import { useSession } from '@/features/session'
 import { CategoryTable } from '@/widgets/category-table'
 import { CaseTable } from '@/widgets/case-table'
@@ -161,19 +161,7 @@ watch(
       class="mb-5 flex flex-wrap items-end gap-3 rounded-md border border-slate-200 p-4 dark:border-slate-700"
       @submit.prevent="create"
     >
-      <label class="flex flex-col gap-1.5">
-        <span class="font-mono text-label tracking-wider text-slate-500 uppercase">name</span>
-        <input
-          v-model="newName"
-          required
-          class="rounded border bg-white px-2.5 py-1.5 text-body dark:bg-slate-900"
-          :class="
-            createError
-              ? 'border-red-600 dark:border-red-500'
-              : 'border-slate-300 dark:border-slate-600'
-          "
-        />
-      </label>
+      <TextField v-model="newName" label="name" required :invalid="!!createError" />
       <AppButton :disabled="creating" type="submit"> Create </AppButton>
       <AppButton
         variant="secondary"
