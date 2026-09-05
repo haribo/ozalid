@@ -338,3 +338,14 @@ describe('space is a toggle (#156)', () => {
     expect(w.emitted('validate')).toBeUndefined()
   })
 })
+
+describe('the validated button is the toggle (#156)', () => {
+  it('unvalidates on click, for the mouse what space is for the keyboard', async () => {
+    const w = mountAt('v2') // validated in the fixture
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('validated'))!
+      .trigger('click')
+    expect(w.emitted('unvalidate')?.[0]).toEqual(['s1', 'v2'])
+  })
+})
