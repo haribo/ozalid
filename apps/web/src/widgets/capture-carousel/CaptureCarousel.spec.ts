@@ -33,9 +33,9 @@ function mountAt(variantId: string, comments: Comment[] = []) {
 }
 
 describe('CaptureCarousel', () => {
-  it('says where it is in the walk', () => {
-    expect(mountAt('v1').text()).toContain('1 / 2')
-    expect(mountAt('v2').text()).toContain('2 / 2')
+  it('says which step it is on — the counter counts steps, not squares (#149)', () => {
+    expect(mountAt('v1').text()).toContain('1 / 1')
+    expect(mountAt('v2').text()).toContain('1 / 1')
   })
 
   it('steps a judged capture back and stamps its verdict on it', () => {
@@ -100,9 +100,12 @@ describe('CaptureCarousel', () => {
     expect(validate?.attributes('disabled')).toBeDefined()
   })
 
-  it('walks the grid with the arrows and leaves on Escape', () => {
+  it('changes variant on the vertical arrows and leaves on Escape', () => {
     const w = mountAt('v1')
+    // One step: right goes nowhere (#149); down switches the lens.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
+    expect(w.emitted('move')).toBeUndefined()
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))
     expect(w.emitted('move')?.[0]).toEqual(['s1', 'v2'])
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
@@ -227,5 +230,59 @@ describe('the group shortcuts', () => {
       .find((b) => b.text() === 'desktop')!
       .trigger('click')
     expect(w.text()).toContain('2 variants ticked')
+  })
+})
+
+describe('arrows walk the steps (#149)', () => {
+  const three: Grid = {
+    caseId: 'c1',
+    variants: grid.variants,
+    steps: [
+      grid.steps[0],
+      {
+        id: 's2',
+        name: 'types',
+        position: 1,
+        cells: [
+          { id: 'cap3', variantId: 'v1', hash: 'sha256:c', status: 'to-review' },
+          { id: 'cap4', variantId: 'v2', hash: 'sha256:d', status: 'to-review' },
+        ],
+      },
+      {
+        id: 's3',
+        name: 'lands',
+        position: 2,
+        // v2 only: walking right at v1 skips this step.
+        cells: [{ id: 'cap5', variantId: 'v2', hash: 'sha256:e', status: 'to-review' }],
+      },
+    ],
+    recordings: [],
+  }
+  const at = (stepId: string, variantId: string) =>
+    mount(CaptureCarousel, {
+      props: { slug: 'atlas', grid: three, comments: [], stepId, variantId },
+      attachTo: document.body,
+    })
+
+  const press = (key: string) => window.dispatchEvent(new KeyboardEvent('keydown', { key }))
+
+  it('moves to the next step and keeps the variant', () => {
+    const w = at('s1', 'v2')
+    press('ArrowRight')
+    expect(w.emitted('move')).toEqual([['s2', 'v2']])
+    w.unmount()
+  })
+
+  it('skips a step that lacks the variant', () => {
+    const w = at('s2', 'v1')
+    // s3 has no v1: right goes nowhere rather than switching variant.
+    press('ArrowRight')
+    expect(w.emitted('move')).toBeUndefined()
+    w.unmount()
+  })
+
+  it('counts steps, and follows the walk', () => {
+    expect(at('s2', 'v2').text()).toContain('2 / 3')
+    expect(at('s3', 'v2').text()).toContain('3 / 3')
   })
 })
