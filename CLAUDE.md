@@ -150,6 +150,9 @@ Rules must be concise. One rule per line where possible.
 - Never modify an existing test without explicit approval
 - A test failing after a change is reported, never silently fixed
 - Adding a test is always allowed
+- Every behaviour rule added to `docs/design/` names, in the same batch, the
+  test that verifies it — the test carries the paragraph or issue number. A
+  rule without its test is an incomplete review
 - When you add or modify user-observable code, propose the corresponding test in
   the same response as the code change — a gate at push or review time is a
   backstop, not the discipline
