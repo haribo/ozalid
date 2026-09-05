@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { AppButton } from '@/shared/ui'
 /**
  * The book's shell. Chrome stays quiet: this interface frames someone else's
  * screenshots, and nothing here may be mistaken for part of them.
@@ -53,7 +54,7 @@ async function leave() {
       >
         <b class="font-medium text-slate-900 dark:text-slate-100">{{ person.name }}</b>
         ·
-        <button type="button" class="underline underline-offset-2" @click="leave">sign out</button>
+        <AppButton variant="ghost" @click="leave">sign out</AppButton>
       </span>
     </header>
     <SessionExpiredBar v-if="standing === 'expired'" />

@@ -14,7 +14,7 @@
  */
 import { computed } from 'vue'
 import type { components } from '@/shared/api'
-import { MissingIcon, MovedIcon, StateIcon, VariantHead } from '@/shared/ui'
+import { AppButton, MissingIcon, MovedIcon, StateIcon, VariantHead } from '@/shared/ui'
 import { hasMoved, type Tone } from '@/shared/lib'
 
 type Grid = components['schemas']['Grid']
@@ -172,9 +172,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
             >
               <template v-if="cellOf(step, v.id)">
                 <span class="relative inline-block leading-none">
-                  <button
-                    type="button"
-                    class="block cursor-zoom-in border-2 p-0 hover:border-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                  <AppButton
                     :class="[
                       isPortrait(v.values) ? SIZE.tall : SIZE.wide,
                       reading(cellOf(step, v.id)!) === 'judged'
@@ -185,6 +183,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
                         : '',
                     ]"
                     :aria-label="`open ${step.name} — ${v.label} in the carousel`"
+                    variant="secondary"
                     @click="emit('open', step.id, v.id)"
                   >
                     <img
@@ -194,7 +193,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
                       class="block h-full w-full bg-slate-100 object-cover dark:bg-slate-900"
                       :class="settled(cellOf(step, v.id)!) ? 'opacity-40' : ''"
                     />
-                  </button>
+                  </AppButton>
                   <span
                     v-if="settled(cellOf(step, v.id)!)"
                     class="pointer-events-none absolute inset-0 grid place-items-center"

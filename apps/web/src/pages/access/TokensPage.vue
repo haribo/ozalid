@@ -8,7 +8,7 @@
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { AdminIcon, MintedTokenPanel } from '@/shared/ui'
+import { AppButton, AdminIcon, MintedTokenPanel } from '@/shared/ui'
 import { formatMoment } from '@/shared/lib'
 import { useTokens } from '@/features/access'
 
@@ -58,13 +58,9 @@ async function submit() {
           class="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-body dark:border-slate-600 dark:bg-slate-900"
         />
       </label>
-      <button
-        type="submit"
-        :disabled="busy"
-        class="inline-flex items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
-      >
+      <AppButton :disabled="busy" type="submit">
         <AdminIcon name="keys" :size="12" />Mint a token
-      </button>
+      </AppButton>
     </form>
 
     <p v-if="error" class="mb-3 font-mono text-mono text-red-700 dark:text-red-400">
@@ -109,14 +105,9 @@ async function submit() {
             {{ t.lastUsedAt ? formatMoment(t.lastUsedAt) : 'never presented' }}
           </td>
           <td class="py-2 text-right">
-            <button
-              type="button"
-              :disabled="busy"
-              class="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 text-indigo-700 disabled:opacity-50 dark:border-slate-600 dark:text-indigo-300"
-              @click="retire(t.id)"
-            >
+            <AppButton :disabled="busy" variant="secondary" icon @click="retire(t.id)">
               <AdminIcon name="remove" label="retire this token" />
-            </button>
+            </AppButton>
           </td>
         </tr>
       </tbody>

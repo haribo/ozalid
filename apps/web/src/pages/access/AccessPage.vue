@@ -9,7 +9,7 @@
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { AdminIcon, MintedTokenPanel, RightsPill } from '@/shared/ui'
+import { AppButton, AdminIcon, MintedTokenPanel, RightsPill } from '@/shared/ui'
 import { formatMoment } from '@/shared/lib'
 import { useAccess } from '@/features/access'
 import { useAccounts } from '@/features/accounts'
@@ -88,13 +88,7 @@ async function addProgram() {
 
     <div class="mb-4 flex items-end gap-3">
       <h1 class="text-title font-semibold">Access</h1>
-      <button
-        type="button"
-        class="ml-auto inline-flex items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 dark:border-indigo-500 dark:bg-indigo-500"
-        @click="adding = !adding"
-      >
-        <AdminIcon name="add" :size="12" />Add
-      </button>
+      <AppButton @click="adding = !adding"> <AdminIcon name="add" :size="12" />Add </AppButton>
     </div>
 
     <!-- The one moment the token can be read. Above the form that minted it,
@@ -103,6 +97,7 @@ async function addProgram() {
 
     <div v-if="adding" class="mb-5 rounded-md border border-slate-200 p-4 dark:border-slate-700">
       <div class="mb-3.5 flex gap-2">
+        <!-- eslint-disable-next-line vue/no-restricted-html-elements -- a toggle chip, not an action (#155) -->
         <button
           v-for="k in ['person', 'program'] as const"
           :key="k"
@@ -158,13 +153,7 @@ async function addProgram() {
               <option value="reader">reader</option>
             </select>
           </label>
-          <button
-            type="submit"
-            :disabled="busy"
-            class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
-          >
-            Add
-          </button>
+          <AppButton :disabled="busy" type="submit"> Add </AppButton>
         </form>
       </template>
 
@@ -190,13 +179,7 @@ async function addProgram() {
             <option value="reader">reader</option>
           </select>
         </label>
-        <button
-          type="submit"
-          :disabled="busy"
-          class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
-        >
-          Create
-        </button>
+        <AppButton :disabled="busy" type="submit"> Create </AppButton>
       </form>
     </div>
 
@@ -269,18 +252,18 @@ async function addProgram() {
             {{ formatMoment(m.addedAt) }}
           </td>
           <td class="py-2 text-right whitespace-nowrap">
-            <button
+            <AppButton
               v-if="m.isPerson"
-              type="button"
               :disabled="busy"
-              class="mr-1.5 inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 text-indigo-700 disabled:opacity-50 dark:border-slate-600 dark:text-indigo-300"
+              variant="secondary"
+              icon
               @click="grant(m.accountId, m.rights === 'member' ? 'reader' : 'member')"
             >
               <AdminIcon
                 name="swap"
                 :label="`passer en ${m.rights === 'member' ? 'reader' : 'member'}`"
               />
-            </button>
+            </AppButton>
             <RouterLink
               v-else
               :to="`/projects/${slug}/access/${m.accountId}`"
@@ -288,17 +271,17 @@ async function addProgram() {
             >
               <AdminIcon name="keys" />
             </RouterLink>
-            <button
-              type="button"
+            <AppButton
               :disabled="busy"
-              class="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 text-indigo-700 disabled:opacity-50 dark:border-slate-600 dark:text-indigo-300"
+              variant="secondary"
+              icon
               @click="m.isPerson ? revoke(m.accountId) : retireProgram(m.accountId)"
             >
               <AdminIcon
                 name="remove"
                 :label="m.isPerson ? 'remove from the project' : 'retire the program'"
               />
-            </button>
+            </AppButton>
           </td>
         </tr>
       </tbody>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { AppButton } from '@/shared/ui'
 /**
  * Shown when a session died with a verdict in flight.
  *
@@ -26,14 +27,13 @@ const { person, linkSent, busy, requestLink } = useSession()
     </template>
     <template v-else>
       <span class="flex-1 font-medium"> Session expired. The last verdict was not recorded. </span>
-      <button
-        type="button"
+      <AppButton
         :disabled="busy || !person"
-        class="rounded border border-amber-600 bg-amber-600 px-3 py-1.5 text-body font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-500 disabled:opacity-60"
+        variant="destructive"
         @click="person && requestLink(person.email)"
       >
         Sign in again
-      </button>
+      </AppButton>
     </template>
   </div>
 </template>

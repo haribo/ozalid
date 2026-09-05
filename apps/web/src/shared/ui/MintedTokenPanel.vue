@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { AppButton } from '@/shared/ui'
 /**
  * A token, at the one moment it can be read.
  *
@@ -35,23 +36,13 @@ async function copy(value: string) {
       class="mb-2 flex items-center gap-2 rounded border border-slate-300 bg-white px-2.5 py-2 dark:border-slate-600 dark:bg-slate-900"
     >
       <code class="flex-1 font-mono text-mono break-all">{{ token }}</code>
-      <button
-        type="button"
-        class="inline-flex shrink-0 items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white dark:border-indigo-500 dark:bg-indigo-500"
-        @click="copy(token)"
-      >
+      <AppButton @click="copy(token)">
         <AdminIcon name="copy" :size="12" />{{ copied ? 'Copied' : 'Copy' }}
-      </button>
+      </AppButton>
     </div>
     <div class="flex items-center gap-3">
       <p class="text-body text-amber-800 dark:text-amber-300">It will never be shown again.</p>
-      <button
-        type="button"
-        class="ml-auto rounded border border-indigo-600 px-3 py-1.5 text-body font-medium text-indigo-700 dark:border-indigo-500 dark:text-indigo-300"
-        @click="emit('dismiss')"
-      >
-        I have copied the token
-      </button>
+      <AppButton variant="secondary" @click="emit('dismiss')"> I have copied the token </AppButton>
     </div>
   </section>
 </template>

@@ -6,7 +6,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { api, type components } from '@/shared/api'
-import { AdminIcon } from '@/shared/ui'
+import { AppButton, AdminIcon } from '@/shared/ui'
 import { useSession } from '@/features/session'
 import { CategoryTable } from '@/widgets/category-table'
 import { CaseTable } from '@/widgets/case-table'
@@ -148,14 +148,9 @@ watch(
 
     <div class="mb-4 flex items-end gap-3">
       <h1 class="text-title font-semibold">Catalogue</h1>
-      <button
-        v-if="mayWrite"
-        type="button"
-        class="ml-auto inline-flex items-center gap-1.5 rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 dark:border-indigo-500 dark:bg-indigo-500"
-        @click="making = !making"
-      >
+      <AppButton v-if="mayWrite" @click="making = !making">
         <AdminIcon name="add" :size="12" />New category
-      </button>
+      </AppButton>
     </div>
 
     <!-- The parent is the category being read — the breadcrumb answers it, so
@@ -179,20 +174,13 @@ watch(
           "
         />
       </label>
-      <button
-        type="submit"
-        :disabled="creating"
-        class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-body font-medium text-white disabled:opacity-60 dark:border-indigo-500 dark:bg-indigo-500"
-      >
-        Create
-      </button>
-      <button
-        type="button"
-        class="rounded border border-slate-300 px-3 py-1.5 text-body text-slate-600 dark:border-slate-600 dark:text-slate-400"
+      <AppButton :disabled="creating" type="submit"> Create </AppButton>
+      <AppButton
+        variant="secondary"
         @click=";((making = false), (createError = ''), (newName = ''))"
       >
         Cancel
-      </button>
+      </AppButton>
       <p v-if="createError" class="w-full font-mono text-mono text-red-700 dark:text-red-400">
         {{ createError }}
       </p>
