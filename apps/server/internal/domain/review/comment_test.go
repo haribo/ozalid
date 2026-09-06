@@ -16,7 +16,7 @@ func TestTheHappyPathFromReportToClosure(t *testing.T) {
 	}{
 		{review.CommentToTrack, review.MoveTrack, "", review.CommentTracked},
 		{review.CommentTracked, review.MoveDeliver, "", review.CommentToReview},
-		{review.CommentToReview, review.MoveAccept, "", review.CommentValidated},
+		{review.CommentToReview, review.MoveAccept, "", review.CommentAccepted},
 	}
 	for _, s := range steps {
 		got, err := review.Transition(s.from, s.move, s.reason)
@@ -89,7 +89,7 @@ func TestNothingCanBeJudgedBeforeItIsDelivered(t *testing.T) {
 func TestASettledCommentStaysSettled(t *testing.T) {
 	// Accepted and discarded are the only terminal states, and nothing brings
 	// them back — that is what makes the book's history trustworthy.
-	for _, from := range []review.CommentState{review.CommentValidated, review.CommentDiscarded} {
+	for _, from := range []review.CommentState{review.CommentAccepted, review.CommentDiscarded} {
 		for _, move := range []review.Move{
 			review.MoveTrack, review.MoveDiscard, review.MoveDeliver,
 			review.MoveAccept, review.MoveRefuse,
@@ -141,8 +141,8 @@ func TestACommentReadsAsItsFinestOpenRef(t *testing.T) {
 		{"delivered beats tracked", []review.RefState{review.RefTracked, review.RefToReview}, review.CommentToReview},
 		{"refused beats tracked", []review.RefState{review.RefTracked, review.RefRefused}, review.CommentRefused},
 		{"delivered beats refused", []review.RefState{review.RefRefused, review.RefToReview}, review.CommentToReview},
-		{"one validated, one tracked stays open", []review.RefState{review.RefValidated, review.RefTracked}, review.CommentTracked},
-		{"all validated closes", []review.RefState{review.RefValidated, review.RefValidated}, review.CommentValidated},
+		{"one validated, one tracked stays open", []review.RefState{review.RefAccepted, review.RefTracked}, review.CommentTracked},
+		{"all validated closes", []review.RefState{review.RefAccepted, review.RefAccepted}, review.CommentAccepted},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -172,26 +172,27 @@ func TestARefMovesLikeACommentUsedTo(t *testing.T) {
 	if err != nil || to != review.RefToReview {
 		t.Errorf("redelivering a refused ref: %v -> %v", err, to)
 	}
-	if _, err := review.TransitionRef(review.RefValidated, review.MoveDeliver, ""); err == nil {
+	if _, err := review.TransitionRef(review.RefAccepted, review.MoveDeliver, ""); err == nil {
 		t.Error("a validated ref moved again")
 	}
 }
 
-// Unjudge takes an acceptance back (#167): the ref returns to the reviewer's
-// court, and from nowhere else — a refusal is answered by delivering again,
-// not by unjudging it.
-func TestUnjudgeReopensAnAcceptedRef(t *testing.T) {
-	to, err := review.TransitionRef(review.RefValidated, review.MoveUnjudge, "")
-	if err != nil {
-		t.Fatalf("unjudging an accepted ref: %v", err)
-	}
-	if to != review.RefToReview {
-		t.Errorf("ref = %q, want to-review", to)
+// Unjudge takes a judgment back, symmetrically (#167, #171): acceptance or
+// refusal, the ref returns to the reviewer's court — and from nowhere else.
+func TestUnjudgeReopensAJudgedRef(t *testing.T) {
+	for _, from := range []review.RefState{review.RefAccepted, review.RefRefused} {
+		to, err := review.TransitionRef(from, review.MoveUnjudge, "")
+		if err != nil {
+			t.Fatalf("unjudging a ref from %q: %v", from, err)
+		}
+		if to != review.RefToReview {
+			t.Errorf("ref from %q = %q, want to-review", from, to)
+		}
 	}
 
-	for _, from := range []review.RefState{review.RefTracked, review.RefToReview, review.RefRefused} {
+	for _, from := range []review.RefState{review.RefTracked, review.RefToReview} {
 		if _, err := review.TransitionRef(from, review.MoveUnjudge, ""); err == nil {
-			t.Errorf("unjudge from %q was allowed — only an acceptance can be taken back", from)
+			t.Errorf("unjudge from %q was allowed — only a judgment can be taken back", from)
 		}
 	}
 }

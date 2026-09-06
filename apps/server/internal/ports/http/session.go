@@ -34,8 +34,6 @@ func (s *Server) SaveReview(ctx context.Context, request openapi.SaveReviewReque
 	case errors.Is(err, session.ErrNoVariant):
 		return badReview("comment-covers-nothing", "A comment covers no variant",
 			"One defect spanning four variants is one comment with four variants checked."), nil
-	case errors.Is(err, session.ErrUnknownKind):
-		return badReview("unknown-comment-kind", "A comment is neither a defect nor an improvement", ""), nil
 	case errors.Is(err, app.ErrNotFound):
 		return openapi.SaveReview404ApplicationProblemPlusJSONResponse{
 			NotFoundApplicationProblemPlusJSONResponse: notFound("case"),
@@ -57,16 +55,23 @@ func badReview(kind, title, detail string) openapi.SaveReview400ApplicationProbl
 
 func toSave(body openapi.ReviewSave) session.Save {
 	var save session.Save
-	if body.Validated != nil {
-		for _, cell := range *body.Validated {
-			save.Validated = append(save.Validated, review.Cell{
+	if body.Accepted != nil {
+		for _, cell := range *body.Accepted {
+			save.Accepted = append(save.Accepted, review.Cell{
 				StepID: cell.StepId, VariantID: cell.VariantId,
 			})
 		}
 	}
-	if body.Unvalidated != nil {
-		for _, cell := range *body.Unvalidated {
-			save.Unvalidated = append(save.Unvalidated, review.Cell{
+	if body.Unaccepted != nil {
+		for _, cell := range *body.Unaccepted {
+			save.Unaccepted = append(save.Unaccepted, review.Cell{
+				StepID: cell.StepId, VariantID: cell.VariantId,
+			})
+		}
+	}
+	if body.Unrefused != nil {
+		for _, cell := range *body.Unrefused {
+			save.Unrefused = append(save.Unrefused, review.Cell{
 				StepID: cell.StepId, VariantID: cell.VariantId,
 			})
 		}
@@ -74,7 +79,7 @@ func toSave(body openapi.ReviewSave) session.Save {
 	if body.Comments != nil {
 		for _, c := range *body.Comments {
 			save.Comments = append(save.Comments, session.NewComment{
-				StepID: c.StepId, Kind: string(c.Kind), Body: c.Body, VariantIDs: c.VariantIds,
+				StepID: c.StepId, Body: c.Body, VariantIDs: c.VariantIds,
 			})
 		}
 	}

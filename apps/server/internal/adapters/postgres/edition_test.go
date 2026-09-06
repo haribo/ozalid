@@ -90,7 +90,7 @@ func TestACaseCatchesUpOnceItsReviewEnds(t *testing.T) {
 
 	// The reviewer judges the edition they opened, and lets go.
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Validated: []review.Cell{onlyCell(t, ctx, repo, project.Slug, kase.ID)},
+		Accepted: []review.Cell{onlyCell(t, ctx, repo, project.Slug, kase.ID)},
 	}); err != nil {
 		t.Fatalf("saving the review: %v", err)
 	}

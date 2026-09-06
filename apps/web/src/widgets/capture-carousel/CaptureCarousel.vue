@@ -6,10 +6,10 @@
  * doing the work: arrows to move, space to validate, Escape to leave. On a
  * case of twelve squares the reviewer never touches the mouse.
  */
-import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import type { components } from '@/shared/api'
-import { AppButton, ActionIcon, KindIcon, MovedIcon, StateIcon } from '@/shared/ui'
-import { hasMoved, type Tone } from '@/shared/lib'
+import { AppButton, MovedIcon, VerdictPair } from '@/shared/ui'
+import { hasMoved } from '@/shared/lib'
 
 type Grid = components['schemas']['Grid']
 type Comment = components['schemas']['Comment']
@@ -26,12 +26,17 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   move: [stepId: string, variantId: string]
-  validate: [stepId: string, variantId: string]
-  unvalidate: [stepId: string, variantId: string]
-  comment: [
-    input: { stepId: string; kind: 'defect' | 'improvement'; body: string; variantIds: string[] },
-  ]
+  /** Accept the capture; withdraw carries the cell's draft refusals when the
+   * verdict is switched in one gesture (ADR 0020). */
+  accept: [stepId: string, variantId: string, withdraw: boolean]
+  unaccept: [stepId: string, variantId: string]
+  /** Refuse the capture: the remark and its variants, plus the acceptance
+   * take-back when one stood (one gesture, never two). */
+  refuse: [input: { stepId: string; body: string; variantIds: string[]; unaccept: boolean }]
+  unrefuse: [stepId: string, variantId: string]
+  edit: [commentId: string, body: string, variantIds: string[]]
   judge: [commentId: string, issueRefId: string, accept: boolean, remark: string]
+  unjudge: [commentId: string, issueRefId: string]
 }>()
 
 /** Where the open step sits in the flow. The counter counts steps: the
@@ -47,34 +52,55 @@ const onSquare = computed(() =>
   props.comments.filter((c) => c.stepId === props.stepId && c.variantIds.includes(props.variantId)),
 )
 
-/** The issue refs of the comments covering this square, each with its owner.
- * One comment may carry several (#138): the delivered ones are judged here,
- * one by one, and the undelivered stay in sight, dimmed. */
+/** The issue refs of the comments covering this square, each with its owner. */
 const refsOnSquare = computed(() =>
   onSquare.value.flatMap((c) => (c.issues ?? []).map((tracked) => ({ comment: c, ref: tracked }))),
 )
 
 /** A delivery waiting for a verdict. That is what gets judged here, not the
- * capture itself. */
+ * capture itself. One at a time: the square's other refs live in the recap,
+ * and the next delivered one takes this spot once this one is judged (#171). */
 const toJudge = computed(() =>
   refsOnSquare.value.find(({ ref: tracked }) => tracked.state === 'to-review'),
 )
 
-/** The verdict already on this square, in the grid's own vocabulary — one
- * language learnt once, whatever the size the capture is shown at. */
-const VERDICT_TONE: Record<string, Tone> = { validated: 'done', 'to-fix': 'dev' }
-const VERDICT_MARK: Record<string, string> = {
-  validated: 'text-emerald-700 dark:text-emerald-400',
-  'to-fix': 'text-amber-700 dark:text-amber-400',
-}
-const VERDICT_LABEL: Record<string, string> = { validated: 'validated', 'to-fix': 'commented' }
-
-/** A capture that has moved is back to needing eyes, whatever its verdict says,
- * so it comes back to full strength here as it does in the grid. */
-const moved = computed(() => hasMoved(cell.value?.freshness))
-const judged = computed(
-  () => cell.value !== undefined && cell.value.status in VERDICT_TONE && !moved.value,
+/** A judgment already given on this square, still reconsiderable. */
+const acceptedRef = computed(() =>
+  refsOnSquare.value.find(({ ref: tracked }) => tracked.state === 'accepted'),
 )
+const refusedRef = computed(() =>
+  refsOnSquare.value.find(({ ref: tracked }) => tracked.state === 'refused'),
+)
+
+/** The reviewer's own drafts on this square: remarks no issue is attached to
+ * yet. Editable and withdrawable — they never counted anywhere (ADR 0020). */
+const drafts = computed(() =>
+  onSquare.value.filter((c) => (c.issues ?? []).length === 0 && c.state === 'to-track'),
+)
+
+/** Tracked remarks speak through their issue titles; the drafts through their
+ * own words. Settled and discarded ones say nothing here. */
+const trackedTitles = computed(() =>
+  onSquare.value
+    .filter((c) => c.state === 'tracked')
+    .flatMap((c) => (c.issues ?? []).map((r) => `#${r.issueId} ${r.title ?? ''}`.trim())),
+)
+
+/** What the pair shows. The fix's judgment outranks the capture's own status:
+ * when an issue is on this square, the verdict is about the fix. */
+const verdict = computed<'none' | 'accepted' | 'refused'>(() => {
+  if (toJudge.value) return 'none'
+  if (acceptedRef.value) return 'accepted'
+  if (refusedRef.value) return 'refused'
+  if (cell.value?.status === 'accepted') return 'accepted'
+  if (cell.value?.status === 'refused') return 'refused'
+  return 'none'
+})
+
+/** A capture that has moved is back to needing eyes, whatever its verdict
+ * says. The image itself never wears a mark (ADR 0020): the badge says it
+ * moved, the bar says the verdict, the grid keeps its discs. */
+const moved = computed(() => hasMoved(cell.value?.freshness))
 
 /** Left and right walk the steps, keeping the variant; a step that lacks it
  * is skipped rather than switching the lens under the reviewer (#149). */
@@ -97,43 +123,17 @@ function goVariant(delta: number) {
   }
 }
 
-// ---- comment composer -----------------------------------------------------
+// ---- the refuse / edit sheet ----------------------------------------------
 
-const composing = ref(false)
-const kind = ref<'defect' | 'improvement'>('defect')
-const body = ref('')
+/** Open, the sheet is the only editing surface: the pair goes inert and the
+ * capture shrinks — it stays on screen, the remark describes pixels the
+ * reviewer can still see (ADR 0020). */
+const sheet = ref<null | { editing: string | null }>(null)
+const remark = ref('')
 const chosen = ref<string[]>([])
 
-/** The variant on screen is ticked to start with — it is the one being looked
- * at. */
-watch(
-  () => props.variantId,
-  (id) => {
-    if (!composing.value) chosen.value = [id]
-  },
-  { immediate: true },
-)
-
-function openComposer() {
-  composing.value = true
-  chosen.value = [props.variantId]
-}
-
-function toggle(id: string) {
-  chosen.value = chosen.value.includes(id)
-    ? chosen.value.filter((v) => v !== id)
-    : [...chosen.value, id]
-}
-
-/**
- * Group shortcuts, so saying "everywhere" or "both dark ones" is one click and
- * not four.
- *
- * They are derived from the axis values actually present, never hard-coded:
- * the project declares its own axes and ozalid ships no list of them
- * (ADR 0001). A project with a `role` axis gets `admin` and `member`
- * shortcuts without anyone writing them.
- */
+/** Group shortcuts, derived from the axis values actually present — the
+ * project declares its own axes and ozalid ships no list of them (ADR 0001). */
 const groups = computed(() => {
   const values = new Set<string>()
   for (const v of props.grid.variants) {
@@ -141,6 +141,12 @@ const groups = computed(() => {
   }
   return [...values].toSorted()
 })
+
+function toggle(id: string) {
+  chosen.value = chosen.value.includes(id)
+    ? chosen.value.filter((v) => v !== id)
+    : [...chosen.value, id]
+}
 
 function pickValue(value: string) {
   chosen.value = props.grid.variants
@@ -152,41 +158,82 @@ function pickAll() {
   chosen.value = props.grid.variants.map((v) => v.id)
 }
 
-const canAdd = computed(() => body.value.trim() !== '' && chosen.value.length > 0)
+const canSend = computed(() => {
+  if (remark.value.trim() === '') return false
+  // A fix's refusal needs no variants: the issue already owns its own.
+  return toJudge.value ? true : chosen.value.length > 0
+})
 
-function add() {
-  if (!canAdd.value) return
-  emit('comment', {
-    stepId: props.stepId,
-    kind: kind.value,
-    body: body.value.trim(),
-    variantIds: [...chosen.value],
-  })
-  body.value = ''
-  composing.value = false
+function openSheet() {
+  sheet.value = { editing: null }
+  remark.value = ''
+  chosen.value = [props.variantId]
 }
 
-// ---- judging a delivery ---------------------------------------------------
-
-const refusing = ref(false)
-const remark = ref('')
-
-function accept() {
-  const target = toJudge.value
-  if (target) emit('judge', target.comment.id, target.ref.id, true, '')
+function openEdit(commentId: string) {
+  const draft = drafts.value.find((c) => c.id === commentId)
+  if (!draft) return
+  sheet.value = { editing: commentId }
+  remark.value = draft.body
+  chosen.value = [...draft.variantIds]
 }
 
-function refuse() {
-  if (!refusing.value) {
-    refusing.value = true
+function closeSheet() {
+  sheet.value = null
+  remark.value = ''
+}
+
+function send() {
+  if (!sheet.value || !canSend.value) return
+  const body = remark.value.trim()
+  if (sheet.value.editing) {
+    emit('edit', sheet.value.editing, body, [...chosen.value])
+  } else if (toJudge.value) {
+    emit('judge', toJudge.value.comment.id, toJudge.value.ref.id, false, body)
+  } else {
+    emit('refuse', {
+      stepId: props.stepId,
+      body,
+      variantIds: [...chosen.value],
+      unaccept: cell.value?.status === 'accepted',
+    })
+  }
+  closeSheet()
+}
+
+// ---- the pair's reading of a click ----------------------------------------
+
+function onAccept() {
+  if (props.busy || sheet.value) return
+  if (toJudge.value) {
+    emit('judge', toJudge.value.comment.id, toJudge.value.ref.id, true, '')
     return
   }
-  const target = toJudge.value
-  if (target && remark.value.trim() !== '') {
-    emit('judge', target.comment.id, target.ref.id, false, remark.value.trim())
-    remark.value = ''
-    refusing.value = false
+  if (acceptedRef.value) {
+    // The filled half un-presses: the judgment is taken back (#167).
+    emit('unjudge', acceptedRef.value.comment.id, acceptedRef.value.ref.id)
+    return
   }
+  if (verdict.value === 'accepted') {
+    emit('unaccept', props.stepId, props.variantId)
+    return
+  }
+  // Refused → accepted is one gesture: the draft goes with its refusal.
+  emit('accept', props.stepId, props.variantId, verdict.value === 'refused')
+}
+
+function onRefuse() {
+  if (props.busy || sheet.value) return
+  if (refusedRef.value) {
+    emit('unjudge', refusedRef.value.comment.id, refusedRef.value.ref.id)
+    return
+  }
+  if (verdict.value === 'refused') {
+    // Withdraw the draft refusal: the reviewer's own remark goes with it.
+    emit('unrefuse', props.stepId, props.variantId)
+    return
+  }
+  openSheet()
 }
 
 // ---- keyboard -------------------------------------------------------------
@@ -201,7 +248,9 @@ function onKey(event: KeyboardEvent) {
 
   switch (event.key) {
     case 'Escape':
-      emit('close')
+      // The sheet first, the carousel second.
+      if (sheet.value) closeSheet()
+      else emit('close')
       break
     case 'ArrowRight':
       go(1)
@@ -216,15 +265,10 @@ function onKey(event: KeyboardEvent) {
       goVariant(-1)
       break
     case ' ':
+      // Space plays accept — give or take back (ADR 0020).
       event.preventDefault()
-      if (toJudge.value || composing.value) break
-      // A toggle until the review ends: the same key takes a misclick back
-      // (#156).
-      if (cell.value?.status === 'validated') {
-        emit('unvalidate', props.stepId, props.variantId)
-      } else {
-        emit('validate', props.stepId, props.variantId)
-      }
+      if (sheet.value) break
+      onAccept()
       break
     default:
       return
@@ -258,15 +302,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <kbd class="rounded border border-current px-1 font-sans">→</kbd> step ·
         <kbd class="rounded border border-current px-1 font-sans">↑</kbd>
         <kbd class="rounded border border-current px-1 font-sans">↓</kbd> variant ·
-        <kbd class="rounded border border-current px-1">space</kbd> validate ·
+        <kbd class="rounded border border-current px-1">space</kbd> accept ·
         <kbd class="rounded border border-current px-1">Esc</kbd> close
       </span>
     </div>
 
     <div class="grid min-h-0 flex-1 place-items-center bg-slate-100 p-6 dark:bg-slate-950">
-      <!-- The same reading as the grid, at full size: a square already judged
-           steps back and wears its verdict, so what the eye lands on is what
-           still needs looking at. -->
+      <!-- The capture at full strength, always: no veil, no disc — the
+           verdict lives in the bar, and the grid keeps its marks (ADR 0020).
+           When the sheet is open the stage shrinks with the flex column: the
+           pixels stay on screen while the remark is written. -->
       <span v-if="cell" class="relative inline-block max-h-full max-w-full leading-none">
         <!-- Said on the image itself: the reviewer landed here from a keyboard
              walk and never saw the grid's mark. -->
@@ -285,196 +330,140 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           :src="`/api/projects/${slug}/captures/${cell.id}`"
           :alt="`${step?.name} — ${variant?.label}`"
           class="max-h-full max-w-full border border-slate-300 bg-white object-contain dark:border-slate-600 dark:bg-slate-900"
-          :class="judged ? 'opacity-40' : ''"
         />
-        <span
-          v-if="judged"
-          class="pointer-events-none absolute inset-0 grid place-items-center"
-          :class="VERDICT_MARK[cell.status]"
-        >
-          <StateIcon
-            :tone="VERDICT_TONE[cell.status]"
-            :size="72"
-            :label="VERDICT_LABEL[cell.status]"
-          />
-        </span>
       </span>
     </div>
 
-    <!-- Judging a delivery replaces validating: it is no longer the capture
-         being judged, it is the fix. -->
+    <!-- The judgment zone: one centred grammar for every state (#171). The
+         verdict's echo tints the bar's top edge; everything else is the pair,
+         its context line, the draft cards, and the sheet while it is open. -->
     <div
-      v-if="toJudge"
-      class="border-t border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900"
+      class="flex flex-col items-center gap-2.5 border-t border-slate-200 p-3 text-center dark:border-slate-700"
+      :class="{
+        'shadow-[inset_0_2px_0_theme(colors.emerald.600)] dark:shadow-[inset_0_2px_0_theme(colors.emerald.500)]':
+          verdict === 'accepted' && !sheet,
+        'shadow-[inset_0_2px_0_theme(colors.amber.600)] dark:shadow-[inset_0_2px_0_theme(colors.amber.500)]':
+          verdict === 'refused' && !sheet,
+      }"
     >
-      <p class="mb-2.5 font-mono text-label tracking-widest text-slate-500 uppercase">
-        fix delivered · issue {{ toJudge.ref.issueId }}
+      <!-- The context line: the fix being judged, or the judgment given. The
+           verdict is about the issue there — the capture derives from it. -->
+      <template v-if="toJudge">
+        <p class="font-mono text-label tracking-widest text-slate-500 uppercase">
+          fix delivered · issue #{{ toJudge.ref.issueId }}
+        </p>
+        <p class="max-w-[52ch] text-body text-slate-600 dark:text-slate-300">
+          {{ toJudge.ref.title || toJudge.comment.body }}
+        </p>
+      </template>
+      <p
+        v-else-if="acceptedRef"
+        class="font-mono text-label tracking-widest text-emerald-700 uppercase dark:text-emerald-400"
+      >
+        issue #{{ acceptedRef.ref.issueId }} accepted
       </p>
-      <!-- The title once tracked; the free text was the draft it was written
-           from (#138). -->
-      <p class="mb-3 text-body text-slate-600 dark:text-slate-300">
-        {{ toJudge.ref.title || toJudge.comment.body }}
+      <p
+        v-else-if="refusedRef"
+        class="font-mono text-label tracking-widest text-amber-700 uppercase dark:text-amber-400"
+      >
+        issue #{{ refusedRef.ref.issueId }} refused — back to the developer
       </p>
-      <!-- The square's other refs, in sight while one is judged: dimmed when
-           undelivered, settled ones with their state. -->
-      <ul v-if="refsOnSquare.length > 1" class="mb-3 flex flex-col gap-1">
-        <li
-          v-for="{ ref: other } in refsOnSquare.filter(({ ref: r }) => r.id !== toJudge!.ref.id)"
-          :key="other.id"
+
+      <VerdictPair
+        :verdict="verdict"
+        :disabled="busy || sheet !== null"
+        @accept="onAccept"
+        @refuse="onRefuse"
+      />
+
+      <!-- Tracked remarks speak through their issue titles; the drafts are
+           the reviewer's own — the whole card is the way into editing. -->
+      <template v-if="!sheet">
+        <p
+          v-for="title in trackedTitles"
+          :key="title"
           class="font-mono text-mono text-slate-500 dark:text-slate-400"
-          :class="other.state === 'tracked' ? 'opacity-45' : ''"
         >
-          #{{ other.issueId }} {{ other.title }} · {{ other.state }}
-        </li>
-      </ul>
-
-      <div class="flex flex-wrap items-center gap-2">
-        <AppButton variant="secondary" :disabled="busy" @click="accept">
-          <ActionIcon name="accept" :size="13" />accept
-        </AppButton>
+          {{ title }}
+        </p>
         <AppButton
-          :disabled="busy || (refusing && remark.trim() === '')"
-          variant="destructive"
-          @click="refuse"
+          v-for="draft in drafts"
+          :key="draft.id"
+          variant="secondary"
+          class="w-full max-w-md justify-between border-slate-300 font-normal normal-case dark:border-slate-600"
+          :aria-label="`edit the remark: ${draft.body}`"
+          @click="openEdit(draft.id)"
         >
-          <ActionIcon name="refuse" :size="13" />refuse
+          <span class="flex-1 text-left font-mono text-mono text-amber-700 dark:text-amber-400">{{
+            draft.body
+          }}</span>
+          <span aria-hidden="true" class="text-slate-400">✎</span>
         </AppButton>
-        <span v-if="!refusing" class="font-mono text-mono text-slate-500"
-          >refusing will ask for your remark</span
-        >
-      </div>
+      </template>
 
-      <textarea
-        v-if="refusing"
-        v-model="remark"
-        class="mt-2.5 w-full rounded border border-slate-300 bg-white p-2 text-body dark:border-slate-600 dark:bg-slate-950"
-        rows="2"
-        placeholder="what the developer must take back"
-      ></textarea>
-    </div>
-
-    <!-- Otherwise: the two things a reviewer does in front of a capture,
-         centred. The verdict lives on the image's disc; the button says where
-         the toggle stands and repeats no icon (#157). -->
-    <div
-      v-else-if="!composing"
-      class="flex flex-wrap items-center justify-center gap-2 border-t border-slate-200 p-3 dark:border-slate-700"
-    >
-      <AppButton
-        :disabled="busy"
-        :success="cell?.status === 'validated'"
-        @click="
-          cell?.status === 'validated'
-            ? emit('unvalidate', stepId, variantId)
-            : emit('validate', stepId, variantId)
-        "
+      <!-- The sheet: under the image, which stays on screen. Cancel is a true
+           no-op, whatever verdict already stood. -->
+      <form
+        v-if="sheet"
+        class="flex w-full max-w-md flex-col gap-2.5 rounded-md border border-slate-200 bg-slate-50 p-3 text-left dark:border-slate-700 dark:bg-slate-900"
+        @submit.prevent="send"
       >
-        {{ cell?.status === 'validated' ? '✓ validated' : 'to validate' }}
-      </AppButton>
-      <AppButton
-        :disabled="busy || cell?.status === 'validated'"
-        variant="destructive"
-        @click="openComposer"
-      >
-        <ActionIcon name="comment" :size="13" />comment
-      </AppButton>
-      <!-- A comment is temporary: its body reads only while it is a draft on
-           a square still being judged. Tracked ones speak through their issue
-           titles, settled ones through the verdict (#157). -->
-      <span
-        v-for="c in onSquare.filter(
-          (x) =>
-            cell?.status !== 'validated' &&
-            (x.issues ?? []).length === 0 &&
-            x.state !== 'validated' &&
-            x.state !== 'discarded',
-        )"
-        :key="c.id"
-        class="font-mono text-mono text-amber-700 dark:text-amber-400"
-      >
-        {{ c.body }}
-      </span>
-    </div>
-
-    <div
-      v-else
-      class="border-t border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900"
-    >
-      <p class="mb-2.5 font-mono text-label tracking-widest text-slate-500 uppercase">
-        comment on this step
-      </p>
-
-      <div class="mb-2.5 flex gap-1.5">
-        <!-- eslint-disable-next-line vue/no-restricted-html-elements -- a toggle chip, not an action (#155) -->
-        <button
-          type="button"
-          class="inline-flex items-center gap-1.5 rounded border px-2.5 py-1 font-mono text-mono"
-          :class="
-            kind === 'defect'
-              ? 'border-amber-600 bg-amber-50 text-amber-800 dark:border-amber-500 dark:bg-amber-950 dark:text-amber-300'
-              : 'border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300'
-          "
-          @click="kind = 'defect'"
-        >
-          <KindIcon kind="defect" :size="12" />defect
-        </button>
-        <!-- eslint-disable-next-line vue/no-restricted-html-elements -- a toggle chip, not an action (#155) -->
-        <button
-          type="button"
-          class="inline-flex items-center gap-1.5 rounded border px-2.5 py-1 font-mono text-mono"
-          :class="
-            kind === 'improvement'
-              ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-950 dark:text-indigo-300'
-              : 'border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300'
-          "
-          @click="kind = 'improvement'"
-        >
-          <KindIcon kind="improvement" :size="12" />improvement
-        </button>
-      </div>
-
-      <textarea
-        v-model="body"
-        class="w-full rounded border border-slate-300 bg-white p-2 text-body dark:border-slate-600 dark:bg-slate-950"
-        rows="3"
-        placeholder="what you see, in your words"
-      ></textarea>
-
-      <div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-mono">
-        <label
-          v-for="v in grid.variants"
-          :key="v.id"
-          class="inline-flex cursor-pointer items-center gap-1.5"
-        >
-          <!-- eslint-disable-next-line vue/no-restricted-html-elements -- a checkbox, not a text field (#155) -->
-          <input
-            type="checkbox"
-            :checked="chosen.includes(v.id)"
-            class="accent-indigo-600"
-            @change="toggle(v.id)"
-          />
-          {{ v.label }}
+        <h3 class="text-body font-semibold">
+          {{
+            sheet.editing
+              ? 'Edit the remark'
+              : toJudge
+                ? `Refuse the fix — issue #${toJudge.ref.issueId}`
+                : 'Refuse the capture'
+          }}
+        </h3>
+        <label class="flex flex-col gap-1">
+          <span class="font-mono text-label tracking-wider text-slate-500 uppercase">
+            remark <b class="text-amber-700 dark:text-amber-400">*</b>
+          </span>
+          <textarea
+            v-model="remark"
+            class="w-full rounded border border-slate-300 bg-white p-2 text-body dark:border-slate-600 dark:bg-slate-950"
+            rows="3"
+          ></textarea>
         </label>
-        <span class="ml-auto flex flex-wrap gap-1.5">
-          <AppButton
-            v-for="value in groups"
-            :key="value"
-            variant="secondary"
-            @click="pickValue(value)"
+        <div
+          v-if="!toJudge"
+          class="flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-mono"
+        >
+          <label
+            v-for="v in grid.variants"
+            :key="v.id"
+            class="inline-flex cursor-pointer items-center gap-1.5"
           >
-            {{ value }}
+            <!-- eslint-disable-next-line vue/no-restricted-html-elements -- a checkbox, not a text field (#155) -->
+            <input
+              type="checkbox"
+              :checked="chosen.includes(v.id)"
+              class="accent-indigo-600"
+              @change="toggle(v.id)"
+            />
+            {{ v.label }}
+          </label>
+          <span class="ml-auto flex flex-wrap gap-1.5">
+            <AppButton
+              v-for="value in groups"
+              :key="value"
+              variant="secondary"
+              @click="pickValue(value)"
+            >
+              {{ value }}
+            </AppButton>
+            <AppButton variant="secondary" @click="pickAll"> all </AppButton>
+          </span>
+        </div>
+        <div class="flex items-center justify-end gap-2">
+          <AppButton variant="ghost" @click="closeSheet"> cancel </AppButton>
+          <AppButton variant="destructive" :disabled="!canSend || busy" @click="send">
+            {{ sheet.editing ? 'save' : 'refuse' }}
           </AppButton>
-          <AppButton variant="secondary" @click="pickAll"> all </AppButton>
-        </span>
-      </div>
-
-      <div class="mt-3 flex flex-wrap items-center gap-2">
-        <AppButton :disabled="!canAdd || busy" @click="add"> add </AppButton>
-        <AppButton variant="secondary" @click="composing = false"> cancel </AppButton>
-        <span class="font-mono text-mono text-slate-500">
-          {{ chosen.length }} variant{{ chosen.length > 1 ? 's' : '' }} ticked
-        </span>
-      </div>
+        </div>
+      </form>
     </div>
   </div>
 </template>

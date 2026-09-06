@@ -45,8 +45,8 @@ WITH latest AS (
 SELECT
     k.*,
     count(c.id)                                                        AS captures,
-    count(*) FILTER (WHERE v.status = 'validated')                     AS validated,
-    count(*) FILTER (WHERE v.status = 'to-fix')                        AS commented,
+    count(*) FILTER (WHERE v.status = 'accepted')                      AS accepted,
+    count(*) FILTER (WHERE v.status = 'refused')                       AS refused,
     count(c.id) FILTER (WHERE v.status IS NULL OR v.status = 'to-review') AS to_judge,
     max(e.created_at)::timestamptz                                     AS last_edition
 FROM cases k
@@ -68,12 +68,12 @@ FROM steps s
 JOIN captures c ON c.step_id = s.id AND c.edition_id = $2
 WHERE s.case_id = $1;
 
--- name: CaseValidatedCells :many
+-- name: CaseAcceptedCells :many
 SELECT step_id, variant_id FROM capture_verdicts
-WHERE case_id = $1 AND status = 'validated';
+WHERE case_id = $1 AND status = 'accepted';
 
 -- name: CaseComments :many
-SELECT c.id, c.step_id, c.kind, c.body, c.state,
+SELECT c.id, c.step_id, c.body, c.state,
        c.discard_reason, c.author_id, c.created_at, c.updated_at,
        array_remove(array_agg(cv.variant_id), NULL)::text[] AS variant_ids
 FROM comments c
@@ -86,8 +86,8 @@ GROUP BY c.id
 ORDER BY c.created_at;
 
 -- name: CreateComment :one
-INSERT INTO comments (case_id, step_id, kind, body, author_id)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO comments (case_id, step_id, body, author_id)
+VALUES ($1, $2, $3, $4)
 RETURNING *;
 
 -- The anchor is the capture the reviewer was looking at: the one of the
@@ -118,12 +118,12 @@ VALUES ($1, $2, $3, $4)
 ON CONFLICT (case_id, step_id, variant_id)
 DO UPDATE SET status = EXCLUDED.status, updated_at = now();
 
--- Taking a validation back deletes the row rather than writing a state: the
+-- Taking an acceptance back deletes the row rather than writing a state: the
 -- recompute below re-derives the cell from what remains, and the journal is
 -- what remembers both moves (#156).
 -- name: DeleteCaptureVerdict :exec
 DELETE FROM capture_verdicts
-WHERE case_id = $1 AND step_id = $2 AND variant_id = $3 AND status = 'validated';
+WHERE case_id = $1 AND step_id = $2 AND variant_id = $3 AND status = 'accepted';
 
 -- name: SetCaseState :exec
 UPDATE cases SET state = $2, updated_at = now() WHERE id = $1;
@@ -240,4 +240,25 @@ FROM comment_issues ci
 JOIN comments c ON c.id = ci.comment_id
 JOIN comment_variants cv ON cv.comment_id = c.id
 WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
-  AND c.state = 'validated' AND ci.state = 'validated';
+  AND c.state = 'accepted' AND ci.state = 'accepted';
+
+-- The reviewer's own drafts on one cell: remarks with no issue attached yet.
+-- Withdrawing a draft refusal takes them with it — ADR 0020's explicit
+-- exception to "nothing is deleted", scoped to the author's own drafts.
+-- name: DraftCommentsOnCell :many
+SELECT DISTINCT c.id FROM comments c
+JOIN comment_variants cv ON cv.comment_id = c.id
+WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
+  AND c.author_id = $4 AND c.state = 'to-track'
+  AND NOT EXISTS (SELECT 1 FROM comment_issues ci WHERE ci.comment_id = c.id);
+
+-- name: DeleteComment :exec
+DELETE FROM comments WHERE id = $1;
+
+-- Editing is the author reworking their own draft (ADR 0020): body only —
+-- variants are replaced beside it in the same transaction.
+-- name: UpdateCommentBody :exec
+UPDATE comments SET body = $2, updated_at = now() WHERE id = $1;
+
+-- name: DetachCommentVariants :exec
+DELETE FROM comment_variants WHERE comment_id = $1;

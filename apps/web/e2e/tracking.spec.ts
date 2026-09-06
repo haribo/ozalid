@@ -26,7 +26,6 @@ test('a comment splits into two issues, and each lives its own round', async ({
       comments: [
         {
           stepId: step.id,
-          kind: 'defect',
           body: 'two problems in one breath',
           variantIds: [step.cells[0].variantId],
         },
@@ -90,7 +89,7 @@ test('a comment splits into two issues, and each lives its own round', async ({
     ).status(),
   ).toBe(200)
   c = await read()
-  expect(c.issues.find((r: { id: string }) => r.id === first).state).toBe('validated')
+  expect(c.issues.find((r: { id: string }) => r.id === first).state).toBe('accepted')
   expect(c.issues.find((r: { id: string }) => r.id !== first).state).toBe('tracked')
 
   // One half judged is not a settled comment: the other is undelivered.

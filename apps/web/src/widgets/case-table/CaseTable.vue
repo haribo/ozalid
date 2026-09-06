@@ -18,9 +18,9 @@ function parts(c: Case) {
   const k = c.captures
   if (!k) return []
   return [
-    { tone: 'done' as const, count: k.validated, label: 'validated' },
+    { tone: 'done' as const, count: k.accepted, label: 'accepted' },
     { tone: 'reviewer' as const, count: k.toJudge, label: 'to review' },
-    { tone: 'dev' as const, count: k.commented, label: 'commented' },
+    { tone: 'dev' as const, count: k.refused, label: 'refused' },
   ]
 }
 </script>

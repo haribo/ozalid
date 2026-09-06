@@ -37,6 +37,7 @@ export default defineConfigWithVueTs(
     // The primitives themselves: the one raw <button>, the one dashed border.
     files: [
       'src/shared/ui/AppButton.vue',
+      'src/shared/ui/VerdictPair.vue',
       'src/shared/ui/EmptyState.vue',
       'src/shared/ui/StateIcon.vue',
       'src/shared/ui/TextField.vue',

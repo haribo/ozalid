@@ -120,10 +120,89 @@ Delivery:
       "409":
         $ref: "#/MoveRefused"
 
+Comment:
+  parameters:
+    - $ref: "#/Slug"
+    - $ref: "#/CommentId"
+  patch:
+    operationId: editComment
+    security:
+      - serviceToken: []
+      - session: []
+    summary: Edit a draft remark
+    description: |
+      The author reworking their own draft (ADR 0020): text and covered
+      variants, while no issue is attached. Once tracked, the issue's title
+      speaks in the remark's place and editing is refused.
+    tags: [comments]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [body, variantIds]
+            properties:
+              body: { type: string, minLength: 1 }
+              variantIds:
+                type: array
+                minItems: 1
+                items: { type: string }
+    responses:
+      '401':
+        $ref: "../components/responses.yaml#/Unauthenticated"
+      '403':
+        $ref: "../components/responses.yaml#/Forbidden"
+      "200":
+        $ref: "#/MoveApplied"
+      "400":
+        $ref: "../components/responses.yaml#/BadRequest"
+      "404":
+        $ref: "../components/responses.yaml#/NotFound"
+      "409":
+        $ref: "#/MoveRefused"
+
 Judgment:
   parameters:
     - $ref: "#/Slug"
     - $ref: "#/CommentId"
+  delete:
+    operationId: unjudgeComment
+    security:
+      - serviceToken: []
+      - session: []
+    summary: Take a judgment back
+    description: |
+      The reviewer reconsiders an acceptance or a refusal: the ref returns to
+      to-review, and the capture it covers with it (#167, #171). The take-back
+      joins the judgment history as `taken-back` — who reconsidered, and when,
+      is information exactly like the judgment was.
+    tags: [comments]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              issueId:
+                type: string
+                description: |
+                  The ref unjudged — its `id` in the comment's `issues` list.
+                  Mandatory once the comment carries more than one (#138).
+    responses:
+      '401':
+        $ref: "../components/responses.yaml#/Unauthenticated"
+      '403':
+        $ref: "../components/responses.yaml#/Forbidden"
+      "200":
+        $ref: "#/MoveApplied"
+      "400":
+        $ref: "../components/responses.yaml#/BadRequest"
+      "404":
+        $ref: "../components/responses.yaml#/NotFound"
+      "409":
+        $ref: "#/MoveRefused"
   post:
     operationId: judgeComment
     security:

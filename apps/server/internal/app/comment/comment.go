@@ -41,6 +41,8 @@ type Repository interface {
 	Discard(ctx context.Context, slug, commentID string, by actor.Actor, reason string) (Outcome, error)
 	Deliver(ctx context.Context, slug, commentID, issueRefID string, by actor.Actor) (Outcome, error)
 	Judge(ctx context.Context, slug, commentID, issueRefID string, by actor.Actor, accept bool, remark string) (Outcome, error)
+	Unjudge(ctx context.Context, slug, commentID, issueRefID string, by actor.Actor) (Outcome, error)
+	Edit(ctx context.Context, slug, commentID string, by actor.Actor, body string, variantIDs []string) (Outcome, error)
 	OfCase(ctx context.Context, slug, caseID string) ([]Record, error)
 }
 
@@ -81,9 +83,36 @@ func (s *Service) Judge(ctx context.Context, slug, commentID, issueRefID string,
 	return s.repo.Judge(ctx, slug, commentID, issueRefID, by, accept, strings.TrimSpace(remark))
 }
 
+// Unjudge takes a judgment back — an acceptance or a refusal: the reviewer
+// reconsiders, and the ref returns to their court (#167, #171).
+func (s *Service) Unjudge(ctx context.Context, slug, commentID, issueRefID string, by actor.Actor) (Outcome, error) {
+	return s.repo.Unjudge(ctx, slug, commentID, issueRefID, by)
+}
+
 // ErrAmbiguousIssue means the comment carries several refs and the caller
 // named none: the server will not guess which fix was delivered or judged.
 var ErrAmbiguousIssue = errors.New("comment: several issues are attached, name one")
+
+// ErrNotADraft means the remark already speaks through an issue: editing it
+// would put words behind a title someone else wrote from (ADR 0020).
+var ErrNotADraft = errors.New("comment: an issue is attached, the draft is gone")
+
+// ErrNotTheAuthor means someone else's draft: a draft is the reviewer's own.
+var ErrNotTheAuthor = errors.New("comment: a draft is edited by its author only")
+
+// Edit is the author reworking their own draft: text and covered variants,
+// while no issue is attached (ADR 0020).
+func (s *Service) Edit(ctx context.Context, slug, commentID string, by actor.Actor, body string, variantIDs []string) (Outcome, error) {
+	body = strings.TrimSpace(body)
+	if body == "" || len(variantIDs) == 0 {
+		return Outcome{}, ErrEmptyEdit
+	}
+	return s.repo.Edit(ctx, slug, commentID, by, body, variantIDs)
+}
+
+// ErrEmptyEdit means the edit would leave the remark saying or covering
+// nothing.
+var ErrEmptyEdit = errors.New("comment: an edit needs a body and a variant")
 
 // IssueTracking is one attached issue as the layers above read it.
 type IssueTracking struct {

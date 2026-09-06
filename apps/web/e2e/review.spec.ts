@@ -7,7 +7,7 @@
  * written that way.
  */
 import { expect, test, type Page } from '@playwright/test'
-import { commentOnStep, moveTheDarkVariant, seed, validateEverything } from './fixture'
+import { commentOnStep, moveTheDarkVariant, seed, acceptEverything } from './fixture'
 import { emptyMailbox, linkSentTo } from './mailbox'
 
 /** The grid's own cells. The recap is another table, and its ticks are actions
@@ -38,44 +38,44 @@ test('clicking a capture opens the carousel on that exact square', async ({ page
   await expect(carousel).toContainText('2 / 3')
 })
 
-test('space validates, and the server is what says so', async ({ page }) => {
+test('space accepts, and the server is what says so', async ({ page }) => {
   const seeded = await seed(page)
   await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
   await page.locator('tbody button[aria-label*="in the carousel"]').first().click()
   await page.keyboard.press(' ')
 
-  await expect(page.locator('table').first().locator('[aria-label="validated"]')).toHaveCount(1)
+  await expect(page.locator('table').first().locator('[aria-label="accepted"]')).toHaveCount(1)
 
   // Redrawn from what the server answered, never from a guess made in the
   // browser (ADR 0002) — so it survives a reload.
   await page.reload()
-  await expect(page.locator('table').first().locator('[aria-label="validated"]')).toHaveCount(1)
+  await expect(page.locator('table').first().locator('[aria-label="accepted"]')).toHaveCount(1)
 
   // And the same key takes it back (#156): a misclick is not a life
   // sentence. The carousel route survived the reload, so the square is still
   // under the keyboard.
   await page.keyboard.press(' ')
   await page.keyboard.press('Escape')
-  await expect(page.locator('table').first().locator('[aria-label="validated"]')).toHaveCount(0)
+  await expect(page.locator('table').first().locator('[aria-label="accepted"]')).toHaveCount(0)
   await page.reload()
-  await expect(page.locator('table').first().locator('[aria-label="validated"]')).toHaveCount(0)
+  await expect(page.locator('table').first().locator('[aria-label="accepted"]')).toHaveCount(0)
 })
 
 test('one defect over two variants is one comment, not two', async ({ page }) => {
   const seeded = await seed(page)
   await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
   await page.locator('tbody button[aria-label*="in the carousel"]').nth(2).click()
-  await page.getByRole('button', { name: 'comment' }).click()
+  await page.getByRole('button', { name: 'refuse', exact: true }).click()
 
-  await page.getByPlaceholder('what you see, in your words').fill('the button is clipped')
+  await page.locator('textarea').fill('the button is clipped')
   await page.getByRole('button', { name: 'all' }).click()
-  await page.getByRole('button', { name: 'add', exact: true }).click()
+  await page.getByRole('dialog', { name: 'capture' }).locator('form').getByRole('button', { name: 'refuse' }).click()
 
   // One row in the recap — the text also shows in the carousel, so the count is
   // taken where the claim is about.
   const recap = page.locator('table').last()
   await expect(recap.getByText('the button is clipped')).toHaveCount(1)
-  await expect(page.locator('table').first().locator('[aria-label="commented"]')).toHaveCount(2)
+  await expect(page.locator('table').first().locator('[aria-label="refused"]')).toHaveCount(2)
 })
 
 test('the recap takes you back to the capture a comment was written on', async ({ page }) => {
@@ -92,9 +92,9 @@ test('the recap takes you back to the capture a comment was written on', async (
 
 test('a capture that moved comes back asking to be looked at', async ({ page }) => {
   const seeded = await seed(page)
-  await validateEverything(seeded)
+  await acceptEverything(seeded)
   await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
-  await expect(page.locator('table').first().locator('[aria-label="validated"]')).toHaveCount(6)
+  await expect(page.locator('table').first().locator('[aria-label="accepted"]')).toHaveCount(6)
 
   await moveTheDarkVariant(page, seeded)
   await page.reload()
@@ -102,7 +102,7 @@ test('a capture that moved comes back asking to be looked at', async ({ page }) 
   // Three dark squares moved, the light ones did not. The verdict they carried
   // is gone from the grid: for the question it asks, they are to judge again.
   await expect(page.locator('table').first().locator('[aria-label="moved"]')).toHaveCount(3)
-  await expect(page.locator('table').first().locator('[aria-label="validated"]')).toHaveCount(3)
+  await expect(page.locator('table').first().locator('[aria-label="accepted"]')).toHaveCount(3)
   await expect(page.getByText('3 captures have moved')).toBeVisible()
 
   // Freshness is an overlay, never a state: the case does not move.
@@ -119,7 +119,7 @@ test('every mark the grid draws wears a disc', async ({ page }) => {
   // render because that is where the rule was broken: a bare glyph landed on
   // the product's own button and became one of its pixels.
   const seeded = await seed(page)
-  await validateEverything(seeded)
+  await acceptEverything(seeded)
   await commentOnStep(seeded, 0, 'needs another look')
   await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
 
@@ -235,9 +235,28 @@ test('a verdict held through an expired session survives closing the carousel', 
   await other.getByRole('button', { name: 'Send the link' }).click()
   await other.goto(`/sign-in/${await linkSentTo(email)}`)
 
-  // The held verdict lands: the cell the space bar judged is validated.
+  // The held verdict lands: the cell the space bar judged is accepted.
   await expect(page.getByText('Session expired')).toHaveCount(0)
   await expect(
-    page.locator('table').first().locator('[aria-label="validated"]').first(),
+    page.locator('table').first().locator('[aria-label="accepted"]').first(),
   ).toBeVisible()
+})
+
+test('refusing writes the remark and the capture stays on screen', async ({ page }) => {
+  // The sheet opens under the image (ADR 0020): the reviewer describes pixels
+  // they can still see — a modal covering them was rejected for exactly that.
+  const seeded = await seed(page)
+  await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  await page.locator('tbody button[aria-label*="in the carousel"]').first().click()
+
+  const carousel = page.getByRole('dialog', { name: 'capture' })
+  await carousel.getByRole('button', { name: 'refuse', exact: true }).click()
+  await expect(carousel.locator('textarea')).toBeVisible()
+  await expect(carousel.locator('img')).toBeVisible()
+
+  // Escape closes the sheet, not the carousel, and nothing was sent.
+  await page.keyboard.press('Escape')
+  await expect(carousel.locator('textarea')).toHaveCount(0)
+  await expect(carousel).toBeVisible()
+  await expect(page.locator('table').first().locator('[aria-label="refused"]')).toHaveCount(0)
 })

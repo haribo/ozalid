@@ -84,6 +84,117 @@ func (r *Repository) Judge(
 	})
 }
 
+// Unjudge takes a judgment back — an acceptance or a refusal. The take-back
+// joins the judgment history: who reconsidered, and when, is information
+// exactly like the judgment was (#167, #171, ADR 0012).
+func (r *Repository) Unjudge(
+	ctx context.Context, slug, commentID, issueRefID string, by actor.Actor,
+) (appcomment.Outcome, error) {
+	return r.move(ctx, slug, commentID, by, review.MoveUnjudge, "", func(ctx context.Context, q *sqlcgen.Queries, c sqlcgen.Comment) (review.CommentState, error) {
+		refID, err := r.moveRef(ctx, q, slug, commentID, issueRefID, review.MoveUnjudge, "")
+		if err != nil {
+			return "", err
+		}
+		if err := q.RecordJudgment(ctx, sqlcgen.RecordJudgmentParams{
+			CommentID: commentID, CommentIssueID: &refID,
+			Verdict: "taken-back", ActorID: by.ID,
+		}); err != nil {
+			return "", translate("recording the take-back", err)
+		}
+		return r.derive(ctx, q, c)
+	})
+}
+
+// Edit is the author reworking their own draft: body and covered variants,
+// while no issue is attached (ADR 0020). The covered cells change, so the
+// verdicts they carry are recomputed in the same transaction.
+func (r *Repository) Edit(
+	ctx context.Context, slug, commentID string, by actor.Actor, body string, variantIDs []string,
+) (appcomment.Outcome, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return appcomment.Outcome{}, fmt.Errorf("beginning the edit: %w", err)
+	}
+	defer func() {
+		// best-effort: rolling back a committed transaction fails, and that
+		// means the write went through.
+		_ = tx.Rollback(ctx)
+	}()
+	q := r.q.WithTx(tx)
+
+	comment, err := q.GetComment(ctx, sqlcgen.GetCommentParams{ID: commentID, Slug: slug})
+	if err != nil {
+		return appcomment.Outcome{}, translate("reading the comment", err)
+	}
+	if comment.AuthorID != by.ID {
+		return appcomment.Outcome{}, appcomment.ErrNotTheAuthor
+	}
+	refs, err := q.CommentIssueStates(ctx, commentID)
+	if err != nil {
+		return appcomment.Outcome{}, translate("reading the refs", err)
+	}
+	if comment.State != string(review.CommentToTrack) || len(refs) > 0 {
+		return appcomment.Outcome{}, appcomment.ErrNotADraft
+	}
+
+	if err := q.UpdateCommentBody(ctx, sqlcgen.UpdateCommentBodyParams{ID: commentID, Body: body}); err != nil {
+		return appcomment.Outcome{}, translate("editing the remark", err)
+	}
+	if err := q.DetachCommentVariants(ctx, commentID); err != nil {
+		return appcomment.Outcome{}, translate("clearing the variants", err)
+	}
+	for _, variantID := range variantIDs {
+		if err := q.AttachCommentVariant(ctx, sqlcgen.AttachCommentVariantParams{
+			CommentID: commentID, VariantID: variantID,
+		}); err != nil {
+			return appcomment.Outcome{}, translate("attaching a variant", err)
+		}
+	}
+
+	kase, err := q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: comment.CaseID, Slug: slug})
+	if err != nil {
+		return appcomment.Outcome{}, translate("reading the case", err)
+	}
+	before := review.CaseState(kase.State)
+	facts, err := gatherFacts(ctx, q, kase)
+	if err != nil {
+		return appcomment.Outcome{}, err
+	}
+	outcome := review.Compute(facts)
+	for cell, status := range outcome.Verdicts {
+		if err := q.UpsertCaptureVerdict(ctx, sqlcgen.UpsertCaptureVerdictParams{
+			CaseID: kase.ID, StepID: cell.StepID, VariantID: cell.VariantID,
+			Status: string(status),
+		}); err != nil {
+			return appcomment.Outcome{}, translate("recording a verdict", err)
+		}
+	}
+	if outcome.State != before {
+		if err := q.SetCaseState(ctx, sqlcgen.SetCaseStateParams{
+			ID: kase.ID, State: string(outcome.State),
+		}); err != nil {
+			return appcomment.Outcome{}, translate("moving the case", err)
+		}
+		inputs, err := json.Marshal(map[string]any{"comment": commentID, "move": "edit"})
+		if err != nil {
+			return appcomment.Outcome{}, fmt.Errorf("encoding the transition inputs: %w", err)
+		}
+		if err := q.RecordTransition(ctx, sqlcgen.RecordTransitionParams{
+			ProjectID: kase.ProjectID, CaseID: &kase.ID,
+			FromState: ptr(string(before)), ToState: ptr(string(outcome.State)),
+			Cause: "comment-edited", ActorID: by.ID, ActorKind: string(by.Kind),
+			Inputs: inputs, RuleVersion: 1,
+		}); err != nil {
+			return appcomment.Outcome{}, translate("journalling the transition", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return appcomment.Outcome{}, fmt.Errorf("committing the edit: %w", err)
+	}
+	return appcomment.Outcome{CommentState: review.CommentState(comment.State), CaseState: outcome.State}, nil
+}
+
 // moveRef resolves which ref the caller means and applies the move to it.
 //
 // Named explicitly, or the comment's only one: with several attached, the
@@ -275,7 +386,7 @@ func (r *Repository) OfCase(ctx context.Context, slug, caseID string) ([]appcomm
 	out := make([]appcomment.Record, 0, len(rows))
 	for _, row := range rows {
 		record := appcomment.Record{
-			ID: row.ID, StepID: row.StepID, Kind: row.Kind, Body: row.Body,
+			ID: row.ID, StepID: row.StepID, Body: row.Body,
 			State:      review.CommentState(row.State),
 			VariantIDs: row.VariantIds,
 			AuthorID:   row.AuthorID,

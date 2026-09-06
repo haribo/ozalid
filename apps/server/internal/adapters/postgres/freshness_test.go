@@ -111,7 +111,7 @@ func validateOnly(t *testing.T, ctx context.Context, repo *postgres.Repository, 
 		t.Fatalf("reading the grid: %v", err)
 	}
 	if _, err := repo.SaveReview(ctx, slug, caseID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Validated: []review.Cell{{
+		Accepted: []review.Cell{{
 			StepID: grid.Steps[0].ID, VariantID: grid.Steps[0].Cells[0].VariantID,
 		}},
 	}); err != nil {

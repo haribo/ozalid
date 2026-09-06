@@ -20,8 +20,8 @@ function grid(over: Partial<Grid> = {}): Grid {
         name: 'opens the form',
         position: 0,
         cells: [
-          { id: 'cap1', variantId: 'v1', hash: 'sha256:aaa', status: 'validated' },
-          { id: 'cap2', variantId: 'v2', hash: 'sha256:bbb', status: 'to-fix' },
+          { id: 'cap1', variantId: 'v1', hash: 'sha256:aaa', status: 'accepted' },
+          { id: 'cap2', variantId: 'v2', hash: 'sha256:bbb', status: 'refused' },
         ],
       },
       // Not every variant exists at every step.
@@ -43,7 +43,7 @@ function grid(over: Partial<Grid> = {}): Grid {
 const cells = (w: ReturnType<typeof mount>) => w.findAll('tbody td')
 
 // One square that has moved, from a chosen verdict.
-const oneMoved = (status: 'validated' | 'to-fix') => ({
+const oneMoved = (status: 'accepted' | 'refused') => ({
   steps: [
     {
       id: 's1',
@@ -74,7 +74,7 @@ const oneValidated = (freshness: 'current' | 'to-re-review') => ({
           id: 'cap5',
           variantId: 'v1',
           hash: 'sha256:aaa',
-          status: 'validated' as const,
+          status: 'accepted' as const,
           freshness,
         },
       ],
@@ -111,8 +111,8 @@ describe('CaseGrid', () => {
     // decorative — one mark, one name.
     const marks = cells(w).map((c) => c.findAll('[role="img"]')[0]?.attributes('aria-label'))
     expect(marks).toEqual([
-      'validated',
-      'commented',
+      'accepted',
+      'refused',
       // A square nobody has judged carries no mark at all — bare is the
       // reading, and it is the only one that leaves every pixel visible.
       undefined,
@@ -208,7 +208,7 @@ describe('CaseGrid', () => {
     expect(cell.find('img').classes()).not.toContain('opacity-40')
     expect(cell.find('[aria-label="moved"]').exists()).toBe(true)
     // The verdict it used to carry is exactly what the grid no longer reports.
-    expect(cell.find('[aria-label="validated"]').exists()).toBe(false)
+    expect(cell.find('[aria-label="accepted"]').exists()).toBe(false)
     expect(cell.find('button').classes().join(' ')).not.toContain('emerald')
   })
 
@@ -216,10 +216,10 @@ describe('CaseGrid', () => {
     // Validated-and-moved and commented-and-moved are one cell: what separated
     // them is what the grid stopped reporting (frontend ADR 0003).
     const fromValidated = mount(CaseGrid, {
-      props: { slug: 'atlas', grid: grid(oneMoved('validated')) },
+      props: { slug: 'atlas', grid: grid(oneMoved('accepted')) },
     })
     const fromCommented = mount(CaseGrid, {
-      props: { slug: 'atlas', grid: grid(oneMoved('to-fix')) },
+      props: { slug: 'atlas', grid: grid(oneMoved('refused')) },
     })
     expect(cells(fromValidated)[0].html()).toBe(cells(fromCommented)[0].html())
   })

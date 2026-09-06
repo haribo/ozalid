@@ -42,6 +42,36 @@ func (q *Queries) AttachCommentVariant(ctx context.Context, arg AttachCommentVar
 	return err
 }
 
+const caseAcceptedCells = `-- name: CaseAcceptedCells :many
+SELECT step_id, variant_id FROM capture_verdicts
+WHERE case_id = $1 AND status = 'accepted'
+`
+
+type CaseAcceptedCellsRow struct {
+	StepID    string
+	VariantID string
+}
+
+func (q *Queries) CaseAcceptedCells(ctx context.Context, caseID string) ([]CaseAcceptedCellsRow, error) {
+	rows, err := q.db.Query(ctx, caseAcceptedCells, caseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CaseAcceptedCellsRow{}
+	for rows.Next() {
+		var i CaseAcceptedCellsRow
+		if err := rows.Scan(&i.StepID, &i.VariantID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const caseCaptureCells = `-- name: CaseCaptureCells :many
 SELECT s.id AS step_id, c.variant_id
 FROM steps s
@@ -136,7 +166,7 @@ func (q *Queries) CaseCommentIssues(ctx context.Context, caseID string) ([]CaseC
 }
 
 const caseComments = `-- name: CaseComments :many
-SELECT c.id, c.step_id, c.kind, c.body, c.state,
+SELECT c.id, c.step_id, c.body, c.state,
        c.discard_reason, c.author_id, c.created_at, c.updated_at,
        array_remove(array_agg(cv.variant_id), NULL)::text[] AS variant_ids
 FROM comments c
@@ -155,7 +185,6 @@ type CaseCommentsParams struct {
 type CaseCommentsRow struct {
 	ID            string
 	StepID        string
-	Kind          string
 	Body          string
 	State         string
 	DiscardReason *string
@@ -179,7 +208,6 @@ func (q *Queries) CaseComments(ctx context.Context, arg CaseCommentsParams) ([]C
 		if err := rows.Scan(
 			&i.ID,
 			&i.StepID,
-			&i.Kind,
 			&i.Body,
 			&i.State,
 			&i.DiscardReason,
@@ -242,36 +270,6 @@ func (q *Queries) CaseReferences(ctx context.Context, caseID string) ([]CaseRefe
 	return items, nil
 }
 
-const caseValidatedCells = `-- name: CaseValidatedCells :many
-SELECT step_id, variant_id FROM capture_verdicts
-WHERE case_id = $1 AND status = 'validated'
-`
-
-type CaseValidatedCellsRow struct {
-	StepID    string
-	VariantID string
-}
-
-func (q *Queries) CaseValidatedCells(ctx context.Context, caseID string) ([]CaseValidatedCellsRow, error) {
-	rows, err := q.db.Query(ctx, caseValidatedCells, caseID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []CaseValidatedCellsRow{}
-	for rows.Next() {
-		var i CaseValidatedCellsRow
-		if err := rows.Scan(&i.StepID, &i.VariantID); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const casesWithCaptureCounts = `-- name: CasesWithCaptureCounts :many
 WITH latest AS (
     SELECT id FROM editions
@@ -282,8 +280,8 @@ WITH latest AS (
 SELECT
     k.id, k.project_id, k.category_id, k.title, k.description, k.state, k.archived_at, k.created_at, k.updated_at, k.current_edition_id,
     count(c.id)                                                        AS captures,
-    count(*) FILTER (WHERE v.status = 'validated')                     AS validated,
-    count(*) FILTER (WHERE v.status = 'to-fix')                        AS commented,
+    count(*) FILTER (WHERE v.status = 'accepted')                      AS accepted,
+    count(*) FILTER (WHERE v.status = 'refused')                       AS refused,
     count(c.id) FILTER (WHERE v.status IS NULL OR v.status = 'to-review') AS to_judge,
     max(e.created_at)::timestamptz                                     AS last_edition
 FROM cases k
@@ -316,8 +314,8 @@ type CasesWithCaptureCountsRow struct {
 	UpdatedAt        pgtype.Timestamptz
 	CurrentEditionID *string
 	Captures         int64
-	Validated        int64
-	Commented        int64
+	Accepted         int64
+	Refused          int64
 	ToJudge          int64
 	LastEdition      pgtype.Timestamptz
 }
@@ -347,8 +345,8 @@ func (q *Queries) CasesWithCaptureCounts(ctx context.Context, arg CasesWithCaptu
 			&i.UpdatedAt,
 			&i.CurrentEditionID,
 			&i.Captures,
-			&i.Validated,
-			&i.Commented,
+			&i.Accepted,
+			&i.Refused,
 			&i.ToJudge,
 			&i.LastEdition,
 		); err != nil {
@@ -497,15 +495,14 @@ func (q *Queries) CommentJudgments(ctx context.Context, commentID string) ([]Com
 }
 
 const createComment = `-- name: CreateComment :one
-INSERT INTO comments (case_id, step_id, kind, body, author_id)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, case_id, step_id, kind, body, state, discard_reason, author_id, created_at, updated_at
+INSERT INTO comments (case_id, step_id, body, author_id)
+VALUES ($1, $2, $3, $4)
+RETURNING id, case_id, step_id, body, state, discard_reason, author_id, created_at, updated_at
 `
 
 type CreateCommentParams struct {
 	CaseID   string
 	StepID   string
-	Kind     string
 	Body     string
 	AuthorID string
 }
@@ -514,7 +511,6 @@ func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (C
 	row := q.db.QueryRow(ctx, createComment,
 		arg.CaseID,
 		arg.StepID,
-		arg.Kind,
 		arg.Body,
 		arg.AuthorID,
 	)
@@ -523,7 +519,6 @@ func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (C
 		&i.ID,
 		&i.CaseID,
 		&i.StepID,
-		&i.Kind,
 		&i.Body,
 		&i.State,
 		&i.DiscardReason,
@@ -570,7 +565,7 @@ func (q *Queries) CreateCommentIssue(ctx context.Context, arg CreateCommentIssue
 
 const deleteCaptureVerdict = `-- name: DeleteCaptureVerdict :exec
 DELETE FROM capture_verdicts
-WHERE case_id = $1 AND step_id = $2 AND variant_id = $3 AND status = 'validated'
+WHERE case_id = $1 AND step_id = $2 AND variant_id = $3 AND status = 'accepted'
 `
 
 type DeleteCaptureVerdictParams struct {
@@ -579,11 +574,29 @@ type DeleteCaptureVerdictParams struct {
 	VariantID string
 }
 
-// Taking a validation back deletes the row rather than writing a state: the
+// Taking an acceptance back deletes the row rather than writing a state: the
 // recompute below re-derives the cell from what remains, and the journal is
 // what remembers both moves (#156).
 func (q *Queries) DeleteCaptureVerdict(ctx context.Context, arg DeleteCaptureVerdictParams) error {
 	_, err := q.db.Exec(ctx, deleteCaptureVerdict, arg.CaseID, arg.StepID, arg.VariantID)
+	return err
+}
+
+const deleteComment = `-- name: DeleteComment :exec
+DELETE FROM comments WHERE id = $1
+`
+
+func (q *Queries) DeleteComment(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, deleteComment, id)
+	return err
+}
+
+const detachCommentVariants = `-- name: DetachCommentVariants :exec
+DELETE FROM comment_variants WHERE comment_id = $1
+`
+
+func (q *Queries) DetachCommentVariants(ctx context.Context, commentID string) error {
+	_, err := q.db.Exec(ctx, detachCommentVariants, commentID)
 	return err
 }
 
@@ -602,8 +615,51 @@ func (q *Queries) DiscardComment(ctx context.Context, arg DiscardCommentParams) 
 	return err
 }
 
+const draftCommentsOnCell = `-- name: DraftCommentsOnCell :many
+SELECT DISTINCT c.id FROM comments c
+JOIN comment_variants cv ON cv.comment_id = c.id
+WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
+  AND c.author_id = $4 AND c.state = 'to-track'
+  AND NOT EXISTS (SELECT 1 FROM comment_issues ci WHERE ci.comment_id = c.id)
+`
+
+type DraftCommentsOnCellParams struct {
+	CaseID    string
+	StepID    string
+	VariantID string
+	AuthorID  string
+}
+
+// The reviewer's own drafts on one cell: remarks with no issue attached yet.
+// Withdrawing a draft refusal takes them with it — ADR 0020's explicit
+// exception to "nothing is deleted", scoped to the author's own drafts.
+func (q *Queries) DraftCommentsOnCell(ctx context.Context, arg DraftCommentsOnCellParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, draftCommentsOnCell,
+		arg.CaseID,
+		arg.StepID,
+		arg.VariantID,
+		arg.AuthorID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getComment = `-- name: GetComment :one
-SELECT c.id, c.case_id, c.step_id, c.kind, c.body, c.state, c.discard_reason, c.author_id, c.created_at, c.updated_at FROM comments c
+SELECT c.id, c.case_id, c.step_id, c.body, c.state, c.discard_reason, c.author_id, c.created_at, c.updated_at FROM comments c
 JOIN cases k ON k.id = c.case_id
 JOIN projects p ON p.id = k.project_id
 WHERE c.id = $1 AND p.slug = $2
@@ -624,7 +680,6 @@ func (q *Queries) GetComment(ctx context.Context, arg GetCommentParams) (Comment
 		&i.ID,
 		&i.CaseID,
 		&i.StepID,
-		&i.Kind,
 		&i.Body,
 		&i.State,
 		&i.DiscardReason,
@@ -776,7 +831,7 @@ FROM comment_issues ci
 JOIN comments c ON c.id = ci.comment_id
 JOIN comment_variants cv ON cv.comment_id = c.id
 WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
-  AND c.state = 'validated' AND ci.state = 'validated'
+  AND c.state = 'accepted' AND ci.state = 'accepted'
 `
 
 type SettledRefsOnCellParams struct {
@@ -857,6 +912,22 @@ func (q *Queries) StampCaptureReference(ctx context.Context, arg StampCaptureRef
 		arg.StepID,
 		arg.VariantID,
 	)
+	return err
+}
+
+const updateCommentBody = `-- name: UpdateCommentBody :exec
+UPDATE comments SET body = $2, updated_at = now() WHERE id = $1
+`
+
+type UpdateCommentBodyParams struct {
+	ID   string
+	Body string
+}
+
+// Editing is the author reworking their own draft (ADR 0020): body only —
+// variants are replaced beside it in the same transaction.
+func (q *Queries) UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyParams) error {
+	_, err := q.db.Exec(ctx, updateCommentBody, arg.ID, arg.Body)
 	return err
 }
 

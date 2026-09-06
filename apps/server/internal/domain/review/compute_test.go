@@ -22,16 +22,16 @@ func TestACaseWithNoCaptureIsOutsideTheFunnel(t *testing.T) {
 	}
 }
 
-func TestACaseWithEverythingValidatedAndNothingOpenIsReviewed(t *testing.T) {
+func TestACaseWithEverythingAcceptedAndNothingOpenIsReviewed(t *testing.T) {
 	got := review.Compute(review.Facts{
-		Captures:  cells("v1", "v2"),
-		Validated: cells("v1", "v2"),
+		Captures: cells("v1", "v2"),
+		Accepted: cells("v1", "v2"),
 	})
 	if got.State != review.CaseReviewed {
 		t.Errorf("state = %q, want reviewed — the only clean state", got.State)
 	}
 	for cell, status := range got.Verdicts {
-		if status != review.CaptureValidated {
+		if status != review.CaptureAccepted {
 			t.Errorf("cell %v = %q, want validated", cell, status)
 		}
 	}
@@ -39,8 +39,8 @@ func TestACaseWithEverythingValidatedAndNothingOpenIsReviewed(t *testing.T) {
 
 func TestOneUnjudgedCaptureKeepsTheWholeCaseWaitingOnTheReviewer(t *testing.T) {
 	got := review.Compute(review.Facts{
-		Captures:  cells("v1", "v2", "v3"),
-		Validated: cells("v1", "v2"),
+		Captures: cells("v1", "v2", "v3"),
+		Accepted: cells("v1", "v2"),
 	})
 	if got.State != review.CaseToReview {
 		t.Errorf("state = %q, want to-review: a square nobody judged is unfinished work", got.State)
@@ -49,16 +49,16 @@ func TestOneUnjudgedCaptureKeepsTheWholeCaseWaitingOnTheReviewer(t *testing.T) {
 
 func TestAnOpenCommentPutsTheBallInTheDevsCourt(t *testing.T) {
 	got := review.Compute(review.Facts{
-		Captures:  cells("v1", "v2"),
-		Validated: cells("v1"),
-		Comments:  []review.Comment{{State: review.CommentToTrack, Cells: cells("v2")}},
+		Captures: cells("v1", "v2"),
+		Accepted: cells("v1"),
+		Comments: []review.Comment{{State: review.CommentToTrack, Cells: cells("v2")}},
 	})
 	if got.State != review.CaseToFix {
 		t.Errorf("state = %q, want to-fix", got.State)
 	}
 	// The comment's own state says whether it needs tracking or fixing; the
 	// case only says whose turn it is (ADR 0012).
-	if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v2"}] != review.CaptureToFix {
+	if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v2"}] != review.CaptureRefused {
 		t.Error("the covered cell does not read to-fix")
 	}
 }
@@ -66,8 +66,8 @@ func TestAnOpenCommentPutsTheBallInTheDevsCourt(t *testing.T) {
 func TestACommentWaitingForJudgmentOutranksOneWaitingForTheDev(t *testing.T) {
 	// The reviewer comes first: their verdict can cancel work in progress.
 	got := review.Compute(review.Facts{
-		Captures:  cells("v1", "v2"),
-		Validated: cells("v1", "v2"),
+		Captures: cells("v1", "v2"),
+		Accepted: cells("v1", "v2"),
 		Comments: []review.Comment{
 			{State: review.CommentTracked, Cells: cells("v1")},
 			{State: review.CommentToReview, Cells: cells("v2")},
@@ -80,11 +80,11 @@ func TestACommentWaitingForJudgmentOutranksOneWaitingForTheDev(t *testing.T) {
 
 func TestASettledCommentStopsCountingButTheCellKeepsItsVerdict(t *testing.T) {
 	got := review.Compute(review.Facts{
-		Captures:  cells("v1"),
-		Validated: cells("v1"),
+		Captures: cells("v1"),
+		Accepted: cells("v1"),
 		Comments: []review.Comment{
 			{State: review.CommentDiscarded, Cells: cells("v1")},
-			{State: review.CommentValidated, Cells: cells("v1")},
+			{State: review.CommentAccepted, Cells: cells("v1")},
 		},
 	})
 	// Nothing is deleted — a discarded comment stays visible on its case
@@ -92,7 +92,7 @@ func TestASettledCommentStopsCountingButTheCellKeepsItsVerdict(t *testing.T) {
 	if got.State != review.CaseReviewed {
 		t.Errorf("state = %q, want reviewed once every comment is settled", got.State)
 	}
-	if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v1"}] != review.CaptureValidated {
+	if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v1"}] != review.CaptureAccepted {
 		t.Error("a settled comment should not keep marking its cell")
 	}
 }
@@ -101,11 +101,11 @@ func TestACommentBeatsAValidationOnTheSameCell(t *testing.T) {
 	// A square someone reported a problem on is not a square that is fine,
 	// whatever was ticked before.
 	got := review.Compute(review.Facts{
-		Captures:  cells("v1"),
-		Validated: cells("v1"),
-		Comments:  []review.Comment{{State: review.CommentToTrack, Cells: cells("v1")}},
+		Captures: cells("v1"),
+		Accepted: cells("v1"),
+		Comments: []review.Comment{{State: review.CommentToTrack, Cells: cells("v1")}},
 	})
-	if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v1"}] != review.CaptureToFix {
+	if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v1"}] != review.CaptureRefused {
 		t.Error("a validation silenced an open comment")
 	}
 }
@@ -114,9 +114,9 @@ func TestACommentOnACellThatNoLongerExistsIsIgnored(t *testing.T) {
 	// A step can lose a variant between two editions. The comment survives —
 	// nothing is deleted — but it cannot mark a square that is not there.
 	got := review.Compute(review.Facts{
-		Captures:  cells("v1"),
-		Validated: cells("v1"),
-		Comments:  []review.Comment{{State: review.CommentToTrack, Cells: cells("v9")}},
+		Captures: cells("v1"),
+		Accepted: cells("v1"),
+		Comments: []review.Comment{{State: review.CommentToTrack, Cells: cells("v9")}},
 	})
 	if len(got.Verdicts) != 1 {
 		t.Errorf("got %d verdicts, want one per existing capture", len(got.Verdicts))
@@ -132,9 +132,9 @@ func TestTheSameFactsAlwaysProduceTheSameOutcome(t *testing.T) {
 	// The whole point of a pure function here: a replay from the journal must
 	// be comparable to what was stored (ADR 0002).
 	facts := review.Facts{
-		Captures:  cells("v1", "v2", "v3"),
-		Validated: cells("v1"),
-		Comments:  []review.Comment{{State: review.CommentTracked, Cells: cells("v2")}},
+		Captures: cells("v1", "v2", "v3"),
+		Accepted: cells("v1"),
+		Comments: []review.Comment{{State: review.CommentTracked, Cells: cells("v2")}},
 	}
 	first := review.Compute(facts)
 	for range 20 {
@@ -154,14 +154,14 @@ func TestSettlingACommentCountsAsJudgingItsSquares(t *testing.T) {
 	// Accepting a fix, or setting a comment aside, *is* the judgment. Asking
 	// the reviewer to then validate the square they just ruled on would be
 	// asking twice for the same answer.
-	for _, settled := range []review.CommentState{review.CommentValidated, review.CommentDiscarded} {
+	for _, settled := range []review.CommentState{review.CommentAccepted, review.CommentDiscarded} {
 		got := review.Compute(review.Facts{
 			Captures: cells("v1", "v2"),
 			// v2 was never validated by hand: only its comment was settled.
-			Validated: cells("v1"),
-			Comments:  []review.Comment{{State: settled, Cells: cells("v2")}},
+			Accepted: cells("v1"),
+			Comments: []review.Comment{{State: settled, Cells: cells("v2")}},
 		})
-		if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v2"}] != review.CaptureValidated {
+		if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v2"}] != review.CaptureAccepted {
 			t.Errorf("%s: the square reads %q, want validated", settled, got.Verdicts[review.Cell{StepID: "s1", VariantID: "v2"}])
 		}
 		if got.State != review.CaseReviewed {
@@ -173,14 +173,14 @@ func TestSettlingACommentCountsAsJudgingItsSquares(t *testing.T) {
 func TestASquareWithOneSettledAndOneOpenCommentStillNeedsFixing(t *testing.T) {
 	// Settling one comment does not clear a square another still holds.
 	got := review.Compute(review.Facts{
-		Captures:  cells("v1"),
-		Validated: nil,
+		Captures: cells("v1"),
+		Accepted: nil,
 		Comments: []review.Comment{
-			{State: review.CommentValidated, Cells: cells("v1")},
+			{State: review.CommentAccepted, Cells: cells("v1")},
 			{State: review.CommentToTrack, Cells: cells("v1")},
 		},
 	})
-	if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v1"}] != review.CaptureToFix {
+	if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v1"}] != review.CaptureRefused {
 		t.Error("a settled comment silenced an open one on the same square")
 	}
 	if got.State != review.CaseToFix {
@@ -204,7 +204,7 @@ func TestADeliveredCommentHandsItsCellsBackToTheReviewer(t *testing.T) {
 	if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v1"}] != review.CaptureToReview {
 		t.Error("a delivered comment's cell does not read to-review")
 	}
-	if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v2"}] != review.CaptureToFix {
+	if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v2"}] != review.CaptureRefused {
 		t.Error("a dev-side comment's cell no longer reads to-fix")
 	}
 }
@@ -219,7 +219,7 @@ func TestADevSideCommentOutweighsADeliveredOneOnTheSameCell(t *testing.T) {
 			{State: review.CommentRefused, Cells: cells("v1")},
 		},
 	})
-	if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v1"}] != review.CaptureToFix {
+	if got.Verdicts[review.Cell{StepID: "s1", VariantID: "v1"}] != review.CaptureRefused {
 		t.Error("the refused comment's claim was outranked by the delivered one")
 	}
 }

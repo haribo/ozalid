@@ -41,24 +41,59 @@ export function useReview(slug: () => string, caseId: () => string) {
     comments.value = said.error ? [] : said.data
   }
 
-  /** Validate one square: looked at, nothing to say. */
-  /** Take a validation back — a misclick, or a second look (#156). */
-  async function unvalidate(stepId: string, variantId: string) {
-    await send({ unvalidated: [{ stepId, variantId }] })
+  /** Accept one square — and, switching from a refusal, withdraw the draft
+   * remark in the same write: one gesture, never two (ADR 0020). */
+  async function accept(stepId: string, variantId: string, withdraw = false) {
+    await send({
+      accepted: [{ stepId, variantId }],
+      ...(withdraw ? { unrefused: [{ stepId, variantId }] } : {}),
+    })
   }
 
-  async function validate(stepId: string, variantId: string) {
-    await send({ validated: [{ stepId, variantId }] })
+  /** Take an acceptance back — a misclick, or a second look (#156). */
+  async function unaccept(stepId: string, variantId: string) {
+    await send({ unaccepted: [{ stepId, variantId }] })
   }
 
-  /** Report something on one step, over the variants it applies to. */
-  async function comment(input: {
+  /** Refuse: the remark over the variants it covers — and, switching from an
+   * acceptance, take it back in the same write. */
+  async function refuse(input: {
     stepId: string
-    kind: 'defect' | 'improvement'
     body: string
     variantIds: string[]
+    unaccept: boolean
   }) {
-    await send({ comments: [input] })
+    await send({
+      comments: [{ stepId: input.stepId, body: input.body, variantIds: input.variantIds }],
+      ...(input.unaccept
+        ? { unaccepted: input.variantIds.map((variantId) => ({ stepId: input.stepId, variantId })) }
+        : {}),
+    })
+  }
+
+  /** Withdraw a draft refusal: the reviewer's own remark goes with it. */
+  async function unrefuse(stepId: string, variantId: string) {
+    await send({ unrefused: [{ stepId, variantId }] })
+  }
+
+  /** Edit a draft remark — the author reworking their own words (ADR 0020). */
+  async function edit(commentId: string, body: string, variantIds: string[]) {
+    saving.value = true
+    const result = await api.PATCH('/projects/{slug}/comments/{commentId}', {
+      params: { path: { slug: slug(), commentId } },
+      body: { body, variantIds },
+    })
+    saving.value = false
+    if (result.error) {
+      if (expired(result.response)) {
+        held.value = () => edit(commentId, body, variantIds)
+        return
+      }
+      error.value = result.error.title
+      return
+    }
+    held.value = null
+    await load()
   }
 
   /** Accept one delivered fix, or refuse it with a remark.
@@ -75,6 +110,27 @@ export function useReview(slug: () => string, caseId: () => string) {
     if (result.error) {
       if (expired(result.response)) {
         held.value = () => judge(commentId, issueId, accept, remark)
+        return
+      }
+      error.value = result.error.title
+      return
+    }
+    held.value = null
+    await load()
+  }
+
+  /** Take a judgment back — the reviewer reconsiders an acceptance or a
+   * refusal, and the ref returns to their court (#167, #171). */
+  async function unjudge(commentId: string, issueId: string) {
+    saving.value = true
+    const result = await api.DELETE('/projects/{slug}/comments/{commentId}/judgment', {
+      params: { path: { slug: slug(), commentId } },
+      body: { issueId },
+    })
+    saving.value = false
+    if (result.error) {
+      if (expired(result.response)) {
+        held.value = () => unjudge(commentId, issueId)
         return
       }
       error.value = result.error.title
@@ -119,7 +175,22 @@ export function useReview(slug: () => string, caseId: () => string) {
     await load()
   }
 
-  return { grid, comments, error, saving, held, load, validate, unvalidate, comment, judge, resume }
+  return {
+    grid,
+    comments,
+    error,
+    saving,
+    held,
+    load,
+    accept,
+    unaccept,
+    refuse,
+    unrefuse,
+    edit,
+    judge,
+    unjudge,
+    resume,
+  }
 }
 
 /**

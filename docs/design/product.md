@@ -42,7 +42,7 @@ Two things follow, and they define the product:
 | **Recording** | The flow video. Optional, viewable, **never** compared byte-wise and never a source of state ([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md)). |
 | **Edition** | One accepted intake of a run. Immutable once accepted. |
 | **Comment** | A reviewer's report against **a capture and the sibling captures of the variants it covers**. The capture, not the step, is the anchor: steps have no identity of their own, and their names are labels. A comment shows the image it was written about for as long as it lives. Its text is the reviewer's **draft**: it is what the issues are written from, and once a ref is attached the book reads the issue's title. A durable entity with its own lifecycle ([§6](#6-comments)). Formerly called a *problem*. |
-| **Verdict** | The stored status of one capture: `to-review`, `to-fix`, `validated`. Computed by the server from the comments covering it. |
+| **Verdict** | The stored status of one capture: `to-review`, `refused`, `accepted`. Computed by the server from the comments covering it. |
 | **Reference** | The capture bytes a given capture was last approved against. What "has it changed?" is measured from. |
 
 Grammar convention, inherited and kept: **"to + verb" means pending, a past
@@ -72,8 +72,8 @@ the comments ([ADR 0012](../adr/0012-case-carries-the-ball-comment-carries-the-d
 `to-review` outranks `to-fix` when both apply: a verdict can cancel work in
 progress, so it comes first.
 
-Each capture also carries a **stored status** — `to-review`, `to-fix`,
-`validated` — recomputed by the server whenever a comment covering it changes.
+Each capture also carries a **stored status** — `to-review`, `refused`,
+`accepted` — recomputed by the server whenever a comment covering it changes.
 Recording a comment and recomputing the captures it covers happen in one
 operation; nothing else writes that status.
 
@@ -173,24 +173,56 @@ Facts that trigger a recomputation:
 | A comment is linked to an issue | comment → `tracked` |
 | A comment is discarded with a reason | may clear the last blocker → `reviewed` |
 | The dev asks for a judgment on a delivered comment | comment → `to-review`, case → `to-review` |
-| A delivery is accepted or refused | comment → `validated` or `refused` |
+| A delivery is accepted or refused | comment → `accepted` or `refused` |
 | An edition is accepted | freshness only — never the cycle state |
 
-**Validating is a toggle until the review ends** (#156): space on a validated
-square takes the validation back — a misclick, or a second look. The journal
-keeps both moves, and the reference stamped at validation stays: freshness is
-history, not a verdict. Verified by `TestAValidationCanBeTakenBack`.
+**The verdict pair** (ADR 0020, #170, #171). Reviewing is giving one of two
+verdicts — **accept** or **refuse** — on a bare capture exactly as on a
+delivered fix. The pair is one segmented control, always visible; the filled
+half is the state; a capture reads `to-review`, `accepted` or `refused` —
+`validated` left the product. Space plays accept. Clicking the filled half
+takes the verdict back — a misclick, or a second look — and switching
+verdicts is one gesture, never a trip through "not judged": refusing an
+accepted capture takes the acceptance back in the same write. The journal
+keeps every move, and the reference stamped at acceptance stays: freshness is
+history, not a verdict. Verified by `TestAcceptingIsAToggle`,
+`TestSwitchingVerdictsIsOneGesture`.
 
-**Taking a validation back applies whatever made the capture validated**
-(#167). An explicit validation is deleted. A validation derived from a settled
-reference takes the judgment back instead: the reference returns to to-review,
-and the capture with it. The take-back joins the judgment history — who
-un-accepted, and when, is information exactly like the acceptance was.
-Verified by `TestUnvalidateTakesASettledJudgmentBack`.
+**Taking an acceptance back applies whatever made the capture accepted**
+(#167). An explicit acceptance is deleted. An acceptance derived from a
+settled reference takes the judgment back instead: the reference returns to
+to-review, and the capture with it. The take-back joins the judgment history —
+who reconsidered, and when, is information exactly like the judgment was.
+Verified by `TestUnacceptTakesASettledJudgmentBack`.
+
+**Both judgments are reconsiderable, symmetrically** (#171): a refusal on a
+delivered fix is taken back exactly like an acceptance — the reference
+returns to to-review, the history keeps the move. Verified by
+`TestARefusalCanBeTakenBack` and the domain's `TestUnjudgeReopensAJudgedRef`.
+
+**Refusing writes the remark** (ADR 0020). A remark exists only inside a
+refusal and blocks the case until settled. The refuse sheet opens under the
+image — the capture shrinks, it is never covered — and asks the remark
+(mandatory) and, on a bare capture only, the variants it covers; a fix's
+issue already owns its variants. Cancel is a no-op, whatever verdict already
+stood. The comment carries no kind: qualifying into fix or feature belongs to
+whoever writes the issues. Verified by the e2e spec "refusing writes the
+remark and the capture stays on screen".
+
+**A draft remark is the reviewer's own** (ADR 0020). While no issue is
+attached, the remark shows as a card under the pair — click it to edit, text
+and variants alike. Taking a draft refusal back withdraws the remark: it never
+counted anywhere. Once tracked, the issue's title speaks in its place and the
+draft can no longer be edited or withdrawn. Verified by
+`TestADraftRefusalWithdrawsItsRemark` and `TestADraftRemarkIsEditable`.
+
+**The carousel never marks the capture**: no veil, no disc — the verdict
+lives in the bar, and the grid keeps its marks. One issue at a time in the
+zone: the square's other references live in the recap.
 
 A cell covered by a comment whose **every open ref is delivered** reads
 `to-review`: the ball is the reviewer's, and the grid says so. It reads
-`to-fix` only while some ref still sits with the dev — tracked or refused —
+`refused` only while some ref still sits with the dev — tracked or refused —
 and a dev-side claim on the same cell outranks a delivered one, exactly as for
 the comment itself. Decided when two delivered issues showed beside the dev's
 amber bubble (#150).
@@ -243,10 +275,13 @@ A comment is a durable entity, not a scratch note
 ([ADR 0006](../adr/0006-problems-are-durable-entities.md)). It was called a
 *problem* until 2026-08-20.
 
-- Fields: kind (`defect` | `improvement`), text, **the anchoring captures (one
-  per covered variant)**, its state, and its history.
+- Fields: the remark's text, **the anchoring captures (one per covered
+  variant)**, its state, and its history. A comment carries no kind
+  (ADR 0020): qualifying into fix or feature belongs to whoever writes the
+  issues. A comment is born from a **refusal** and blocks its case until
+  settled — a non-blocking remark does not exist.
 - A comment carries **one or more issue refs**, each with its own
-  delivered-and-judged cycle (`tracked → to-review → validated | refused`, a
+  delivered-and-judged cycle (`tracked → to-review → accepted | refused`, a
   refusal redelivered as many rounds as it takes). The comment's own state
   derives from its refs — the finest open ref decides — and the comment closes
   when its last ref does.
@@ -261,9 +296,10 @@ A comment is a durable entity, not a scratch note
   step inserted mid-flow put a comment under the wrong screen (#132).
 - One real defect spanning four variants is **one** comment with four variants
   checked — never four comments.
-- The **kind stays on the comment**. It is what the issue is written from, and
-  it never colours the case's state
-  ([ADR 0012](../adr/0012-case-carries-the-ball-comment-carries-the-detail.md)).
+- While no issue is attached, the remark is the reviewer's **own draft**: it
+  can be edited — text and variants — and taking the draft refusal back
+  withdraws it (ADR 0020, the explicit exception to "nothing is deleted").
+  Once tracked, the issue's title speaks in its place.
 
 ### 6.1 Lifecycle
 
@@ -273,7 +309,7 @@ A comment is a durable entity, not a scratch note
 | `tracked` | Carries an external issue reference | no |
 | `to-review` | The dev delivered and asked for a judgment | no |
 | `refused` | Refused, with a mandatory remark | no — returns to `to-review` on the next delivery |
-| `validated` | Accepted | yes |
+| `accepted` | Accepted | yes |
 | `discarded` | Set aside, with a mandatory reason | yes |
 
 A refusal is **not** a way to die. The dev reworks, delivers again, and the
@@ -312,7 +348,7 @@ Intake is governed by a **per-project policy** ([ADR 0007](../adr/0007-run-intak
   **A delivery advances the case at once**: judging a fix means reading the
   bytes that claim to fix it, so `deliver` releases the case onto the latest
   edition even mid-review. The pin only protects what is still being judged of
-  the current sweep — validated cells keep their verdicts, and a capture that
+  the current sweep — accepted cells keep their verdicts, and a capture that
   changed under one comes back marked `moved`, as always. Decided when a
   reviewer was asked to judge a fix while the pin showed them the screen from
   before it (#142).

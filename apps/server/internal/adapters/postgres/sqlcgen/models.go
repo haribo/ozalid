@@ -76,7 +76,6 @@ type Comment struct {
 	ID            string
 	CaseID        string
 	StepID        string
-	Kind          string
 	Body          string
 	State         string
 	DiscardReason *string

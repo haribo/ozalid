@@ -43,7 +43,7 @@ func (r *Repository) SaveReview(
 
 	for _, c := range save.Comments {
 		created, err := q.CreateComment(ctx, sqlcgen.CreateCommentParams{
-			CaseID: caseID, StepID: c.StepID, Kind: c.Kind, Body: c.Body, AuthorID: by.ID,
+			CaseID: caseID, StepID: c.StepID, Body: c.Body, AuthorID: by.ID,
 		})
 		if err != nil {
 			return session.Result{}, translate("recording a comment", err)
@@ -57,12 +57,12 @@ func (r *Repository) SaveReview(
 		}
 	}
 
-	// Validated squares are written before the computation reads them back, so
+	// Accepted squares are written before the computation reads them back, so
 	// what it sees is the whole session and not half of it.
-	for _, cell := range save.Validated {
+	for _, cell := range save.Accepted {
 		if err := q.UpsertCaptureVerdict(ctx, sqlcgen.UpsertCaptureVerdictParams{
 			CaseID: caseID, StepID: cell.StepID, VariantID: cell.VariantID,
-			Status: string(review.CaptureValidated),
+			Status: string(review.CaptureAccepted),
 		}); err != nil {
 			return session.Result{}, translate("recording a verdict", err)
 		}
@@ -93,7 +93,7 @@ func (r *Repository) SaveReview(
 	// comment re-derives, and the capture follows. Either way the journal
 	// keeps every move, and the reference stamp stays — freshness is history,
 	// not a verdict.
-	for _, cell := range save.Unvalidated {
+	for _, cell := range save.Unaccepted {
 		if err := q.DeleteCaptureVerdict(ctx, sqlcgen.DeleteCaptureVerdictParams{
 			CaseID: caseID, StepID: cell.StepID, VariantID: cell.VariantID,
 		}); err != nil {
@@ -126,6 +126,24 @@ func (r *Repository) SaveReview(
 				ID: ref.CommentID, State: ref.CommentState,
 			}); err != nil {
 				return session.Result{}, err
+			}
+		}
+	}
+
+	// Withdrawing a draft refusal takes the reviewer's own remark with it:
+	// with no issue attached it never counted anywhere (ADR 0020, the explicit
+	// exception to "nothing is deleted"). Tracked remarks go through the
+	// judgment take-back instead.
+	for _, cell := range save.Unrefused {
+		drafts, err := q.DraftCommentsOnCell(ctx, sqlcgen.DraftCommentsOnCellParams{
+			CaseID: caseID, StepID: cell.StepID, VariantID: cell.VariantID, AuthorID: by.ID,
+		})
+		if err != nil {
+			return session.Result{}, translate("reading the drafts", err)
+		}
+		for _, id := range drafts {
+			if err := q.DeleteComment(ctx, id); err != nil {
+				return session.Result{}, translate("withdrawing the remark", err)
 			}
 		}
 	}
@@ -163,9 +181,9 @@ func (r *Repository) SaveReview(
 		// The fingerprint of what the computation consumed. Without it a
 		// stored state is no regression oracle (ADR 0002).
 		inputs, err := json.Marshal(map[string]any{
-			"captures":  len(facts.Captures),
-			"validated": len(facts.Validated),
-			"comments":  len(facts.Comments),
+			"captures": len(facts.Captures),
+			"accepted": len(facts.Accepted),
+			"comments": len(facts.Comments),
 		})
 		if err != nil {
 			return session.Result{}, fmt.Errorf("encoding the transition inputs: %w", err)
@@ -209,12 +227,12 @@ func gatherFacts(ctx context.Context, q *sqlcgen.Queries, kase sqlcgen.Case) (re
 		return facts, translate("reading the edition", err)
 	}
 
-	validated, err := q.CaseValidatedCells(ctx, kase.ID)
+	validated, err := q.CaseAcceptedCells(ctx, kase.ID)
 	if err != nil {
 		return facts, translate("reading the verdicts", err)
 	}
 	for _, v := range validated {
-		facts.Validated = append(facts.Validated, review.Cell{StepID: v.StepID, VariantID: v.VariantID})
+		facts.Accepted = append(facts.Accepted, review.Cell{StepID: v.StepID, VariantID: v.VariantID})
 	}
 
 	comments, err := q.CaseComments(ctx, sqlcgen.CaseCommentsParams{CaseID: kase.ID, ProjectID: kase.ProjectID})

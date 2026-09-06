@@ -48,16 +48,16 @@ const SIZE = { wide: 'h-[72px] w-[116px]', tall: 'h-[94px] w-[60px]' }
 
 const NEUTRAL = 'border-slate-300 dark:border-slate-600'
 const RING: Record<string, string> = {
-  validated: 'border-emerald-600 dark:border-emerald-500',
-  'to-fix': 'border-amber-600 dark:border-amber-500',
+  accepted: 'border-emerald-600 dark:border-emerald-500',
+  refused: 'border-amber-600 dark:border-amber-500',
   'to-review': NEUTRAL,
 }
 const INK: Record<string, string> = {
-  validated: 'text-emerald-700 dark:text-emerald-400',
-  'to-fix': 'text-amber-700 dark:text-amber-400',
+  accepted: 'text-emerald-700 dark:text-emerald-400',
+  refused: 'text-amber-700 dark:text-amber-400',
 }
-const TONE: Record<string, Tone> = { validated: 'done', 'to-fix': 'dev' }
-const LABEL: Record<string, string> = { validated: 'validated', 'to-fix': 'commented' }
+const TONE: Record<string, Tone> = { accepted: 'done', refused: 'dev' }
+const LABEL: Record<string, string> = { accepted: 'accepted', refused: 'refused' }
 
 /**
  * The six readings a cell can have, and no others.
@@ -71,7 +71,7 @@ const LABEL: Record<string, string> = { validated: 'validated', 'to-fix': 'comme
  */
 function reading(cell: Cell): 'moved' | 'judged' | 'pending' {
   if (hasMoved(cell.freshness)) return 'moved'
-  if (cell.status === 'validated' || cell.status === 'to-fix') return 'judged'
+  if (cell.status === 'accepted' || cell.status === 'refused') return 'judged'
   return 'pending'
 }
 
@@ -199,7 +199,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
                       :size="18"
                       :label="LABEL[cellOf(step, v.id)!.status]"
                       :class="
-                        cellOf(step, v.id)!.status === 'validated'
+                        cellOf(step, v.id)!.status === 'accepted'
                           ? 'bg-emerald-50 dark:bg-emerald-950'
                           : 'bg-amber-50 dark:bg-amber-950'
                       "
@@ -242,10 +242,10 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
         <StateIcon tone="reviewer" :size="12" label="to review" />to review
       </span>
       <span class="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
-        <StateIcon tone="done" :size="12" label="validated" />validated
+        <StateIcon tone="done" :size="12" label="accepted" />accepted
       </span>
       <span class="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
-        <StateIcon tone="dev" :size="12" label="commented" />commented
+        <StateIcon tone="dev" :size="12" label="refused" />refused
       </span>
       <span class="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-300">
         <MovedIcon :size="12" label="moved" />moved

@@ -423,10 +423,10 @@ func toAPINode(n catalogue.CategoryNode) openapi.Category {
 func toAPISummary(s catalogue.CaseSummary) openapi.Case {
 	out := toAPICase(s.Case)
 	out.Captures = &openapi.CaptureCounts{
-		Total:     int(s.Captures.Total),
-		Validated: int(s.Captures.Validated),
-		Commented: int(s.Captures.Commented),
-		ToJudge:   int(s.Captures.ToJudge),
+		Total:    int(s.Captures.Total),
+		Accepted: int(s.Captures.Accepted),
+		Refused:  int(s.Captures.Refused),
+		ToJudge:  int(s.Captures.ToJudge),
 	}
 	out.LastEdition = s.LastEdition
 	return out
