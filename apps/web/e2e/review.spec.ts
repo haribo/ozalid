@@ -69,7 +69,11 @@ test('one defect over two variants is one comment, not two', async ({ page }) =>
 
   await page.locator('textarea').fill('the button is clipped')
   await page.getByRole('button', { name: 'all' }).click()
-  await page.getByRole('dialog', { name: 'capture' }).locator('form').getByRole('button', { name: 'refuse' }).click()
+  await page
+    .getByRole('dialog', { name: 'capture' })
+    .locator('form')
+    .getByRole('button', { name: 'refuse' })
+    .click()
 
   // One row in the recap — the text also shows in the carousel, so the count is
   // taken where the claim is about.
