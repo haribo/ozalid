@@ -15,7 +15,7 @@ describe('SignInPanel', () => {
     const w = mount(SignInPanel)
     await w.get('input').setValue('nicolas@ozalid.org')
     const label = w.get('label')
-    expect(label.classes()).toContain('-top-2')
+    expect(label.classes()).toContain('top-0')
     expect(label.classes()).not.toContain('top-1/2')
     // The icon follows the label: it shrinks with it rather than staying put.
     expect(w.get('label svg').attributes('width')).toBe('12')
