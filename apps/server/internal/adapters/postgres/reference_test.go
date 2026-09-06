@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres"
@@ -19,7 +20,7 @@ func TestValidatingASquareRemembersTheBytesThatWereApproved(t *testing.T) {
 	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
 
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Validated: []review.Cell{cell},
+		Accepted: []review.Cell{cell},
 	}); err != nil {
 		t.Fatalf("saving the review: %v", err)
 	}
@@ -50,14 +51,14 @@ func TestEachEnvironmentKeepsItsOwnReference(t *testing.T) {
 
 	fromCI := pushEdition(t, ctx, repo, project, kase, "the form on ci", "ci")
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Validated: []review.Cell{onlyCell(t, ctx, repo, project.Slug, kase.ID)},
+		Accepted: []review.Cell{onlyCell(t, ctx, repo, project.Slug, kase.ID)},
 	}); err != nil {
 		t.Fatalf("saving the first review: %v", err)
 	}
 
 	fromLaptop := pushEdition(t, ctx, repo, project, kase, "the form on a laptop", "laptop")
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Validated: []review.Cell{onlyCell(t, ctx, repo, project.Slug, kase.ID)},
+		Accepted: []review.Cell{onlyCell(t, ctx, repo, project.Slug, kase.ID)},
 	}); err != nil {
 		t.Fatalf("saving the second review: %v", err)
 	}
@@ -90,7 +91,7 @@ func TestASquareThatNobodyLookedAtIsNeverStamped(t *testing.T) {
 
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Comments: []session.NewComment{{
-			StepID: cell.StepID, Kind: "defect", Body: "the button is cropped",
+			StepID: cell.StepID, Body: "the button is cropped",
 			VariantIDs: []string{cell.VariantID},
 		}},
 	}); err != nil {
@@ -132,7 +133,7 @@ func TestTheJournalRecordsWhatTheActorSaysItIs(t *testing.T) {
 
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Comments: []session.NewComment{{
-			StepID: cell.StepID, Kind: "defect", Body: "the button is cropped",
+			StepID: cell.StepID, Body: "the button is cropped",
 			VariantIDs: []string{cell.VariantID},
 		}},
 	}); err != nil {
@@ -204,7 +205,7 @@ func TestADeliveryAdvancesTheCaseOntoItsEdition(t *testing.T) {
 		t.Fatalf("finding the capture: %v", err)
 	}
 	created, err := q.CreateComment(ctx, sqlcgen.CreateCommentParams{
-		CaseID: kase.ID, StepID: stepID, Kind: "defect", Body: "off", AuthorID: author.ID,
+		CaseID: kase.ID, StepID: stepID, Body: "off", AuthorID: author.ID,
 	})
 	if err != nil {
 		t.Fatalf("creating the comment: %v", err)
@@ -235,23 +236,23 @@ func TestADeliveryAdvancesTheCaseOntoItsEdition(t *testing.T) {
 	}
 }
 
-// Validating is a toggle until the review ends (#156): a misclick is taken
+// The verdict is a toggle until the review ends (#156): a misclick is taken
 // back with the same key, the journal keeps both moves, and the reference
 // stamp stays — freshness is history, not a verdict.
-func TestAValidationCanBeTakenBack(t *testing.T) {
+func TestAcceptingIsAToggle(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	pushEdition(t, ctx, repo, project, kase, "the form to toggle", "ci")
 	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
 	nina := actor.Actor{ID: "nina", Kind: actor.Human}
 
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
-		Validated: []review.Cell{cell},
+		Accepted: []review.Cell{cell},
 	}); err != nil {
 		t.Fatalf("validating: %v", err)
 	}
 
 	out, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
-		Unvalidated: []review.Cell{cell},
+		Unaccepted: []review.Cell{cell},
 	})
 	if err != nil {
 		t.Fatalf("taking it back: %v", err)
@@ -266,7 +267,7 @@ func TestAValidationCanBeTakenBack(t *testing.T) {
 	}
 	for _, s := range grid.Steps {
 		for _, c := range s.Cells {
-			if c.VariantID == cell.VariantID && c.Status == "validated" {
+			if c.VariantID == cell.VariantID && c.Status == "accepted" {
 				t.Error("the cell still reads validated")
 			}
 		}
@@ -292,7 +293,7 @@ func TestAValidationCanBeTakenBack(t *testing.T) {
 // the reference returns to to-review and the capture with it (#167). Before
 // the fix, unvalidate deleted a verdict that did not exist and the recompute
 // stamped validated right back: the button did nothing, forever.
-func TestUnvalidateTakesASettledJudgmentBack(t *testing.T) {
+func TestUnacceptTakesASettledJudgmentBack(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	pushEdition(t, ctx, repo, project, kase, "the door before judging", "ci")
 	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
@@ -300,7 +301,7 @@ func TestUnvalidateTakesASettledJudgmentBack(t *testing.T) {
 	q := repo.Queries()
 
 	created, err := q.CreateComment(ctx, sqlcgen.CreateCommentParams{
-		CaseID: kase.ID, StepID: cell.StepID, Kind: "improvement", Body: "label inside the frame", AuthorID: nina.ID,
+		CaseID: kase.ID, StepID: cell.StepID, Body: "label inside the frame", AuthorID: nina.ID,
 	})
 	if err != nil {
 		t.Fatalf("creating the comment: %v", err)
@@ -322,18 +323,18 @@ func TestUnvalidateTakesASettledJudgmentBack(t *testing.T) {
 
 	// Accepting settled the reference, so the capture derives validated — the
 	// exact state the production case sat in.
-	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, cell); status != "validated" {
+	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, cell); status != "accepted" {
 		t.Fatalf("after accepting, cell = %q, want validated", status)
 	}
 
 	out, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
-		Unvalidated: []review.Cell{cell},
+		Unaccepted: []review.Cell{cell},
 	})
 	if err != nil {
 		t.Fatalf("taking the validation back: %v", err)
 	}
 
-	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, cell); status == "validated" {
+	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, cell); status == "accepted" {
 		t.Error("the capture still reads validated: the take-back did nothing")
 	}
 	if out.State != review.CaseToReview {
@@ -387,4 +388,196 @@ func statusOf(t *testing.T, ctx context.Context, repo *postgres.Repository, slug
 	}
 	t.Fatalf("cell %v not on the grid", cell)
 	return ""
+}
+
+// The symmetry of the take-back (#171): a refusal is reconsidered exactly like
+// an acceptance — the ref returns to to-review, the history keeps the move.
+func TestARefusalCanBeTakenBack(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	pushEdition(t, ctx, repo, project, kase, "the door to refuse", "ci")
+	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	nina := actor.Actor{ID: "nina", Kind: actor.Human}
+	q := repo.Queries()
+
+	created, err := q.CreateComment(ctx, sqlcgen.CreateCommentParams{
+		CaseID: kase.ID, StepID: cell.StepID, Body: "too much green", AuthorID: nina.ID,
+	})
+	if err != nil {
+		t.Fatalf("creating the comment: %v", err)
+	}
+	if err := q.AttachCommentVariant(ctx, sqlcgen.AttachCommentVariantParams{
+		CommentID: created.ID, VariantID: cell.VariantID,
+	}); err != nil {
+		t.Fatalf("attaching the variant: %v", err)
+	}
+	if _, err := repo.Track(ctx, project.Slug, created.ID, nina, appcomment.IssueRef{ID: "130"}); err != nil {
+		t.Fatalf("tracking: %v", err)
+	}
+	if _, err := repo.Deliver(ctx, project.Slug, created.ID, "", nina); err != nil {
+		t.Fatalf("delivering: %v", err)
+	}
+	if _, err := repo.Judge(ctx, project.Slug, created.ID, "", nina, false, "still three green things"); err != nil {
+		t.Fatalf("refusing: %v", err)
+	}
+
+	out, err := repo.Unjudge(ctx, project.Slug, created.ID, "", nina)
+	if err != nil {
+		t.Fatalf("taking the refusal back: %v", err)
+	}
+	if out.CommentState != review.CommentToReview {
+		t.Errorf("comment = %q after the take-back, want to-review", out.CommentState)
+	}
+	if out.CaseState != review.CaseToReview {
+		t.Errorf("case = %q after the take-back, want to-review", out.CaseState)
+	}
+
+	states, err := q.CommentIssueStates(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("reading the ref states: %v", err)
+	}
+	if len(states) != 1 || states[0] != "to-review" {
+		t.Errorf("ref states = %v, want the refusal taken back to to-review", states)
+	}
+
+	judgments, err := q.CommentJudgments(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("reading the judgments: %v", err)
+	}
+	if len(judgments) != 2 || judgments[len(judgments)-1].Verdict != "taken-back" {
+		got := make([]string, len(judgments))
+		for i, j := range judgments {
+			got[i] = j.Verdict
+		}
+		t.Errorf("judgments = %v, want [refused taken-back]", got)
+	}
+}
+
+// Switching verdicts is one gesture, never a trip through "not judged"
+// (ADR 0020): the client sends both moves in one save, and the server writes
+// them in order.
+func TestSwitchingVerdictsIsOneGesture(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	pushEdition(t, ctx, repo, project, kase, "the door to flip on", "ci")
+	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	nina := actor.Actor{ID: "nina", Kind: actor.Human}
+
+	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
+		Accepted: []review.Cell{cell},
+	}); err != nil {
+		t.Fatalf("accepting: %v", err)
+	}
+
+	// Accepted → refused: the refusal's remark and the acceptance take-back
+	// travel together.
+	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
+		Unaccepted: []review.Cell{cell},
+		Comments: []session.NewComment{{
+			StepID: cell.StepID, Body: "too much green", VariantIDs: []string{cell.VariantID},
+		}},
+	}); err != nil {
+		t.Fatalf("switching to refused: %v", err)
+	}
+	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, cell); status != "refused" {
+		t.Fatalf("after the switch, cell = %q, want refused", status)
+	}
+
+	// Refused → accepted: the acceptance and the draft withdrawal travel
+	// together, no sheet, no intermediate state.
+	out, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
+		Accepted:  []review.Cell{cell},
+		Unrefused: []review.Cell{cell},
+	})
+	if err != nil {
+		t.Fatalf("switching back: %v", err)
+	}
+	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, cell); status != "accepted" {
+		t.Errorf("after the switch back, cell = %q, want accepted", status)
+	}
+	if out.State != review.CaseReviewed {
+		t.Errorf("case = %q, want reviewed — the draft went with its refusal", out.State)
+	}
+}
+
+// A draft refusal withdrawn takes the reviewer's own remark with it: it never
+// counted anywhere (ADR 0020, the explicit exception to "nothing is deleted").
+func TestADraftRefusalWithdrawsItsRemark(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	pushEdition(t, ctx, repo, project, kase, "the door to refuse", "ci")
+	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	nina := actor.Actor{ID: "nina", Kind: actor.Human}
+
+	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
+		Comments: []session.NewComment{{
+			StepID: cell.StepID, Body: "a remark I regret", VariantIDs: []string{cell.VariantID},
+		}},
+	}); err != nil {
+		t.Fatalf("refusing: %v", err)
+	}
+	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, cell); status != "refused" {
+		t.Fatalf("after refusing, cell = %q, want refused", status)
+	}
+
+	out, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
+		Unrefused: []review.Cell{cell},
+	})
+	if err != nil {
+		t.Fatalf("withdrawing: %v", err)
+	}
+	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, cell); status != "to-review" {
+		t.Errorf("cell = %q after the withdrawal, want to-review", status)
+	}
+	if out.State != review.CaseToReview {
+		t.Errorf("case = %q, want to-review", out.State)
+	}
+	comments, err := repo.OfCase(ctx, project.Slug, kase.ID)
+	if err != nil {
+		t.Fatalf("reading the comments: %v", err)
+	}
+	if len(comments) != 0 {
+		t.Errorf("%d comment(s) remain — the withdrawn draft should be gone", len(comments))
+	}
+}
+
+// A draft remark is the reviewer's own: editable — text and variants — while
+// no issue is attached, and locked the moment one is (ADR 0020).
+func TestADraftRemarkIsEditable(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	pushEdition(t, ctx, repo, project, kase, "the door to edit on", "ci")
+	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	nina := actor.Actor{ID: "nina", Kind: actor.Human}
+
+	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
+		Comments: []session.NewComment{{
+			StepID: cell.StepID, Body: "too much gren", VariantIDs: []string{cell.VariantID},
+		}},
+	}); err != nil {
+		t.Fatalf("refusing: %v", err)
+	}
+	comments, err := repo.OfCase(ctx, project.Slug, kase.ID)
+	if err != nil || len(comments) != 1 {
+		t.Fatalf("comments = %v, %v", comments, err)
+	}
+	id := comments[0].ID
+
+	if _, err := repo.Edit(ctx, project.Slug, id, nina, "too much green", []string{cell.VariantID}); err != nil {
+		t.Fatalf("editing: %v", err)
+	}
+	comments, _ = repo.OfCase(ctx, project.Slug, kase.ID)
+	if comments[0].Body != "too much green" {
+		t.Errorf("body = %q, want the edit", comments[0].Body)
+	}
+
+	// Someone else's draft is not editable.
+	other := actor.Actor{ID: "sam", Kind: actor.Human}
+	if _, err := repo.Edit(ctx, project.Slug, id, other, "mine now", []string{cell.VariantID}); !errors.Is(err, appcomment.ErrNotTheAuthor) {
+		t.Errorf("err = %v, want ErrNotTheAuthor", err)
+	}
+
+	// Once tracked, the issue's title speaks: the draft is locked.
+	if _, err := repo.Track(ctx, project.Slug, id, nina, appcomment.IssueRef{ID: "9"}); err != nil {
+		t.Fatalf("tracking: %v", err)
+	}
+	if _, err := repo.Edit(ctx, project.Slug, id, nina, "rewriting history", []string{cell.VariantID}); !errors.Is(err, appcomment.ErrNotADraft) {
+		t.Errorf("err = %v, want ErrNotADraft", err)
+	}
 }

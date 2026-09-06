@@ -65,6 +65,8 @@ paths:
     $ref: "./paths/case-captures.yaml"
   /projects/{slug}/cases/{caseId}/comments:
     $ref: "./paths/case-comments.yaml"
+  /projects/{slug}/comments/{commentId}:
+    $ref: "./paths/comment-moves.yaml#/Comment"
   /projects/{slug}/comments/{commentId}/reference:
     $ref: "./paths/comment-moves.yaml#/Reference"
   /projects/{slug}/comments/{commentId}/discard:

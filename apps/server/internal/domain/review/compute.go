@@ -28,8 +28,8 @@ type Comment struct {
 type Facts struct {
 	// Captures present at the edition the case points at.
 	Captures []Cell
-	// Cells the reviewer has explicitly validated.
-	Validated []Cell
+	// Cells the reviewer has explicitly accepted.
+	Accepted []Cell
 	// Every comment on the case, settled ones included: a discarded comment
 	// stops counting, but it still exists (ADR 0006).
 	Comments []Comment
@@ -48,10 +48,10 @@ type CaptureStatus string
 const (
 	// CaptureToReview has not been judged.
 	CaptureToReview CaptureStatus = "to-review"
-	// CaptureToFix is covered by an open comment.
-	CaptureToFix CaptureStatus = "to-fix"
-	// CaptureValidated was looked at, with nothing to say.
-	CaptureValidated CaptureStatus = "validated"
+	// CaptureRefused is covered by an open comment.
+	CaptureRefused CaptureStatus = "refused"
+	// CaptureAccepted was looked at, with nothing to say.
+	CaptureAccepted CaptureStatus = "accepted"
 )
 
 // Compute decides a case's state and the status of each of its captures.
@@ -117,9 +117,9 @@ func verdictsOf(f Facts) map[Cell]CaptureStatus {
 		verdicts[cell] = CaptureToReview
 	}
 
-	for _, cell := range f.Validated {
+	for _, cell := range f.Accepted {
 		if _, exists := verdicts[cell]; exists {
-			verdicts[cell] = CaptureValidated
+			verdicts[cell] = CaptureAccepted
 		}
 	}
 
@@ -129,7 +129,7 @@ func verdictsOf(f Facts) map[Cell]CaptureStatus {
 		}
 		for _, cell := range c.Cells {
 			if _, exists := verdicts[cell]; exists {
-				verdicts[cell] = CaptureValidated
+				verdicts[cell] = CaptureAccepted
 			}
 		}
 	}
@@ -154,7 +154,7 @@ func verdictsOf(f Facts) map[Cell]CaptureStatus {
 		}
 		for _, cell := range c.Cells {
 			if _, exists := verdicts[cell]; exists {
-				verdicts[cell] = CaptureToFix
+				verdicts[cell] = CaptureRefused
 			}
 		}
 	}

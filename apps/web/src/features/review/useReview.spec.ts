@@ -47,7 +47,7 @@ describe('useReview, when the session dies mid-review', () => {
     )
     serverSays('/projects/atlas/cases/c1/reviews', { status: 401, body: problem(401) })
 
-    await review.validate('s1', 'v1')
+    await review.accept('s1', 'v1')
 
     expect(review.held.value).not.toBeNull()
     // The bar in the shell says the session expired; a second message here
@@ -59,7 +59,7 @@ describe('useReview, when the session dies mid-review', () => {
 
     expect(review.held.value).toBeNull()
     expect(sent.filter((call) => call.path === '/projects/atlas/cases/c1/reviews')).toHaveLength(2)
-    expect(sent.at(-1)?.body).toEqual({ validated: [{ stepId: 's1', variantId: 'v1' }] })
+    expect(sent.at(-1)?.body).toEqual({ accepted: [{ stepId: 's1', variantId: 'v1' }] })
   })
 
   it('holds a judgment the same way', async () => {
@@ -88,7 +88,7 @@ describe('useReview, when the session dies mid-review', () => {
     )
     serverSays('/projects/atlas/cases/c1/reviews', { status: 500, body: problem(500) })
 
-    await review.validate('s1', 'v1')
+    await review.accept('s1', 'v1')
 
     expect(review.held.value).toBeNull()
     expect(review.error.value).toBe('refused')

@@ -41,9 +41,10 @@ const (
 	MoveAccept Move = "accept"
 	// MoveRefuse sends it back, with a remark.
 	MoveRefuse Move = "refuse"
-	// MoveUnjudge takes an acceptance back: the reviewer reconsiders, and the
-	// ref returns to their court (#167). It exists on refs only — a comment
-	// never settles or reopens on its own, it derives from its refs.
+	// MoveUnjudge takes a judgment back — an acceptance or a refusal: the
+	// reviewer reconsiders, and the ref returns to their court (#167, #171).
+	// It exists on refs only — a comment never settles or reopens on its own,
+	// it derives from its refs.
 	MoveUnjudge Move = "unjudge"
 )
 
@@ -67,7 +68,7 @@ var allowed = map[Move]map[CommentState]CommentState{
 		CommentRefused: CommentToReview,
 	},
 	MoveAccept: {
-		CommentToReview: CommentValidated,
+		CommentToReview: CommentAccepted,
 	},
 	MoveRefuse: {
 		CommentToReview: CommentRefused,
@@ -108,10 +109,12 @@ func Transition(from CommentState, move Move, reason string) (CommentState, erro
 type RefState string
 
 const (
-	RefTracked   RefState = "tracked"
-	RefToReview  RefState = "to-review"
-	RefRefused   RefState = "refused"
-	RefValidated RefState = "validated"
+	RefTracked  RefState = "tracked"
+	RefToReview RefState = "to-review"
+	RefRefused  RefState = "refused"
+	// RefAccepted is the reviewer's yes on this ref. Named for the act:
+	// validated is the vocabulary of captures, and nothing else (#170).
+	RefAccepted RefState = "accepted"
 )
 
 // refMoves is the ref's whole machine, shaped like the comment's.
@@ -122,14 +125,16 @@ var refMoves = map[Move]map[RefState]RefState{
 		// as many rounds as it takes (ADR 0012).
 		RefRefused: RefToReview,
 	},
-	MoveAccept:  {RefToReview: RefValidated},
-	MoveRefuse:  {RefToReview: RefRefused},
-	MoveUnjudge: {RefValidated: RefToReview},
+	MoveAccept: {RefToReview: RefAccepted},
+	MoveRefuse: {RefToReview: RefRefused},
+	// Both judgments can be reconsidered, symmetrically: the ref returns to
+	// the reviewer's court (#167, #171).
+	MoveUnjudge: {RefAccepted: RefToReview, RefRefused: RefToReview},
 }
 
 // TransitionRef reports what a move does to one issue ref, or why it cannot.
 func TransitionRef(from RefState, move Move, remark string) (RefState, error) {
-	if from == RefValidated && move != MoveUnjudge {
+	if from == RefAccepted && move != MoveUnjudge {
 		return from, ErrNotOpen
 	}
 	if move == MoveRefuse && remark == "" {
@@ -154,7 +159,7 @@ func DeriveComment(current CommentState, refs []RefState) CommentState {
 	if len(refs) == 0 {
 		return CommentToTrack
 	}
-	derived := CommentValidated
+	derived := CommentAccepted
 	for _, r := range refs {
 		switch r {
 		case RefToReview:

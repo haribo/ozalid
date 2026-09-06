@@ -9,7 +9,7 @@
 export type CaseState = 'not-instrumented' | 'to-review' | 'to-fix' | 'reviewed'
 
 /** What a capture is waiting for. */
-export type CaptureStatus = 'to-review' | 'to-fix' | 'validated'
+export type CaptureStatus = 'to-review' | 'refused' | 'accepted'
 
 /**
  * Whether a capture still shows what was approved — an overlay on top of the

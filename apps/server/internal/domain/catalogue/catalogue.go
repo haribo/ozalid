@@ -113,10 +113,10 @@ type CategoryNode struct {
 
 // CaptureCounts is how a case's captures stand at the edition it points at.
 type CaptureCounts struct {
-	Total     int64
-	Validated int64
-	Commented int64
-	ToJudge   int64
+	Total    int64
+	Accepted int64
+	Refused  int64
+	ToJudge  int64
 }
 
 // CaseSummary is a case plus what a listing needs to draw its row without

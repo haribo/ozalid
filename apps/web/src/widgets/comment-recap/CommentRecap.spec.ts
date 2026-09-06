@@ -23,7 +23,6 @@ function comment(over: Partial<Comment> = {}): Comment {
   return {
     id: 'k1',
     stepId: 's1',
-    kind: 'defect',
     body: 'the button is clipped',
     state: 'to-track',
     variantIds: ['v2'],
@@ -140,23 +139,13 @@ describe('CommentRecap', () => {
     expect(rows[2].classes()).toContain('opacity-50')
   })
 
-  it('gives a kind its own shape, never the one a state already uses', () => {
-    // A plain circle already means "waiting for the reviewer"; an improvement
-    // is not a state.
-    const w = mount(CommentRecap, {
-      props: { grid, comments: [comment({ kind: 'improvement' })] },
-    })
-    expect(w.find('[aria-label="improvement"]').exists()).toBe(true)
-    expect(w.find('[aria-label="to review"]').exists()).toBe(false)
-  })
-
   it('counts what is still open, not what exists', () => {
     const w = mount(CommentRecap, {
       props: {
         grid,
         comments: [
           comment(),
-          comment({ id: 'k2', state: 'validated' }),
+          comment({ id: 'k2', state: 'accepted' }),
           comment({ id: 'k3', state: 'discarded' }),
         ],
       },

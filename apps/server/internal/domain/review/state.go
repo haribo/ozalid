@@ -29,12 +29,12 @@ const (
 	CommentTracked   CommentState = "tracked"
 	CommentToReview  CommentState = "to-review"
 	CommentRefused   CommentState = "refused"
-	CommentValidated CommentState = "validated"
+	CommentAccepted  CommentState = "accepted"
 	CommentDiscarded CommentState = "discarded"
 )
 
 // Open reports whether the comment still counts against its case. Validated and
 // discarded are the only terminal states.
 func (s CommentState) Open() bool {
-	return s != CommentValidated && s != CommentDiscarded
+	return s != CommentAccepted && s != CommentDiscarded
 }

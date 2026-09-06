@@ -12,8 +12,8 @@ import {
   ActionIcon,
   AdminIcon,
   AppButton,
+  VerdictPair,
   EmptyState,
-  KindIcon,
   MintedTokenPanel,
   MissingIcon,
   MovedIcon,
@@ -79,13 +79,26 @@ const GAUGE = [
         <AppButton size="sm">Add</AppButton>
         <AppButton size="lg">Add</AppButton>
         <AppButton disabled>Create</AppButton>
-        <AppButton success>✓ validated</AppButton>
+        <AppButton success>✓ accepted</AppButton>
         <AppButton icon variant="secondary" label="retire this token"
           ><AdminIcon name="remove"
         /></AppButton>
         <AppButton variant="secondary"
           >a label long enough to wrap somewhere inconvenient</AppButton
         >
+      </div>
+    </section>
+
+    <section class="mb-10">
+      <h2 class="text-body font-semibold">VerdictPair</h2>
+      <p class="mb-3 font-mono text-label text-slate-500 uppercase">
+        shared/ui/VerdictPair.vue · ADR 0020, one segmented control, three states
+      </p>
+      <div class="flex flex-wrap items-center gap-3">
+        <VerdictPair verdict="none" />
+        <VerdictPair verdict="accepted" />
+        <VerdictPair verdict="refused" />
+        <VerdictPair verdict="none" disabled />
       </div>
     </section>
 
@@ -110,15 +123,13 @@ const GAUGE = [
     </section>
 
     <section class="mb-10">
-      <h2 class="text-body font-semibold">RightsPill · KindIcon · ActionIcon · AdminIcon</h2>
+      <h2 class="text-body font-semibold">RightsPill · ActionIcon · AdminIcon</h2>
       <p class="mb-3 font-mono text-label text-slate-500 uppercase">
-        rights of §8 · comment kinds of §6 · the gestures of the screens
+        rights of §8 · the gestures of the screens
       </p>
       <div class="mb-2 flex flex-wrap items-center gap-2">
         <RightsPill rights="member" />
         <RightsPill rights="reader" />
-        <KindIcon kind="defect" :size="15" class="text-amber-700 dark:text-amber-400" />
-        <KindIcon kind="improvement" :size="15" class="text-indigo-700 dark:text-indigo-300" />
       </div>
       <div class="flex flex-wrap items-center gap-3 text-slate-600 dark:text-slate-300">
         <ActionIcon v-for="n in ACTION_ICONS" :key="n" :name="n" :size="15" />

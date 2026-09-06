@@ -698,6 +698,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{slug}/comments/{commentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: components["parameters"]["Slug"];
+                commentId: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit a draft remark
+         * @description The author reworking their own draft (ADR 0020): text and covered
+         *     variants, while no issue is attached. Once tracked, the issue's title
+         *     speaks in the remark's place and editing is refused.
+         */
+        patch: operations["editComment"];
+        trace?: never;
+    };
     "/projects/{slug}/comments/{commentId}/reference": {
         parameters: {
             query?: never;
@@ -800,7 +825,14 @@ export interface paths {
          *     kept, so three round trips on one comment stay visible.
          */
         post: operations["judgeComment"];
-        delete?: never;
+        /**
+         * Take a judgment back
+         * @description The reviewer reconsiders an acceptance or a refusal: the ref returns to
+         *     to-review, and the capture it covers with it (#167, #171). The take-back
+         *     joins the judgment history as `taken-back` — who reconsidered, and when,
+         *     is information exactly like the judgment was.
+         */
+        delete: operations["unjudgeComment"];
         options?: never;
         head?: never;
         patch?: never;
@@ -988,8 +1020,8 @@ export interface components {
          */
         CaptureCounts: {
             total: number;
-            validated: number;
-            commented: number;
+            accepted: number;
+            refused: number;
             toJudge: number;
         };
         Case: {
@@ -1218,7 +1250,7 @@ export interface components {
              *     covering it — never set by a caller (ADR 0012).
              * @enum {string}
              */
-            status: "to-review" | "to-fix" | "validated";
+            status: "to-review" | "refused" | "accepted";
             /**
              * @description Whether this capture still shows what a reviewer approved, computed once
              *     when it arrived. **Absent means nothing to compare against** — nobody has
@@ -1270,11 +1302,11 @@ export interface components {
             recordings: components["schemas"]["GridRecording"][];
         };
         /**
-         * @description Where the comment stands. `validated` and `discarded` are the only terminal
+         * @description Where the comment stands. `accepted` and `discarded` are the only terminal
          *     states; a refusal returns to `to-review` on the next delivery.
          * @enum {string}
          */
-        CommentState: "to-track" | "tracked" | "to-review" | "refused" | "validated" | "discarded";
+        CommentState: "to-track" | "tracked" | "to-review" | "refused" | "accepted" | "discarded";
         /**
          * @description An opaque reference to an issue somewhere else. Supplied by the client and
          *     never read back: ozalid holds no tracker credential (ADR 0003).
@@ -1297,8 +1329,11 @@ export interface components {
             url?: string;
             /** @description What the book reads once attached; the comment's text was the draft. */
             title?: string;
-            /** @enum {string} */
-            state: "tracked" | "to-review" | "refused" | "validated";
+            /**
+             * @description accepted, not validated — validated is the vocabulary of captures (#170).
+             * @enum {string}
+             */
+            state: "tracked" | "to-review" | "refused" | "accepted";
             /** @description The remark of the latest refusal on this ref, if any. */
             lastRefusal?: string;
         };
@@ -1317,8 +1352,6 @@ export interface components {
         Comment: {
             id: string;
             stepId: string;
-            /** @enum {string} */
-            kind: "defect" | "improvement";
             /** @description What the reviewer wrote, in their words. It survives the issue title. */
             body: string;
             state: components["schemas"]["CommentState"];
@@ -1348,12 +1381,6 @@ export interface components {
         };
         NewComment: {
             stepId: string;
-            /**
-             * @description What it is. The kind is written on the comment, where it is exact and
-             *     where the issue is written from — it never colours the case's state.
-             * @enum {string}
-             */
-            kind: "defect" | "improvement";
             body: string;
             /**
              * @description The variants it applies to. One defect spanning four variants is **one**
@@ -1363,19 +1390,24 @@ export interface components {
         };
         ReviewSave: {
             /** @description The squares the reviewer looked at with nothing to say. */
-            validated?: components["schemas"]["CellRef"][];
-            /** @description What the reviewer wrote during the sitting. */
+            accepted?: components["schemas"]["CellRef"][];
+            /** @description The remarks of this sitting's refusals (ADR 0020). */
             comments?: components["schemas"]["NewComment"][];
             /**
-             * @description Squares whose validation the reviewer takes back — a misclick, or a
-             *     second look. Validating is a toggle until the review ends (#156); the
+             * @description Squares whose acceptance the reviewer takes back — a misclick, or a
+             *     second look. The verdict is a toggle until the review ends (#156); the
              *     journal keeps both moves.
              */
-            unvalidated?: components["schemas"]["CellRef"][];
+            unaccepted?: components["schemas"]["CellRef"][];
+            /**
+             * @description Squares whose draft refusal the reviewer takes back: their own remarks
+             *     with no issue attached are withdrawn with it (ADR 0020).
+             */
+            unrefused?: components["schemas"]["CellRef"][];
         };
         CellVerdict: components["schemas"]["CellRef"] & {
             /** @enum {string} */
-            status: "to-review" | "to-fix" | "validated";
+            status: "to-review" | "refused" | "accepted";
         };
         ReviewOutcome: {
             state: components["schemas"]["CaseState"];
@@ -2489,6 +2521,33 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    editComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: components["parameters"]["Slug"];
+                commentId: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    body: string;
+                    variantIds: string[];
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["MoveApplied"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["MoveRefused"];
+        };
+    };
     trackComment: {
         parameters: {
             query?: never;
@@ -2587,6 +2646,36 @@ export interface operations {
                     remark?: string;
                     /**
                      * @description The ref judged — its `id` in the comment's `issues` list.
+                     *     Mandatory once the comment carries more than one (#138).
+                     */
+                    issueId?: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["MoveApplied"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["MoveRefused"];
+        };
+    };
+    unjudgeComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: components["parameters"]["Slug"];
+                commentId: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description The ref unjudged — its `id` in the comment's `issues` list.
                      *     Mandatory once the comment carries more than one (#138).
                      */
                     issueId?: string;

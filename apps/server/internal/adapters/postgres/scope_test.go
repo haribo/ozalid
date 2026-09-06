@@ -88,7 +88,7 @@ func TestAVerdictCannotBeRecordedThroughSomebodyElsesProject(t *testing.T) {
 	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
 
 	_, err := repo.SaveReview(ctx, other.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human},
-		session.Save{Validated: []review.Cell{cell}})
+		session.Save{Accepted: []review.Cell{cell}})
 	if !errors.Is(err, app.ErrNotFound) {
 		t.Fatalf("SaveReview under the wrong project = %v, want ErrNotFound", err)
 	}

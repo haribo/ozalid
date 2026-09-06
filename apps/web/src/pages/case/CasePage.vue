@@ -96,8 +96,8 @@ const tally = computed(() => {
   const count = (status: string) => cells.filter((c) => c.status === status).length
   const expected = (grid?.steps.length ?? 0) * (grid?.variants.length ?? 0)
   return {
-    validated: count('validated'),
-    commented: count('to-fix'),
+    accepted: count('accepted'),
+    refused: count('refused'),
     toJudge: count('to-review'),
     missing: Math.max(0, expected - cells.length),
     // Counted like the holes, and for the same reason: a reviewer should not
@@ -106,23 +106,38 @@ const tally = computed(() => {
   }
 })
 
-async function onValidate(stepId: string, variantId: string) {
-  await review.validate(stepId, variantId)
+async function onAccept(stepId: string, variantId: string, withdraw: boolean) {
+  await review.accept(stepId, variantId, withdraw)
   await refreshCase()
 }
 
-async function onUnvalidate(stepId: string, variantId: string) {
-  await review.unvalidate(stepId, variantId)
+async function onUnaccept(stepId: string, variantId: string) {
+  await review.unaccept(stepId, variantId)
   await refreshCase()
 }
 
-async function onComment(input: Parameters<typeof review.comment>[0]) {
-  await review.comment(input)
+async function onRefuse(input: Parameters<typeof review.refuse>[0]) {
+  await review.refuse(input)
+  await refreshCase()
+}
+
+async function onUnrefuse(stepId: string, variantId: string) {
+  await review.unrefuse(stepId, variantId)
+  await refreshCase()
+}
+
+async function onEdit(commentId: string, body: string, variantIds: string[]) {
+  await review.edit(commentId, body, variantIds)
   await refreshCase()
 }
 
 async function onJudge(commentId: string, issueRefId: string, accept: boolean, remark: string) {
   await review.judge(commentId, issueRefId, accept, remark)
+  await refreshCase()
+}
+
+async function onUnjudge(commentId: string, issueRefId: string) {
+  await review.unjudge(commentId, issueRefId)
   await refreshCase()
 }
 
@@ -159,11 +174,11 @@ async function refreshCase() {
             <span>rev {{ review.grid.value.revision }}</span>
           </template>
         </template>
-        <template v-if="tally.validated + tally.commented + tally.toJudge > 0">
+        <template v-if="tally.accepted + tally.refused + tally.toJudge > 0">
           <span>·</span>
           <span>
-            {{ tally.validated }} validated
-            <template v-if="tally.commented"> · {{ tally.commented }} commented</template>
+            {{ tally.accepted }} accepted
+            <template v-if="tally.refused"> · {{ tally.refused }} refused</template>
           </span>
           <span
             v-if="tally.toJudge"
@@ -204,10 +219,13 @@ async function refreshCase() {
         class="fixed inset-0 z-40"
         @close="closeCarousel"
         @move="moveTo"
-        @validate="onValidate"
-        @unvalidate="onUnvalidate"
-        @comment="onComment"
+        @accept="onAccept"
+        @unaccept="onUnaccept"
+        @refuse="onRefuse"
+        @unrefuse="onUnrefuse"
+        @edit="onEdit"
         @judge="onJudge"
+        @unjudge="onUnjudge"
       />
 
       <CaseGrid

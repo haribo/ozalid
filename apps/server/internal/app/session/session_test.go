@@ -34,7 +34,7 @@ func TestACommentWithNothingWrittenInItIsRefused(t *testing.T) {
 	svc := session.New(refusingRepo{t})
 
 	_, err := svc.Save(context.Background(), "atlas", "case", actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Comments: []session.NewComment{{StepID: "s1", Kind: "defect", Body: "  \n ", VariantIDs: []string{"v1"}}},
+		Comments: []session.NewComment{{StepID: "s1", Body: "  \n ", VariantIDs: []string{"v1"}}},
 	})
 	if !errors.Is(err, session.ErrEmptyBody) {
 		t.Errorf("err = %v, want ErrEmptyBody", err)
@@ -47,21 +47,10 @@ func TestACommentCoveringNoVariantIsRefused(t *testing.T) {
 	svc := session.New(refusingRepo{t})
 
 	_, err := svc.Save(context.Background(), "atlas", "case", actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Comments: []session.NewComment{{StepID: "s1", Kind: "defect", Body: "misaligned", VariantIDs: nil}},
+		Comments: []session.NewComment{{StepID: "s1", Body: "misaligned", VariantIDs: nil}},
 	})
 	if !errors.Is(err, session.ErrNoVariant) {
 		t.Errorf("err = %v, want ErrNoVariant", err)
-	}
-}
-
-func TestAKindTheProductDoesNotKnowIsRefused(t *testing.T) {
-	svc := session.New(refusingRepo{t})
-
-	_, err := svc.Save(context.Background(), "atlas", "case", actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Comments: []session.NewComment{{StepID: "s1", Kind: "wish", Body: "…", VariantIDs: []string{"v1"}}},
-	})
-	if !errors.Is(err, session.ErrUnknownKind) {
-		t.Errorf("err = %v, want ErrUnknownKind", err)
 	}
 }
 
@@ -71,8 +60,8 @@ func TestOneUnusableCommentRefusesTheWholeSession(t *testing.T) {
 
 	_, err := svc.Save(context.Background(), "atlas", "case", actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Comments: []session.NewComment{
-			{StepID: "s1", Kind: "defect", Body: "fine", VariantIDs: []string{"v1"}},
-			{StepID: "s2", Kind: "defect", Body: "", VariantIDs: []string{"v1"}},
+			{StepID: "s1", Body: "fine", VariantIDs: []string{"v1"}},
+			{StepID: "s2", Body: "", VariantIDs: []string{"v1"}},
 		},
 	})
 	if err == nil {
@@ -86,7 +75,7 @@ func TestSurroundingSpaceIsTrimmedBeforeStoring(t *testing.T) {
 
 	if _, err := svc.Save(context.Background(), "atlas", "case", actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Comments: []session.NewComment{
-			{StepID: "s1", Kind: "improvement", Body: "  the label is cramped  ", VariantIDs: []string{"v1"}},
+			{StepID: "s1", Body: "  the label is cramped  ", VariantIDs: []string{"v1"}},
 		},
 	}); err != nil {
 		t.Fatalf("saving: %v", err)

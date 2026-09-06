@@ -13,7 +13,7 @@
  */
 import { computed } from 'vue'
 import type { components } from '@/shared/api'
-import { ActionIcon, KindIcon, StateIcon, VariantHead } from '@/shared/ui'
+import { ActionIcon, StateIcon, VariantHead } from '@/shared/ui'
 import type { Tone } from '@/shared/lib'
 
 type Grid = components['schemas']['Grid']
@@ -33,7 +33,7 @@ const TONE: Record<string, Tone> = {
   tracked: 'idle',
   'to-review': 'reviewer',
   refused: 'dev',
-  validated: 'done',
+  accepted: 'done',
   discarded: 'idle',
 }
 
@@ -48,10 +48,10 @@ const PILL: Record<string, string> = {
 /** Nobody is waiting on these: the issue is filed but not delivered, the fix is
  * accepted, the report was set aside. They stay visible — nothing is ever
  * deleted — but they step back so what needs a move keeps the eye. */
-const SETTLED = new Set(['tracked', 'validated', 'discarded'])
+const SETTLED = new Set(['tracked', 'accepted', 'discarded'])
 
 const openCount = computed(
-  () => props.comments.filter((c) => c.state !== 'validated' && c.state !== 'discarded').length,
+  () => props.comments.filter((c) => c.state !== 'accepted' && c.state !== 'discarded').length,
 )
 
 /** One block per step, in the grid's order. A step the grid no longer knows
@@ -109,7 +109,6 @@ function rowState(r: Row) {
             class="bg-slate-50 font-mono text-label tracking-widest text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400"
           >
             <th class="px-3 py-2 text-left font-medium">step</th>
-            <th class="px-2 py-2"></th>
             <th class="px-3 py-2 text-left font-medium">what was said</th>
             <th
               v-for="v in grid.variants"
@@ -145,17 +144,6 @@ function rowState(r: Row) {
                   >{{ g.name }}</a
                 >
                 <template v-else>{{ g.name }}</template>
-              </td>
-              <td class="px-2 py-2.5 text-center align-middle">
-                <span
-                  :class="
-                    r.comment.kind === 'defect'
-                      ? 'text-amber-700 dark:text-amber-400'
-                      : 'text-indigo-700 dark:text-indigo-300'
-                  "
-                >
-                  <KindIcon :kind="r.comment.kind" :size="14" class="mx-auto" />
-                </span>
               </td>
               <td class="max-w-[44ch] px-3 py-2.5 align-top">
                 <!-- The issue's title once tracked; the free text was the

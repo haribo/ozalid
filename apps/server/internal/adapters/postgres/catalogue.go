@@ -273,8 +273,8 @@ func (r *Repository) SummariseCases(ctx context.Context, projectID string, categ
 				CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
 			},
 			Captures: catalogue.CaptureCounts{
-				Total: row.Captures, Validated: row.Validated,
-				Commented: row.Commented, ToJudge: row.ToJudge,
+				Total: row.Captures, Accepted: row.Accepted,
+				Refused: row.Refused, ToJudge: row.ToJudge,
 			},
 		}
 		if row.ArchivedAt.Valid {

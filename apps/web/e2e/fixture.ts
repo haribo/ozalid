@@ -165,7 +165,6 @@ export async function commentOnStep(
       comments: [
         {
           stepId: step.id,
-          kind: 'defect',
           body,
           variantIds: step.cells.map((c) => c.variantId),
         },
@@ -174,8 +173,8 @@ export async function commentOnStep(
   )
 }
 
-/** Validate every square, the way a reviewer who had nothing to say would. */
-export async function validateEverything(seeded: Seeded): Promise<void> {
+/** Accept every square, the way a reviewer who had nothing to say would. */
+export async function acceptEverything(seeded: Seeded): Promise<void> {
   const grid = (await (
     await call(`/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)
   ).json()) as {
@@ -184,7 +183,7 @@ export async function validateEverything(seeded: Seeded): Promise<void> {
   await call(
     `/projects/${seeded.slug}/cases/${seeded.caseId}/reviews`,
     post({
-      validated: grid.steps.flatMap((s) =>
+      accepted: grid.steps.flatMap((s) =>
         s.cells.map((c) => ({ stepId: s.id, variantId: c.variantId })),
       ),
     }),

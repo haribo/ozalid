@@ -249,7 +249,7 @@ func TestACommentAnchorsToTheCaptureItWasWrittenAbout(t *testing.T) {
 	q := sqlcgen.New(repo.Pool())
 	author := person(t, ctx, q, "anchor-author", false)
 	created, err := q.CreateComment(ctx, sqlcgen.CreateCommentParams{
-		CaseID: kase.ID, StepID: stepID, Kind: "defect", Body: "clipped", AuthorID: author.ID,
+		CaseID: kase.ID, StepID: stepID, Body: "clipped", AuthorID: author.ID,
 	})
 	if err != nil {
 		t.Fatalf("creating the comment: %v", err)

@@ -116,14 +116,14 @@ StateCounts:
 
 CaptureCounts:
   type: object
-  required: [total, validated, commented, toJudge]
+  required: [total, accepted, refused, toJudge]
   description: |
     How this case's captures stand at the edition it points at. A capture with
     no verdict yet counts as still to judge.
   properties:
     total: { type: integer }
-    validated: { type: integer }
-    commented: { type: integer }
+    accepted: { type: integer }
+    refused: { type: integer }
     toJudge: { type: integer }
 
 NewCategory:
