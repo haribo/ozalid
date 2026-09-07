@@ -90,6 +90,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What a token can learn about itself
+         * @description A program holding an `ozp_` token asks whose key it is and which project it
+         *     opens — and fails fast with a clear 401 when the token is retired or the
+         *     account deactivated, instead of discovering it on its first real call
+         *     (#180). `/me` stays the person's mirror; this is the machine's.
+         */
+        get: operations["whoIsTheToken"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -1595,6 +1618,35 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    whoIsTheToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whose key this is. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        serviceAccountId: string;
+                        /** @description The service account's label. */
+                        name: string;
+                        project: {
+                            slug: string;
+                            name: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
         };
     };
     whoAmI: {
