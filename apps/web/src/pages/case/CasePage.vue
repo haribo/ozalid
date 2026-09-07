@@ -22,7 +22,24 @@ const slug = computed(() => String(route.params.slug))
 const caseId = computed(() => String(route.params.caseId))
 
 const kase = ref<Case | null>(null)
+type Category = components['schemas']['Category']
+const categories = ref<Category[]>([])
 const loading = ref(true)
+
+/** The way back: the case's ancestors, root first — the same trail the
+ * catalogue draws, ancestors only. The title right below says the current
+ * page, so repeating it in the trail would be noise (#190). */
+const trail = computed(() => {
+  const out: Category[] = []
+  let id = kase.value?.categoryId ?? null
+  while (id) {
+    const node = categories.value.find((c) => c.id === id)
+    if (!node) break
+    out.unshift(node)
+    id = node.parentId ?? null
+  }
+  return out
+})
 
 // Which capture is open is the route's to say, not a ref's: an open capture
 // has an address, so a colleague can be sent to the exact capture (#125). The
@@ -78,6 +95,10 @@ watch(
       return
     }
     kase.value = detail.data
+    const tree = await api.GET('/projects/{slug}/categories', {
+      params: { path: { slug: slug.value } },
+    })
+    categories.value = tree.error ? [] : tree.data
     await review.load()
     loading.value = false
   },
@@ -159,6 +180,24 @@ async function refreshCase() {
     <p v-else-if="loading" class="font-mono text-mono text-slate-500">loading…</p>
 
     <template v-else-if="kase">
+      <nav
+        aria-label="breadcrumb"
+        class="mb-3 flex flex-wrap gap-x-1.5 font-mono text-mono text-slate-500 dark:text-slate-400"
+      >
+        <RouterLink :to="`/projects/${slug}`" class="text-indigo-700 dark:text-indigo-300">
+          {{ slug }}
+        </RouterLink>
+        <template v-for="node in trail" :key="node.id">
+          <span aria-hidden="true">›</span>
+          <RouterLink
+            :to="`/projects/${slug}/categories/${node.id}`"
+            class="text-indigo-700 dark:text-indigo-300"
+          >
+            {{ node.name }}
+          </RouterLink>
+        </template>
+      </nav>
+
       <h1 class="mb-2.5 text-display font-semibold">{{ kase.title }}</h1>
 
       <div

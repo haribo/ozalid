@@ -334,3 +334,22 @@ test('a capture taller than the stage is scaled to fit, never overflowing', asyn
   expect(box.y + box.height).toBeLessThanOrEqual(viewport.height)
   expect(box.x + box.width).toBeLessThanOrEqual(viewport.width)
 })
+
+test('the case page finds its way back to its category (#190)', async ({ page }) => {
+  // The trail shows ancestors only: the title right below says the current
+  // page, and repeating it in the trail would be noise.
+  const seeded = await seed(page)
+  await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
+
+  const nav = page.getByRole('navigation', { name: 'breadcrumb' })
+  // The suite's category shares the project's name, so target by destination.
+  await expect(nav.getByRole('link').first()).toHaveAttribute('href', `/projects/${seeded.slug}`)
+  await expect(nav).not.toContainText('reset a forgotten password')
+
+  // The last ancestor is the case's own category, and it leads back there.
+  await nav.getByRole('link').last().click()
+  await expect(page).toHaveURL(/\/categories\//)
+  await expect(
+    page.locator(`a[href="/projects/${seeded.slug}/cases/${seeded.caseId}"]`),
+  ).toBeVisible()
+})
