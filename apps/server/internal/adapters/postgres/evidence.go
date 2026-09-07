@@ -11,6 +11,7 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres/sqlcgen"
 	appcat "github.com/haribo/ozalid/apps/server/internal/app/catalogue"
 	"github.com/haribo/ozalid/apps/server/internal/app/evidence"
+	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"github.com/haribo/ozalid/internal/contract"
 )
 
@@ -47,6 +48,16 @@ func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionI
 	if err != nil {
 		return evidence.Grid{}, translate("reading the evidence", err)
 	}
+
+	// Statuses are derived here, never read from storage (ADR 0021): the same
+	// facts, the same rule, at the edition this grid displays.
+	displayed := kase
+	displayed.CurrentEditionID = &edition.ID
+	facts, err := factsOf(ctx, r.q, displayed)
+	if err != nil {
+		return evidence.Grid{}, err
+	}
+	verdicts := review.Compute(facts).Verdicts
 
 	// One flat result set becomes steps and their captures. The variants are
 	// collected as they appear, so the grid only mentions those that exist.
@@ -85,10 +96,8 @@ func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionI
 
 		capture := evidence.Capture{
 			ID: row.CaptureID, VariantID: row.VariantID, Hash: row.BlobHash,
-			Status: row.Status, Provenance: provenance,
-		}
-		if row.Freshness != nil {
-			capture.Freshness = *row.Freshness
+			Status:     string(verdicts[review.Capture{StepID: row.StepID, VariantID: row.VariantID}]),
+			Provenance: provenance,
 		}
 		if row.MovedPixels != nil {
 			moved := int(*row.MovedPixels)

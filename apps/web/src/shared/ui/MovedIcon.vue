@@ -3,7 +3,7 @@
  * A capture that has moved since it was approved.
  *
  * A status like any other, so it wears the disc (frontend ADR 0003) — but its
- * own glyph. Freshness is an overlay, not a verdict (product.md §3.3): a capture
+ * own glyph. Movement keeps a shape of its own (product.md §3.3): a capture
  * can be *validated* and *moved* at once, and borrowing a verdict's check or
  * speech bubble would have one mark overwrite the other.
  */

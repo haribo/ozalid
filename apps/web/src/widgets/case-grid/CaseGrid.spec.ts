@@ -42,8 +42,9 @@ function grid(over: Partial<Grid> = {}): Grid {
 // whatever the captures say.
 const captures = (w: ReturnType<typeof mount>) => w.findAll('tbody td')
 
-// One capture that has moved, from a chosen verdict.
-const oneMoved = (status: 'accepted' | 'refused') => ({
+// One capture at a chosen derived status (ADR 0021): moved is a status now,
+// not an overlay riding another one.
+const oneAt = (status: 'accepted' | 'refused' | 'moved') => ({
   steps: [
     {
       id: 's1',
@@ -55,27 +56,6 @@ const oneMoved = (status: 'accepted' | 'refused') => ({
           variantId: 'v1',
           hash: 'sha256:aaa',
           status,
-          freshness: 'to-re-review' as const,
-        },
-      ],
-    },
-  ],
-})
-
-// One accepted capture, at a chosen freshness.
-const oneValidated = (freshness: 'current' | 'to-re-review') => ({
-  steps: [
-    {
-      id: 's1',
-      name: 'opens the form',
-      position: 0,
-      captures: [
-        {
-          id: 'cap5',
-          variantId: 'v1',
-          hash: 'sha256:aaa',
-          status: 'accepted' as const,
-          freshness,
         },
       ],
     },
@@ -201,7 +181,7 @@ describe('CaseGrid', () => {
     // For the only question the grid asks, it has not been validated — not the
     // bytes on display (frontend ADR 0003).
     const w = mount(CaseGrid, {
-      props: { slug: 'atlas', grid: grid(oneValidated('to-re-review')) },
+      props: { slug: 'atlas', grid: grid(oneAt('moved')) },
     })
     const capture = captures(w)[0]
 
@@ -212,19 +192,16 @@ describe('CaseGrid', () => {
     expect(capture.find('button').classes().join(' ')).not.toContain('emerald')
   })
 
-  it('reads a moved capture the same whatever verdict it used to carry', () => {
-    // Validated-and-moved and commented-and-moved are one capture: what separated
-    // them is what the grid stopped reporting (frontend ADR 0003).
-    const fromValidated = mount(CaseGrid, {
-      props: { slug: 'atlas', grid: grid(oneMoved('accepted')) },
-    })
-    const fromCommented = mount(CaseGrid, {
-      props: { slug: 'atlas', grid: grid(oneMoved('refused')) },
-    })
-    expect(captures(fromValidated)[0].html()).toBe(captures(fromCommented)[0].html())
+  it('never draws the moved mark on an accepted capture', () => {
+    // The regression this epic exists for (#194): accepted means the pixels
+    // on display are the pixels that were approved — one status, one mark.
+    const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid(oneAt('accepted')) } })
+    const capture = captures(w)[0]
+    expect(capture.find('[aria-label="moved"]').exists()).toBe(false)
+    expect(capture.find('[aria-label="accepted"]').exists()).toBe(true)
   })
 
-  it('says nothing about freshness when there is nothing to compare against', () => {
+  it('says nothing about movement when there is nothing to compare against', () => {
     // Absent is a third answer, not "unchanged" (ADR 0017).
     const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
     for (const capture of captures(w)) {
@@ -241,9 +218,9 @@ describe('CaseGrid', () => {
     }
   })
 
-  it('gives freshness its own shape, never a state icon', () => {
+  it('gives movement its own shape, never a state icon', () => {
     const w = mount(CaseGrid, {
-      props: { slug: 'atlas', grid: grid(oneValidated('to-re-review')) },
+      props: { slug: 'atlas', grid: grid(oneAt('moved')) },
     })
     const capture = captures(w)[0]
     const mark = capture.find('[role="img"]')

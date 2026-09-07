@@ -43,8 +43,8 @@ func (q *Queries) AttachCommentVariant(ctx context.Context, arg AttachCommentVar
 }
 
 const caseAcceptedCaptures = `-- name: CaseAcceptedCaptures :many
-SELECT step_id, variant_id FROM capture_verdicts
-WHERE case_id = $1 AND status = 'accepted'
+SELECT step_id, variant_id FROM capture_acceptances
+WHERE case_id = $1
 `
 
 type CaseAcceptedCapturesRow struct {
@@ -62,6 +62,62 @@ func (q *Queries) CaseAcceptedCaptures(ctx context.Context, caseID string) ([]Ca
 	for rows.Next() {
 		var i CaseAcceptedCapturesRow
 		if err := rows.Scan(&i.StepID, &i.VariantID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const caseCaptureFacts = `-- name: CaseCaptureFacts :many
+SELECT s.id AS step_id, c.variant_id, c.blob_hash, c.moved_pixels,
+       coalesce(r.blob_hash, '') AS reference_hash
+FROM steps s
+JOIN captures c ON c.step_id = s.id AND c.edition_id = $2
+LEFT JOIN LATERAL (
+    SELECT ref.blob_hash FROM capture_references ref
+    WHERE ref.case_id = s.case_id AND ref.step_id = s.id AND ref.variant_id = c.variant_id
+      AND ref.environment_id = c.provenance->>'environmentId'
+    ORDER BY ref.approved_at DESC LIMIT 1
+) r ON true
+WHERE s.case_id = $1
+`
+
+type CaseCaptureFactsParams struct {
+	CaseID    string
+	EditionID string
+}
+
+type CaseCaptureFactsRow struct {
+	StepID        string
+	VariantID     string
+	BlobHash      string
+	MovedPixels   *int32
+	ReferenceHash string
+}
+
+// Everything the derivation reads about one case's captures (ADR 0021): the
+// bytes on display, the reference approved in this capture's own environment
+// (ADR 0017), and the measurement intake recorded.
+func (q *Queries) CaseCaptureFacts(ctx context.Context, arg CaseCaptureFactsParams) ([]CaseCaptureFactsRow, error) {
+	rows, err := q.db.Query(ctx, caseCaptureFacts, arg.CaseID, arg.EditionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CaseCaptureFactsRow{}
+	for rows.Next() {
+		var i CaseCaptureFactsRow
+		if err := rows.Scan(
+			&i.StepID,
+			&i.VariantID,
+			&i.BlobHash,
+			&i.MovedPixels,
+			&i.ReferenceHash,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -100,6 +156,48 @@ func (q *Queries) CaseCaptures(ctx context.Context, arg CaseCapturesParams) ([]C
 	for rows.Next() {
 		var i CaseCapturesRow
 		if err := rows.Scan(&i.StepID, &i.VariantID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const caseCommentAnchors = `-- name: CaseCommentAnchors :many
+SELECT cv.comment_id, c.step_id, cv.variant_id, a.blob_hash AS anchor_hash
+FROM comment_variants cv
+JOIN comments c ON c.id = cv.comment_id
+LEFT JOIN captures a ON a.id = cv.capture_id
+WHERE c.case_id = $1
+`
+
+type CaseCommentAnchorsRow struct {
+	CommentID  string
+	StepID     string
+	VariantID  string
+	AnchorHash *string
+}
+
+// The captures each comment covers, with the bytes the remark was written on
+// (#132): what decides whether a refusal still talks about the image shown.
+func (q *Queries) CaseCommentAnchors(ctx context.Context, caseID string) ([]CaseCommentAnchorsRow, error) {
+	rows, err := q.db.Query(ctx, caseCommentAnchors, caseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CaseCommentAnchorsRow{}
+	for rows.Next() {
+		var i CaseCommentAnchorsRow
+		if err := rows.Scan(
+			&i.CommentID,
+			&i.StepID,
+			&i.VariantID,
+			&i.AnchorHash,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -280,16 +378,11 @@ WITH latest AS (
 SELECT
     k.id, k.project_id, k.category_id, k.title, k.description, k.state, k.archived_at, k.created_at, k.updated_at, k.current_edition_id,
     count(c.id)                                                        AS captures,
-    count(*) FILTER (WHERE v.status = 'accepted')                      AS accepted,
-    count(*) FILTER (WHERE v.status = 'refused')                       AS refused,
-    count(c.id) FILTER (WHERE v.status IS NULL OR v.status = 'to-review') AS to_judge,
     max(e.created_at)::timestamptz                                     AS last_edition
 FROM cases k
 LEFT JOIN steps s ON s.case_id = k.id
 LEFT JOIN captures c ON c.step_id = s.id AND c.edition_id = (SELECT id FROM latest)
 LEFT JOIN editions e ON e.id = c.edition_id
-LEFT JOIN capture_verdicts v
-       ON v.case_id = k.id AND v.step_id = s.id AND v.variant_id = c.variant_id
 WHERE k.project_id = $1
   AND k.archived_at IS NULL
   AND ($2::text IS NULL OR k.category_id = $2::text)
@@ -314,9 +407,6 @@ type CasesWithCaptureCountsRow struct {
 	UpdatedAt        pgtype.Timestamptz
 	CurrentEditionID *string
 	Captures         int64
-	Accepted         int64
-	Refused          int64
-	ToJudge          int64
 	LastEdition      pgtype.Timestamptz
 }
 
@@ -345,9 +435,6 @@ func (q *Queries) CasesWithCaptureCounts(ctx context.Context, arg CasesWithCaptu
 			&i.UpdatedAt,
 			&i.CurrentEditionID,
 			&i.Captures,
-			&i.Accepted,
-			&i.Refused,
-			&i.ToJudge,
 			&i.LastEdition,
 		); err != nil {
 			return nil, err
@@ -563,12 +650,12 @@ func (q *Queries) CreateCommentIssue(ctx context.Context, arg CreateCommentIssue
 	return i, err
 }
 
-const deleteCaptureVerdict = `-- name: DeleteCaptureVerdict :exec
-DELETE FROM capture_verdicts
-WHERE case_id = $1 AND step_id = $2 AND variant_id = $3 AND status = 'accepted'
+const deleteCaptureAcceptance = `-- name: DeleteCaptureAcceptance :exec
+DELETE FROM capture_acceptances
+WHERE case_id = $1 AND step_id = $2 AND variant_id = $3
 `
 
-type DeleteCaptureVerdictParams struct {
+type DeleteCaptureAcceptanceParams struct {
 	CaseID    string
 	StepID    string
 	VariantID string
@@ -577,8 +664,8 @@ type DeleteCaptureVerdictParams struct {
 // Taking an acceptance back deletes the row rather than writing a state: the
 // recompute below re-derives the capture from what remains, and the journal is
 // what remembers both moves (#156).
-func (q *Queries) DeleteCaptureVerdict(ctx context.Context, arg DeleteCaptureVerdictParams) error {
-	_, err := q.db.Exec(ctx, deleteCaptureVerdict, arg.CaseID, arg.StepID, arg.VariantID)
+func (q *Queries) DeleteCaptureAcceptance(ctx context.Context, arg DeleteCaptureAcceptanceParams) error {
+	_, err := q.db.Exec(ctx, deleteCaptureAcceptance, arg.CaseID, arg.StepID, arg.VariantID)
 	return err
 }
 
@@ -734,6 +821,33 @@ func (q *Queries) GetCommentIssue(ctx context.Context, arg GetCommentIssueParams
 		return nil, err
 	}
 	return items, nil
+}
+
+const recordCaptureAcceptance = `-- name: RecordCaptureAcceptance :exec
+INSERT INTO capture_acceptances (case_id, step_id, variant_id, accepted_by)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (case_id, step_id, variant_id) DO NOTHING
+`
+
+type RecordCaptureAcceptanceParams struct {
+	CaseID     string
+	StepID     string
+	VariantID  string
+	AcceptedBy *string
+}
+
+// The acceptance is the reviewer's own fact — who, and when (ADR 0021).
+// Recording it is the write; every status is derived at read time.
+// The old note stands for the case state: recorded, never set by a caller: recording a
+// comment and recomputing what it covers happen together (ADR 0012).
+func (q *Queries) RecordCaptureAcceptance(ctx context.Context, arg RecordCaptureAcceptanceParams) error {
+	_, err := q.db.Exec(ctx, recordCaptureAcceptance,
+		arg.CaseID,
+		arg.StepID,
+		arg.VariantID,
+		arg.AcceptedBy,
+	)
+	return err
 }
 
 const recordJudgment = `-- name: RecordJudgment :exec
@@ -970,31 +1084,5 @@ type UpdateCommentBodyParams struct {
 // variants are replaced beside it in the same transaction.
 func (q *Queries) UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyParams) error {
 	_, err := q.db.Exec(ctx, updateCommentBody, arg.ID, arg.Body)
-	return err
-}
-
-const upsertCaptureVerdict = `-- name: UpsertCaptureVerdict :exec
-INSERT INTO capture_verdicts (case_id, step_id, variant_id, status)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (case_id, step_id, variant_id)
-DO UPDATE SET status = EXCLUDED.status, updated_at = now()
-`
-
-type UpsertCaptureVerdictParams struct {
-	CaseID    string
-	StepID    string
-	VariantID string
-	Status    string
-}
-
-// The verdict of a capture is recomputed, never set by a caller: recording a
-// comment and recomputing what it covers happen together (ADR 0012).
-func (q *Queries) UpsertCaptureVerdict(ctx context.Context, arg UpsertCaptureVerdictParams) error {
-	_, err := q.db.Exec(ctx, upsertCaptureVerdict,
-		arg.CaseID,
-		arg.StepID,
-		arg.VariantID,
-		arg.Status,
-	)
 	return err
 }

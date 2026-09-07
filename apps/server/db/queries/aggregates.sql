@@ -45,16 +45,11 @@ WITH latest AS (
 SELECT
     k.*,
     count(c.id)                                                        AS captures,
-    count(*) FILTER (WHERE v.status = 'accepted')                      AS accepted,
-    count(*) FILTER (WHERE v.status = 'refused')                       AS refused,
-    count(c.id) FILTER (WHERE v.status IS NULL OR v.status = 'to-review') AS to_judge,
     max(e.created_at)::timestamptz                                     AS last_edition
 FROM cases k
 LEFT JOIN steps s ON s.case_id = k.id
 LEFT JOIN captures c ON c.step_id = s.id AND c.edition_id = (SELECT id FROM latest)
 LEFT JOIN editions e ON e.id = c.edition_id
-LEFT JOIN capture_verdicts v
-       ON v.case_id = k.id AND v.step_id = s.id AND v.variant_id = c.variant_id
 WHERE k.project_id = $1
   AND k.archived_at IS NULL
   AND (sqlc.narg('category_id')::text IS NULL OR k.category_id = sqlc.narg('category_id')::text)
@@ -69,8 +64,8 @@ JOIN captures c ON c.step_id = s.id AND c.edition_id = $2
 WHERE s.case_id = $1;
 
 -- name: CaseAcceptedCaptures :many
-SELECT step_id, variant_id FROM capture_verdicts
-WHERE case_id = $1 AND status = 'accepted';
+SELECT step_id, variant_id FROM capture_acceptances
+WHERE case_id = $1;
 
 -- name: CaseComments :many
 SELECT c.id, c.step_id, c.body, c.state,
@@ -110,20 +105,21 @@ SELECT @comment_id, @variant_id, (
 )
 ON CONFLICT DO NOTHING;
 
--- The verdict of a capture is recomputed, never set by a caller: recording a
+-- The acceptance is the reviewer's own fact — who, and when (ADR 0021).
+-- Recording it is the write; every status is derived at read time.
+-- The old note stands for the case state: recorded, never set by a caller: recording a
 -- comment and recomputing what it covers happen together (ADR 0012).
--- name: UpsertCaptureVerdict :exec
-INSERT INTO capture_verdicts (case_id, step_id, variant_id, status)
+-- name: RecordCaptureAcceptance :exec
+INSERT INTO capture_acceptances (case_id, step_id, variant_id, accepted_by)
 VALUES ($1, $2, $3, $4)
-ON CONFLICT (case_id, step_id, variant_id)
-DO UPDATE SET status = EXCLUDED.status, updated_at = now();
+ON CONFLICT (case_id, step_id, variant_id) DO NOTHING;
 
 -- Taking an acceptance back deletes the row rather than writing a state: the
 -- recompute below re-derives the capture from what remains, and the journal is
 -- what remembers both moves (#156).
--- name: DeleteCaptureVerdict :exec
-DELETE FROM capture_verdicts
-WHERE case_id = $1 AND step_id = $2 AND variant_id = $3 AND status = 'accepted';
+-- name: DeleteCaptureAcceptance :exec
+DELETE FROM capture_acceptances
+WHERE case_id = $1 AND step_id = $2 AND variant_id = $3;
 
 -- name: SetCaseState :exec
 UPDATE cases SET state = $2, updated_at = now() WHERE id = $1;
@@ -272,3 +268,28 @@ JOIN comment_variants cv ON cv.comment_id = c.id
 WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
   AND c.state = 'accepted'
   AND NOT EXISTS (SELECT 1 FROM comment_issues ci WHERE ci.comment_id = c.id);
+
+-- Everything the derivation reads about one case's captures (ADR 0021): the
+-- bytes on display, the reference approved in this capture's own environment
+-- (ADR 0017), and the measurement intake recorded.
+-- name: CaseCaptureFacts :many
+SELECT s.id AS step_id, c.variant_id, c.blob_hash, c.moved_pixels,
+       coalesce(r.blob_hash, '') AS reference_hash
+FROM steps s
+JOIN captures c ON c.step_id = s.id AND c.edition_id = $2
+LEFT JOIN LATERAL (
+    SELECT ref.blob_hash FROM capture_references ref
+    WHERE ref.case_id = s.case_id AND ref.step_id = s.id AND ref.variant_id = c.variant_id
+      AND ref.environment_id = c.provenance->>'environmentId'
+    ORDER BY ref.approved_at DESC LIMIT 1
+) r ON true
+WHERE s.case_id = $1;
+
+-- The captures each comment covers, with the bytes the remark was written on
+-- (#132): what decides whether a refusal still talks about the image shown.
+-- name: CaseCommentAnchors :many
+SELECT cv.comment_id, c.step_id, cv.variant_id, a.blob_hash AS anchor_hash
+FROM comment_variants cv
+JOIN comments c ON c.id = cv.comment_id
+LEFT JOIN captures a ON a.id = cv.capture_id
+WHERE c.case_id = $1;

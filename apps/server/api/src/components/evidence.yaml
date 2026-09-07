@@ -69,18 +69,12 @@ GridCapture:
         computes before uploading, not what a reader fetches with.
     status:
       type: string
-      enum: [to-review, refused, accepted]
+      enum: [to-review, refused, accepted, moved]
       description: |
-        Where this capture stands. Computed by the server from the comments
-        covering it — never set by a caller (ADR 0012).
-    freshness:
-      type: string
-      enum: [current, to-re-review]
-      description: |
-        Whether this capture still shows what a reviewer approved, computed once
-        when it arrived. **Absent means nothing to compare against** — nobody has
-        approved this step and variant in this capture's environment — which is not the
-        same as unchanged (ADR 0017).
+        Where this capture stands — derived at read time from the stored
+        facts, never set by a caller and never stored (ADR 0012, ADR 0021).
+        `moved`: accepted, and the image has since changed beyond the
+        project's noise threshold.
 
         Freshness is an overlay, never a state: a `reviewed` case whose captures
         move stays `reviewed` until its reviewer says otherwise.

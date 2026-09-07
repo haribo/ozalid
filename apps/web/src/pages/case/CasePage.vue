@@ -7,7 +7,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, type components } from '@/shared/api'
 import { MissingIcon, MovedIcon, StateIcon, StatePill } from '@/shared/ui'
-import { formatMoment, hasMoved, type CaseState } from '@/shared/lib'
+import { formatMoment, type CaseState } from '@/shared/lib'
 import { useReview } from '@/features/review'
 import { useSession } from '@/features/session'
 import { CaseGrid } from '@/widgets/case-grid'
@@ -123,7 +123,7 @@ const tally = computed(() => {
     missing: Math.max(0, expected - captures.length),
     // Counted like the holes, and for the same reason: a reviewer should not
     // have to scan the grid to learn there is work waiting.
-    moved: captures.filter((c) => hasMoved(c.freshness)).length,
+    moved: count('moved'),
   }
 })
 

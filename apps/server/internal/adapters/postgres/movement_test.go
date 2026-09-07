@@ -16,7 +16,6 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/app/intake"
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
 	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
-	"github.com/haribo/ozalid/apps/server/internal/domain/freshness"
 	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"github.com/haribo/ozalid/internal/contract"
 )
@@ -70,7 +69,7 @@ func storeBlobBytes(t *testing.T, ctx context.Context, repo *postgres.Repository
 	return hash
 }
 
-// takeIn pushes one capture through the real intake service, so the freshness
+// takeIn pushes one capture through the real intake service, so the movement
 // path is exercised end to end rather than simulated.
 func takeIn(
 	t *testing.T, ctx context.Context, repo *postgres.Repository,
@@ -94,14 +93,14 @@ func takeIn(
 	return err
 }
 
-func freshnessOf(t *testing.T, ctx context.Context, repo *postgres.Repository, slug, caseID string) (string, *int) {
+func statusOfFirst(t *testing.T, ctx context.Context, repo *postgres.Repository, slug, caseID string) (string, *int) {
 	t.Helper()
 	grid, err := repo.CaseGrid(ctx, slug, caseID, nil)
 	if err != nil {
 		t.Fatalf("reading the grid: %v", err)
 	}
 	capture := grid.Steps[0].Captures[0]
-	return capture.Freshness, capture.MovedPixels
+	return capture.Status, capture.MovedPixels
 }
 
 func validateOnly(t *testing.T, ctx context.Context, repo *postgres.Repository, slug, caseID string) {
@@ -127,9 +126,9 @@ func TestACaptureNobodyApprovedSaysNothingAboutItsFreshness(t *testing.T) {
 		t.Fatalf("taking the edition in: %v", err)
 	}
 
-	state, moved := freshnessOf(t, ctx, repo, project.Slug, kase.ID)
-	if state != "" {
-		t.Errorf("freshness = %q, want nothing — no reference exists", state)
+	state, moved := statusOfFirst(t, ctx, repo, project.Slug, kase.ID)
+	if state != "to-review" {
+		t.Errorf("status = %q, want to-review — no reference exists, nothing was judged", state)
 	}
 	if moved != nil {
 		t.Errorf("movedPixels = %v, want nothing", *moved)
@@ -148,9 +147,9 @@ func TestTheSameBytesComeBackCurrentWithoutBeingCompared(t *testing.T) {
 		t.Fatalf("taking the second edition in: %v", err)
 	}
 
-	state, moved := freshnessOf(t, ctx, repo, project.Slug, kase.ID)
-	if state != string(freshness.Current) {
-		t.Errorf("freshness = %q, want current", state)
+	state, moved := statusOfFirst(t, ctx, repo, project.Slug, kase.ID)
+	if state != "accepted" {
+		t.Errorf("status = %q, want accepted — the same bytes moved nothing", state)
 	}
 	// Content addressing answers this one for free: same address, same bytes,
 	// nothing decoded (ADR 0004).
@@ -170,9 +169,9 @@ func TestAnImageThatMovedIsMarkedAndCounted(t *testing.T) {
 		t.Fatalf("taking the second edition in: %v", err)
 	}
 
-	state, moved := freshnessOf(t, ctx, repo, project.Slug, kase.ID)
-	if state != string(freshness.ToReReview) {
-		t.Errorf("freshness = %q, want to-re-review", state)
+	state, moved := statusOfFirst(t, ctx, repo, project.Slug, kase.ID)
+	if state != "moved" {
+		t.Errorf("status = %q, want moved", state)
 	}
 	if moved == nil {
 		t.Fatal("movedPixels is nil, want the count that makes the threshold judgeable")
@@ -201,9 +200,9 @@ func TestNoiseUnderTheProjectsThresholdSummonsNobody(t *testing.T) {
 		t.Fatalf("taking the second edition in: %v", err)
 	}
 
-	state, moved := freshnessOf(t, ctx, repo, project.Slug, kase.ID)
-	if state != string(freshness.Current) {
-		t.Errorf("freshness = %q, want current — four pixels under a threshold of ten", state)
+	state, moved := statusOfFirst(t, ctx, repo, project.Slug, kase.ID)
+	if state != "accepted" {
+		t.Errorf("status = %q, want accepted — four pixels under a threshold of ten", state)
 	}
 	if moved == nil || *moved != 4 {
 		t.Errorf("movedPixels = %v, want 4 kept even though nothing was raised", moved)
@@ -303,5 +302,52 @@ func TestMissingContentIsReportedBeforeAFormatProblem(t *testing.T) {
 	var missing *intake.MissingContent
 	if !errors.As(err, &missing) {
 		t.Fatalf("err = %v, want the missing content reported first", err)
+	}
+}
+
+// Accepting a moved capture clears the mark: the acceptance re-stamps the
+// reference, so the derivation compares the pixels against what was just
+// approved — the bug that had no test before ADR 0021 (#194).
+func TestAcceptingAMovedCaptureClearsTheMark(t *testing.T) {
+	ctx, repo, blobs, project, kase := freshnessFixture(t)
+	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 0)); err != nil {
+		t.Fatalf("first edition: %v", err)
+	}
+	validateOnly(t, ctx, repo, project.Slug, kase.ID)
+	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 6)); err != nil {
+		t.Fatalf("second edition: %v", err)
+	}
+	if state, _ := statusOfFirst(t, ctx, repo, project.Slug, kase.ID); state != "moved" {
+		t.Fatalf("status = %q before the acceptance, want moved", state)
+	}
+
+	validateOnly(t, ctx, repo, project.Slug, kase.ID)
+	if state, _ := statusOfFirst(t, ctx, repo, project.Slug, kase.ID); state != "accepted" {
+		t.Errorf("status = %q after accepting the moved capture, want accepted — no mark remains", state)
+	}
+}
+
+// Raising the threshold reclassifies at once, with no new intake: the
+// conclusion is derived, only the measurement is stored (ADR 0021, #194).
+func TestRaisingTheThresholdReclassifiesAtOnce(t *testing.T) {
+	ctx, repo, blobs, project, kase := freshnessFixture(t)
+	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 0)); err != nil {
+		t.Fatalf("first edition: %v", err)
+	}
+	validateOnly(t, ctx, repo, project.Slug, kase.ID)
+	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 6)); err != nil {
+		t.Fatalf("second edition: %v", err)
+	}
+	state, moved := statusOfFirst(t, ctx, repo, project.Slug, kase.ID)
+	if state != "moved" || moved == nil {
+		t.Fatalf("status = %q (moved=%v), want moved with its measurement", state, moved)
+	}
+
+	if _, err := repo.Pool().Exec(ctx,
+		"UPDATE projects SET pixel_threshold = $2 WHERE id = $1", project.ID, *moved); err != nil {
+		t.Fatalf("raising the threshold: %v", err)
+	}
+	if state, _ := statusOfFirst(t, ctx, repo, project.Slug, kase.ID); state != "accepted" {
+		t.Errorf("status = %q after raising the threshold above the measurement, want accepted", state)
 	}
 }

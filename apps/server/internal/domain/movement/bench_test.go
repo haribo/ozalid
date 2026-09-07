@@ -1,10 +1,10 @@
-package freshness_test
+package movement_test
 
 import (
 	"image/color"
 	"testing"
 
-	"github.com/haribo/ozalid/apps/server/internal/domain/freshness"
+	"github.com/haribo/ozalid/apps/server/internal/domain/movement"
 )
 
 // BenchmarkAFullScreenRedraw is the worst case: a 1280×800 capture where every
@@ -15,7 +15,7 @@ func BenchmarkAFullScreenRedraw(b *testing.B) {
 	after := canvas(1280, 800, color.RGBA{R: 255, G: 255, B: 255, A: 255})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if got := freshness.Compare(before, after, 0); got.Pixels != 1280*800 {
+		if got := movement.Compare(before, after); got.Pixels != 1280*800 {
 			b.Fatalf("pixels = %d", got.Pixels)
 		}
 	}

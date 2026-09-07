@@ -9,22 +9,7 @@
 export type CaseState = 'not-instrumented' | 'to-review' | 'to-fix' | 'reviewed'
 
 /** What a capture is waiting for. */
-export type CaptureStatus = 'to-review' | 'refused' | 'accepted'
-
-/**
- * Whether a capture still shows what was approved — an overlay on top of the
- * status, never a replacement for it (product.md §3.3).
- *
- * `undefined` is a third answer, and the important one: there is nothing to
- * compare against, because nobody approved this step and variant in this capture's
- * environment (ADR 0017). It does not mean unchanged.
- */
-export type Freshness = 'current' | 'to-re-review'
-
-/** Whether a capture is asking to be looked at again. */
-export function hasMoved(freshness: Freshness | undefined): boolean {
-  return freshness === 'to-re-review'
-}
+export type CaptureStatus = 'to-review' | 'refused' | 'accepted' | 'moved'
 
 /** The four marks the whole interface draws from. */
 export type Tone = 'idle' | 'reviewer' | 'dev' | 'done'

@@ -238,7 +238,7 @@ func TestADeliveryAdvancesTheCaseOntoItsEdition(t *testing.T) {
 
 // The verdict is a toggle until the review ends (#156): a misclick is taken
 // back with the same key, the journal keeps both moves, and the reference
-// stamp stays — freshness is history, not a verdict.
+// stamp stays — the reference is history, not a verdict.
 func TestAcceptingIsAToggle(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	pushEdition(t, ctx, repo, project, kase, "the form to toggle", "ci")

@@ -1278,22 +1278,16 @@ export interface components {
              */
             hash: string;
             /**
-             * @description Where this capture stands. Computed by the server from the comments
-             *     covering it — never set by a caller (ADR 0012).
-             * @enum {string}
-             */
-            status: "to-review" | "refused" | "accepted";
-            /**
-             * @description Whether this capture still shows what a reviewer approved, computed once
-             *     when it arrived. **Absent means nothing to compare against** — nobody has
-             *     approved this step and variant in this capture's environment — which is not the
-             *     same as unchanged (ADR 0017).
+             * @description Where this capture stands — derived at read time from the stored
+             *     facts, never set by a caller and never stored (ADR 0012, ADR 0021).
+             *     `moved`: accepted, and the image has since changed beyond the
+             *     project's noise threshold.
              *
              *     Freshness is an overlay, never a state: a `reviewed` case whose captures
              *     move stays `reviewed` until its reviewer says otherwise.
              * @enum {string}
              */
-            freshness?: "current" | "to-re-review";
+            status: "to-review" | "refused" | "accepted" | "moved";
             /**
              * @description How many pixels differed by more than the fixed per-channel tolerance.
              *     Recorded so a project can judge its threshold rather than guess it.
@@ -1443,7 +1437,7 @@ export interface components {
         };
         CaptureVerdict: components["schemas"]["CaptureRef"] & {
             /** @enum {string} */
-            status: "to-review" | "refused" | "accepted";
+            status: "to-review" | "refused" | "accepted" | "moved";
         };
         ReviewOutcome: {
             state: components["schemas"]["CaseState"];

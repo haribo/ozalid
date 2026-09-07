@@ -526,7 +526,7 @@ func TestASecondEditionDoesNotReopenAJudgedCase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("re-reading: %v", err)
 	}
-	// An edition never moves the cycle: it only changes freshness. A reviewed
+	// An edition never moves the cycle: it only measures movement. A reviewed
 	// case stays reviewed until the reviewer says otherwise (ADR 0012).
 	if after.State != "reviewed" {
 		t.Errorf("state = %q, want reviewed: an incoming edition must not re-open a judged case", after.State)
