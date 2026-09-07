@@ -1045,7 +1045,7 @@ export interface components {
          *     endpoint accepts it as an argument.
          * @enum {string}
          */
-        CaseState: "not-instrumented" | "to-review" | "to-fix" | "reviewed";
+        CaseState: "not-instrumented" | "to-review" | "refused" | "accepted";
         /**
          * @description How this case's captures stand at the edition it points at. A capture with
          *     no verdict yet counts as still to judge.
@@ -1233,8 +1233,8 @@ export interface components {
         StateCounts: {
             notInstrumented: number;
             toReview: number;
-            toFix: number;
-            reviewed: number;
+            refused: number;
+            accepted: number;
         };
         Category: {
             id: string;

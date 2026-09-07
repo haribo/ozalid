@@ -21,8 +21,8 @@ SELECT
     count(k.id)                                                    AS cases,
     count(k.id) FILTER (WHERE k.state = 'not-instrumented')        AS not_instrumented,
     count(k.id) FILTER (WHERE k.state = 'to-review')               AS to_review,
-    count(k.id) FILTER (WHERE k.state = 'to-fix')                  AS to_fix,
-    count(k.id) FILTER (WHERE k.state = 'reviewed')                AS reviewed,
+    count(k.id) FILTER (WHERE k.state = 'refused')                 AS refused,
+    count(k.id) FILTER (WHERE k.state = 'accepted')                AS accepted,
     max(k.updated_at)::timestamptz                                 AS last_activity
 FROM categories cat
 LEFT JOIN descendants d ON d.root_id = cat.id

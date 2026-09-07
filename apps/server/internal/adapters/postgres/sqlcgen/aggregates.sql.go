@@ -466,8 +466,8 @@ SELECT
     count(k.id)                                                    AS cases,
     count(k.id) FILTER (WHERE k.state = 'not-instrumented')        AS not_instrumented,
     count(k.id) FILTER (WHERE k.state = 'to-review')               AS to_review,
-    count(k.id) FILTER (WHERE k.state = 'to-fix')                  AS to_fix,
-    count(k.id) FILTER (WHERE k.state = 'reviewed')                AS reviewed,
+    count(k.id) FILTER (WHERE k.state = 'refused')                 AS refused,
+    count(k.id) FILTER (WHERE k.state = 'accepted')                AS accepted,
     max(k.updated_at)::timestamptz                                 AS last_activity
 FROM categories cat
 LEFT JOIN descendants d ON d.root_id = cat.id
@@ -485,8 +485,8 @@ type CategoryTreeWithCountsRow struct {
 	Cases           int64
 	NotInstrumented int64
 	ToReview        int64
-	ToFix           int64
-	Reviewed        int64
+	Refused         int64
+	Accepted        int64
 	LastActivity    pgtype.Timestamptz
 }
 
@@ -511,8 +511,8 @@ func (q *Queries) CategoryTreeWithCounts(ctx context.Context, projectID string) 
 			&i.Cases,
 			&i.NotInstrumented,
 			&i.ToReview,
-			&i.ToFix,
-			&i.Reviewed,
+			&i.Refused,
+			&i.Accepted,
 			&i.LastActivity,
 		); err != nil {
 			return nil, err

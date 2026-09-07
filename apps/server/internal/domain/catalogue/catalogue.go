@@ -98,13 +98,13 @@ type Axis struct {
 type StateCounts struct {
 	NotInstrumented int64
 	ToReview        int64
-	ToFix           int64
-	Reviewed        int64
+	Refused         int64
+	Accepted        int64
 }
 
 // Total is how many cases the counts cover.
 func (c StateCounts) Total() int64 {
-	return c.NotInstrumented + c.ToReview + c.ToFix + c.Reviewed
+	return c.NotInstrumented + c.ToReview + c.Refused + c.Accepted
 }
 
 // CategoryNode is a category with what its whole branch holds.

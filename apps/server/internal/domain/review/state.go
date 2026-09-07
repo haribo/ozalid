@@ -14,11 +14,12 @@ const (
 	CaseNotInstrumented CaseState = "not-instrumented"
 	// CaseToReview has something waiting for the reviewer's judgment.
 	CaseToReview CaseState = "to-review"
-	// CaseToFix has nothing awaiting the reviewer and at least one comment
-	// awaiting the dev.
-	CaseToFix CaseState = "to-fix"
-	// CaseReviewed has no open comment. The only clean state.
-	CaseReviewed CaseState = "reviewed"
+	// CaseRefused has nothing awaiting the reviewer and at least one comment
+	// awaiting the dev — a refusal is where every open comment comes from
+	// (ADR 0021).
+	CaseRefused CaseState = "refused"
+	// CaseAccepted has no open comment. The only clean state.
+	CaseAccepted CaseState = "accepted"
 )
 
 // CommentState carries the detail the case state deliberately omits.

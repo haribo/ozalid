@@ -290,8 +290,8 @@ func (r *Repository) CategoryTree(ctx context.Context, projectID string) ([]cata
 			Cases: catalogue.StateCounts{
 				NotInstrumented: row.NotInstrumented,
 				ToReview:        row.ToReview,
-				ToFix:           row.ToFix,
-				Reviewed:        row.Reviewed,
+				Refused:         row.Refused,
+				Accepted:        row.Accepted,
 			},
 		}
 		if row.LastActivity.Valid {

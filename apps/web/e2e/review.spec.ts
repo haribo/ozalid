@@ -13,6 +13,8 @@ import { emptyMailbox, linkSentTo } from './mailbox'
 /** The grid's own captures. The recap is another table, and its ticks are actions
  * rather than statuses — an assertion that spans both proves nothing about
  * either. */
+const API = process.env.OZALID_API ?? 'http://localhost:8091'
+
 const gridMarks = (page: Page) => page.locator('table').first().locator('tbody [role="img"]')
 
 test('a case arrives with everything left to judge', async ({ page }) => {
@@ -94,7 +96,7 @@ test('the recap takes you back to the capture a comment was written on', async (
   await expect(carousel).toContainText('the label misleads')
 })
 
-test('a capture that moved comes back asking to be looked at', async ({ page }) => {
+test('a capture that moved comes back asking to be looked at', async ({ page, request }) => {
   const seeded = await seed(page)
   await acceptEverything(seeded)
   await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
@@ -109,13 +111,12 @@ test('a capture that moved comes back asking to be looked at', async ({ page }) 
   await expect(page.locator('table').first().locator('[aria-label="accepted"]')).toHaveCount(3)
   await expect(page.getByText('3 captures have moved')).toBeVisible()
 
-  // Freshness is an overlay, never a state: the case does not move.
-  //
-  // Matched on a visible span rather than by text alone: French had two words
-  // where English has one — the tone label for a reviewed capture was `relu`,
-  // the case state is `reviewed`. Translating collapsed them, and a bare text
-  // match now resolves to the state icon's hidden <title> instead (#120).
-  await expect(page.locator('span:visible').filter({ hasText: /^reviewed$/ })).toHaveCount(1)
+  // Movement stays at the capture, never the case (ADR 0021) — asserted on
+  // the server's own answer: with one vocabulary, "accepted" legitimately
+  // appears on the pill and in the legend alike, so the old unique
+  // visible-span guard (#120) no longer has a premise.
+  const detail = await request.get(`${API}/api/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  expect(((await detail.json()) as { state: string }).state).toBe('accepted')
 })
 
 test('every mark the grid draws wears a disc', async ({ page }) => {
@@ -280,7 +281,6 @@ test('a capture taller than the stage is scaled to fit, never overflowing', asyn
   await shooter.close()
   const { createHash } = await import('node:crypto')
   const hash = `sha256:${createHash('sha256').update(bytes).digest('hex')}`
-  const API = process.env.OZALID_API ?? 'http://localhost:8091'
   const TOKEN = process.env.OZALID_E2E_TOKEN ?? ''
   await request.put(`${API}/api/projects/${seeded.slug}/blobs/${hash}`, {
     headers: { authorization: `Bearer ${TOKEN}` },

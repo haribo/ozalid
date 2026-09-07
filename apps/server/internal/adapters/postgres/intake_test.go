@@ -514,7 +514,7 @@ func TestASecondEditionDoesNotReopenAJudgedCase(t *testing.T) {
 
 	// Pretend the reviewer judged it clean.
 	if _, err := repo.Pool().Exec(ctx,
-		"UPDATE cases SET state = 'reviewed' WHERE id = $1", kase.ID); err != nil {
+		"UPDATE cases SET state = 'accepted' WHERE id = $1", kase.ID); err != nil {
 		t.Fatalf("marking the case reviewed: %v", err)
 	}
 
@@ -528,7 +528,7 @@ func TestASecondEditionDoesNotReopenAJudgedCase(t *testing.T) {
 	}
 	// An edition never moves the cycle: it only measures movement. A reviewed
 	// case stays reviewed until the reviewer says otherwise (ADR 0012).
-	if after.State != "reviewed" {
+	if after.State != "accepted" {
 		t.Errorf("state = %q, want reviewed: an incoming edition must not re-open a judged case", after.State)
 	}
 }
@@ -689,7 +689,7 @@ func TestValidatingEverySquareWithNothingToSayClosesTheCase(t *testing.T) {
 		t.Fatalf("saving the review: %v", err)
 	}
 	// reviewed is the only clean state (ADR 0012).
-	if got.State != review.CaseReviewed {
+	if got.State != review.CaseAccepted {
 		t.Errorf("state = %q, want reviewed", got.State)
 	}
 
@@ -697,7 +697,7 @@ func TestValidatingEverySquareWithNothingToSayClosesTheCase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("re-reading: %v", err)
 	}
-	if after.State != "reviewed" {
+	if after.State != "accepted" {
 		t.Errorf("stored state = %q, want it to match what was computed", after.State)
 	}
 }
@@ -717,14 +717,14 @@ func TestACommentPutsTheBallInTheDevsCourtAndMarksItsCells(t *testing.T) {
 	if err != nil {
 		t.Fatalf("saving the review: %v", err)
 	}
-	if got.State != review.CaseToFix {
-		t.Errorf("state = %q, want to-fix", got.State)
+	if got.State != review.CaseRefused {
+		t.Errorf("state = %q, want refused", got.State)
 	}
 	if got.Verdicts[captures[0]] != review.CaptureAccepted {
 		t.Errorf("the validated capture reads %q", got.Verdicts[captures[0]])
 	}
 	if got.Verdicts[captures[1]] != review.CaptureRefused {
-		t.Errorf("the commented capture reads %q, want to-fix", got.Verdicts[captures[1]])
+		t.Errorf("the commented capture reads %q, want refused", got.Verdicts[captures[1]])
 	}
 }
 
@@ -757,7 +757,7 @@ func TestTheStateChangeIsJournalledWithWhatTheComputationRead(t *testing.T) {
 	).Scan(&from, &to, &cause, &actor, &kind, &inputs); err != nil {
 		t.Fatalf("reading the journal: %v", err)
 	}
-	if from != "to-review" || to != "reviewed" {
+	if from != "to-review" || to != "accepted" {
 		t.Errorf("journalled %s → %s", from, to)
 	}
 	if cause != "review-saved" || actor != "nina" || kind != "human" {
@@ -787,7 +787,7 @@ func TestSavingTwiceLeavesTheCaseWhereTheFactsPutIt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second save: %v", err)
 	}
-	if got.State != review.CaseReviewed {
+	if got.State != review.CaseAccepted {
 		t.Errorf("state = %q after a repeat save, want reviewed", got.State)
 	}
 
@@ -832,13 +832,13 @@ func TestACommentTravelsFromReportToClosureAndTakesTheCaseWithIt(t *testing.T) {
 	id := commentOn(t, ctx, repo, project.Slug, kase.ID, captures[1])
 
 	// Reported, nothing tracked: the dev has to triage it.
-	assertCaseState(t, ctx, repo, project.Slug, kase.ID, review.CaseToFix)
+	assertCaseState(t, ctx, repo, project.Slug, kase.ID, review.CaseRefused)
 
 	out, err := repo.Track(ctx, project.Slug, id, actor.Actor{ID: "dev", Kind: actor.Human}, comment.IssueRef{ID: "142", URL: "https://example.test/142", Title: "Fix the cropped button"})
 	if err != nil {
 		t.Fatalf("tracking: %v", err)
 	}
-	if out.CommentState != review.CommentTracked || out.CaseState != review.CaseToFix {
+	if out.CommentState != review.CommentTracked || out.CaseState != review.CaseRefused {
 		t.Errorf("after tracking: %+v, want tracked and the case still with the dev", out)
 	}
 
@@ -859,7 +859,7 @@ func TestACommentTravelsFromReportToClosureAndTakesTheCaseWithIt(t *testing.T) {
 		t.Errorf("after accepting: %+v", out)
 	}
 	// The last open comment closed, and every capture was judged: nothing left.
-	if out.CaseState != review.CaseReviewed {
+	if out.CaseState != review.CaseAccepted {
 		t.Errorf("case = %q, want reviewed once the last comment closed", out.CaseState)
 	}
 }
@@ -884,7 +884,7 @@ func TestARefusalSendsItBackAndIsKeptForever(t *testing.T) {
 		t.Fatalf("refusing: %v", err)
 	}
 	// A refusal is not a way to die: the ball returns to the dev.
-	if out.CommentState != review.CommentRefused || out.CaseState != review.CaseToFix {
+	if out.CommentState != review.CommentRefused || out.CaseState != review.CaseRefused {
 		t.Errorf("after refusing: %+v, want the dev to hold the ball", out)
 	}
 
@@ -921,7 +921,7 @@ func TestADiscardedCommentStopsBlockingAndStaysVisible(t *testing.T) {
 	if err != nil {
 		t.Fatalf("discarding: %v", err)
 	}
-	if out.CaseState != review.CaseReviewed {
+	if out.CaseState != review.CaseAccepted {
 		t.Errorf("case = %q, want reviewed once nothing is open", out.CaseState)
 	}
 
