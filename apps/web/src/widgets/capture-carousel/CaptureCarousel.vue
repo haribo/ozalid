@@ -334,29 +334,36 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </span>
     </div>
 
-    <div class="grid min-h-0 flex-1 place-items-center bg-slate-100 p-6 dark:bg-slate-950">
+    <!-- Flex, not grid: a grid's auto row grows with its content, and the
+         max-h chain below then constrains nothing — a tall capture overflowed
+         the stage instead of scaling (#177). Every link of the chain carries
+         min-h-0 so the percentages stay bound to the stage. -->
+    <div
+      class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-slate-100 p-6 dark:bg-slate-950"
+    >
       <!-- The capture at full strength, always: no veil, no disc — the
            verdict lives in the bar, and the grid keeps its marks (ADR 0020).
            When the sheet is open the stage shrinks with the flex column: the
            pixels stay on screen while the remark is written. -->
-      <span v-if="cell" class="relative inline-block max-h-full max-w-full leading-none">
-        <!-- Said on the image itself: the reviewer landed here from a keyboard
-             walk and never saw the grid's mark. -->
-        <span
-          v-if="moved"
-          class="absolute -top-3 -right-3 z-10 flex items-center gap-1.5 rounded border border-indigo-500 bg-white px-2 py-1 font-mono text-mono text-indigo-700 dark:border-indigo-400 dark:bg-slate-900 dark:text-indigo-300"
+      <!-- Said over the stage: the reviewer landed here from a keyboard walk
+           and never saw the grid's mark. Anchored to the stage corner, not the
+           image — the image's own box is what scales (#177). -->
+      <span
+        v-if="cell && moved"
+        class="absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded border border-indigo-500 bg-white px-2 py-1 font-mono text-mono text-indigo-700 dark:border-indigo-400 dark:bg-slate-900 dark:text-indigo-300"
+      >
+        <MovedIcon :size="12" />moved<template v-if="cell.movedPixels !== undefined">
+          · {{ cell.movedPixels }} px</template
         >
-          <MovedIcon :size="12" />moved<template v-if="cell.movedPixels !== undefined">
-            · {{ cell.movedPixels }} px</template
-          >
-        </span>
-        <!-- The capture takes the space the window offers. Its width was once
-             written in advance (240/560 px), which showed a 1280 px capture at
-             44% on the one screen where pixels are judged (#125). -->
+      </span>
+      <!-- The capture takes the space the window offers and never leaves it:
+           the wrapper fills the stage, so the max constraints bind against a
+           definite box and a capture of any size scales to fit (#177, #125). -->
+      <span v-if="cell" class="flex h-full w-full min-h-0 items-center justify-center">
         <img
           :src="`/api/projects/${slug}/captures/${cell.id}`"
           :alt="`${step?.name} — ${variant?.label}`"
-          class="max-h-full max-w-full border border-slate-300 bg-white object-contain dark:border-slate-600 dark:bg-slate-900"
+          class="max-h-full max-w-full border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900"
         />
       </span>
     </div>
