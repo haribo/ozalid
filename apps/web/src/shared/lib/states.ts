@@ -16,7 +16,7 @@ export type CaptureStatus = 'to-review' | 'refused' | 'accepted'
  * status, never a replacement for it (product.md §3.3).
  *
  * `undefined` is a third answer, and the important one: there is nothing to
- * compare against, because nobody approved this square in this capture's
+ * compare against, because nobody approved this step and variant in this capture's
  * environment (ADR 0017). It does not mean unchanged.
  */
 export type Freshness = 'current' | 'to-re-review'

@@ -16,7 +16,7 @@ import (
 type refusingRepo struct{ t *testing.T }
 
 func (r refusingRepo) WriteEdition(
-	context.Context, string, contract.Manifest, map[intake.Square]intake.Verdict,
+	context.Context, string, contract.Manifest, map[intake.ReferenceKey]intake.Verdict,
 ) (intake.Result, error) {
 	r.t.Error("the manifest reached the repository, want it refused first")
 	return intake.Result{}, nil
@@ -29,7 +29,7 @@ func (r refusingRepo) AxisOrder(context.Context, string) ([]string, error) {
 
 func (r refusingRepo) ApprovedBytes(
 	context.Context, string, contract.Manifest,
-) (map[intake.Square]string, error) {
+) (map[intake.ReferenceKey]string, error) {
 	r.t.Error("the manifest reached the repository, want it refused first")
 	return nil, nil
 }
@@ -146,7 +146,7 @@ func TestTheSameSquareTwiceIsRefusedNamingIt(t *testing.T) {
 	// One (case, step, variant) twice in one manifest hit the storage's unique
 	// key and came back as a bare 500 — a full elimination round to trace a
 	// client-side collision (#182). Refused before anything is written, and
-	// the refusal names the exact square.
+	// the refusal names the exact capture.
 	m := contract.Manifest{Cases: []contract.ManifestCase{{
 		ID: "abc",
 		Steps: []contract.ManifestStep{

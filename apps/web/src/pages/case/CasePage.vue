@@ -25,7 +25,7 @@ const kase = ref<Case | null>(null)
 const loading = ref(true)
 
 // Which capture is open is the route's to say, not a ref's: an open capture
-// has an address, so a colleague can be sent to the exact square (#125). The
+// has an address, so a colleague can be sent to the exact capture (#125). The
 // two routes share this component, which is what keeps the instance — and a
 // verdict held through an expired session (#70) — alive across open and close.
 const open = computed(() =>
@@ -36,7 +36,7 @@ const open = computed(() =>
 
 const caseUrl = computed(() => `/projects/${slug.value}/cases/${caseId.value}`)
 
-function openCell(stepId: string, variantId: string) {
+function openCapture(stepId: string, variantId: string) {
   void router.push(`${caseUrl.value}/steps/${stepId}/variants/${variantId}`)
 }
 
@@ -92,17 +92,17 @@ watch(
  * discovered months later by whoever trusted the gauge. */
 const tally = computed(() => {
   const grid = review.grid.value
-  const cells = grid?.steps.flatMap((s) => s.cells) ?? []
-  const count = (status: string) => cells.filter((c) => c.status === status).length
+  const captures = grid?.steps.flatMap((s) => s.captures) ?? []
+  const count = (status: string) => captures.filter((c) => c.status === status).length
   const expected = (grid?.steps.length ?? 0) * (grid?.variants.length ?? 0)
   return {
     accepted: count('accepted'),
     refused: count('refused'),
     toJudge: count('to-review'),
-    missing: Math.max(0, expected - cells.length),
+    missing: Math.max(0, expected - captures.length),
     // Counted like the holes, and for the same reason: a reviewer should not
     // have to scan the grid to learn there is work waiting.
-    moved: cells.filter((c) => hasMoved(c.freshness)).length,
+    moved: captures.filter((c) => hasMoved(c.freshness)).length,
   }
 })
 
@@ -232,15 +232,15 @@ async function refreshCase() {
         v-if="review.grid.value"
         :slug="slug"
         :grid="review.grid.value"
-        :open-cell="open"
-        @open="openCell"
+        :open-capture="open"
+        @open="openCapture"
       />
 
       <CommentRecap
         v-if="review.grid.value"
         :grid="review.grid.value"
         :comments="review.comments.value"
-        @open="openCell"
+        @open="openCapture"
       />
     </template>
   </div>

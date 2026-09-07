@@ -38,16 +38,16 @@ func pushEdition(
 	return hash
 }
 
-func onlyCell(t *testing.T, ctx context.Context, repo *postgres.Repository, slug, caseID string) review.Cell {
+func onlyCapture(t *testing.T, ctx context.Context, repo *postgres.Repository, slug, caseID string) review.Capture {
 	t.Helper()
 	grid, err := repo.CaseGrid(ctx, slug, caseID, nil)
 	if err != nil {
 		t.Fatalf("reading the grid: %v", err)
 	}
-	if len(grid.Steps) != 1 || len(grid.Steps[0].Cells) != 1 {
-		t.Fatalf("want one step with one cell, got %d steps", len(grid.Steps))
+	if len(grid.Steps) != 1 || len(grid.Steps[0].Captures) != 1 {
+		t.Fatalf("want one step with one capture, got %d steps", len(grid.Steps))
 	}
-	return review.Cell{StepID: grid.Steps[0].ID, VariantID: grid.Steps[0].Cells[0].VariantID}
+	return review.Capture{StepID: grid.Steps[0].ID, VariantID: grid.Steps[0].Captures[0].VariantID}
 }
 
 func TestAnIntakeDoesNotMoveTheBytesUnderAReviewer(t *testing.T) {
@@ -79,8 +79,8 @@ func TestAnIntakeDoesNotMoveTheBytesUnderAReviewer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading the grid: %v", err)
 	}
-	if grid.Steps[0].Cells[0].Hash != first {
-		t.Errorf("grid shows %q, want the bytes the reviewer opened", grid.Steps[0].Cells[0].Hash)
+	if grid.Steps[0].Captures[0].Hash != first {
+		t.Errorf("grid shows %q, want the bytes the reviewer opened", grid.Steps[0].Captures[0].Hash)
 	}
 }
 func TestACaseCatchesUpOnceItsReviewEnds(t *testing.T) {
@@ -90,7 +90,7 @@ func TestACaseCatchesUpOnceItsReviewEnds(t *testing.T) {
 
 	// The reviewer judges the edition they opened, and lets go.
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Accepted: []review.Cell{onlyCell(t, ctx, repo, project.Slug, kase.ID)},
+		Accepted: []review.Capture{onlyCapture(t, ctx, repo, project.Slug, kase.ID)},
 	}); err != nil {
 		t.Fatalf("saving the review: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestACaseCatchesUpOnceItsReviewEnds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading the grid: %v", err)
 	}
-	if grid.Steps[0].Cells[0].Hash != second {
+	if grid.Steps[0].Captures[0].Hash != second {
 		t.Errorf("grid still shows the old edition; the case never caught up")
 	}
 }

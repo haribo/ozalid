@@ -678,7 +678,7 @@ export interface paths {
         /**
          * Read the evidence a case is judged from
          * @description The grid: steps in order, the variants that exist, and the capture sitting
-         *     at each cell. A cell with no capture is simply absent — not every variant
+         *     at each step and variant. A missing one is simply absent — not every variant
          *     exists at every step.
          *
          *     Defaults to the project's most recent edition. A specific one can be asked
@@ -875,7 +875,7 @@ export interface paths {
         put?: never;
         /**
          * Save what one review session decided
-         * @description One save carries everything the sitting produced: the squares looked at with
+         * @description One save carries everything the sitting produced: the captures looked at with
          *     nothing to say, and the comments written on the rest. Splitting it would
          *     leave a case half-judged between two calls.
          *
@@ -1264,7 +1264,7 @@ export interface components {
                 [key: string]: string;
             };
         };
-        GridCell: {
+        GridCapture: {
             /**
              * @description The capture. Fetch its image at
              *     `/projects/{slug}/captures/{captureId}` — the hash names no project and
@@ -1278,7 +1278,7 @@ export interface components {
              */
             hash: string;
             /**
-             * @description Where this square stands. Computed by the server from the comments
+             * @description Where this capture stands. Computed by the server from the comments
              *     covering it — never set by a caller (ADR 0012).
              * @enum {string}
              */
@@ -1286,7 +1286,7 @@ export interface components {
             /**
              * @description Whether this capture still shows what a reviewer approved, computed once
              *     when it arrived. **Absent means nothing to compare against** — nobody has
-             *     approved this square in this capture's environment — which is not the
+             *     approved this step and variant in this capture's environment — which is not the
              *     same as unchanged (ADR 0017).
              *
              *     Freshness is an overlay, never a state: a `reviewed` case whose captures
@@ -1309,7 +1309,7 @@ export interface components {
             name: string;
             position: number;
             /** @description One entry per variant that has a capture at this step. */
-            cells: components["schemas"]["GridCell"][];
+            captures: components["schemas"]["GridCapture"][];
         };
         GridRecording: {
             /** @description Fetch the video at `/projects/{slug}/recordings/{recordingId}`. */
@@ -1407,7 +1407,11 @@ export interface components {
             commentState: components["schemas"]["CommentState"];
             caseState: components["schemas"]["CaseState"];
         };
-        CellRef: {
+        /**
+         * @description Names one capture by its step and variant — the address a verdict is
+         *     written at, distinct from ADR 0017's *reference* (the approved bytes).
+         */
+        CaptureRef: {
             stepId: string;
             variantId: string;
         };
@@ -1421,23 +1425,23 @@ export interface components {
             variantIds: string[];
         };
         ReviewSave: {
-            /** @description The squares the reviewer looked at with nothing to say. */
-            accepted?: components["schemas"]["CellRef"][];
+            /** @description The captures the reviewer looked at with nothing to say. */
+            accepted?: components["schemas"]["CaptureRef"][];
             /** @description The remarks of this sitting's refusals (ADR 0020). */
             comments?: components["schemas"]["NewComment"][];
             /**
-             * @description Squares whose acceptance the reviewer takes back — a misclick, or a
+             * @description Captures whose acceptance the reviewer takes back — a misclick, or a
              *     second look. The verdict is a toggle until the review ends (#156); the
              *     journal keeps both moves.
              */
-            unaccepted?: components["schemas"]["CellRef"][];
+            unaccepted?: components["schemas"]["CaptureRef"][];
             /**
-             * @description Squares whose draft refusal the reviewer takes back: their own remarks
+             * @description Captures whose draft refusal the reviewer takes back: their own remarks
              *     with no issue attached are withdrawn with it (ADR 0020).
              */
-            unrefused?: components["schemas"]["CellRef"][];
+            unrefused?: components["schemas"]["CaptureRef"][];
         };
-        CellVerdict: components["schemas"]["CellRef"] & {
+        CaptureVerdict: components["schemas"]["CaptureRef"] & {
             /** @enum {string} */
             status: "to-review" | "refused" | "accepted";
         };
@@ -1446,7 +1450,7 @@ export interface components {
             /** @description How many comments the session added. */
             comments: number;
             /** @description The status of every capture the case has, after the save. */
-            verdicts: components["schemas"]["CellVerdict"][];
+            verdicts: components["schemas"]["CaptureVerdict"][];
         };
     };
     responses: {

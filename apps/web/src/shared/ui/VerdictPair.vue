@@ -4,7 +4,7 @@
  *
  * `accept` and `refuse` are always both visible; the filled half is the
  * state, and there deliberately is a third state — nothing filled — that a
- * radio group could not express: a judged square can return to "not judged".
+ * radio group could not express: a judged capture can return to "not judged".
  * The control only reports which half was clicked; what the click means —
  * give, take back, switch — is the caller's reading of its own state.
  */

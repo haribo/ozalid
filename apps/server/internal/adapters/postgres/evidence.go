@@ -48,7 +48,7 @@ func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionI
 		return evidence.Grid{}, translate("reading the evidence", err)
 	}
 
-	// One flat result set becomes steps and their cells. The variants are
+	// One flat result set becomes steps and their captures. The variants are
 	// collected as they appear, so the grid only mentions those that exist.
 	variants := map[string]evidence.Variant{}
 	var steps []evidence.Step
@@ -83,18 +83,18 @@ func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionI
 			}
 		}
 
-		cell := evidence.Cell{
+		capture := evidence.Capture{
 			ID: row.CaptureID, VariantID: row.VariantID, Hash: row.BlobHash,
 			Status: row.Status, Provenance: provenance,
 		}
 		if row.Freshness != nil {
-			cell.Freshness = *row.Freshness
+			capture.Freshness = *row.Freshness
 		}
 		if row.MovedPixels != nil {
 			moved := int(*row.MovedPixels)
-			cell.MovedPixels = &moved
+			capture.MovedPixels = &moved
 		}
-		steps[idx].Cells = append(steps[idx].Cells, cell)
+		steps[idx].Captures = append(steps[idx].Captures, capture)
 	}
 
 	grid.Steps = steps

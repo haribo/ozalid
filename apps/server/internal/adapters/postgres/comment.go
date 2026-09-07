@@ -174,7 +174,7 @@ func (r *Repository) Unjudge(
 }
 
 // Edit is the author reworking their own draft: body and covered variants,
-// while no issue is attached (ADR 0020). The covered cells change, so the
+// while no issue is attached (ADR 0020). The covered captures change, so the
 // verdicts they carry are recomputed in the same transaction.
 func (r *Repository) Edit(
 	ctx context.Context, slug, commentID string, by actor.Actor, body string, variantIDs []string,
@@ -229,9 +229,9 @@ func (r *Repository) Edit(
 		return appcomment.Outcome{}, err
 	}
 	outcome := review.Compute(facts)
-	for cell, status := range outcome.Verdicts {
+	for capture, status := range outcome.Verdicts {
 		if err := q.UpsertCaptureVerdict(ctx, sqlcgen.UpsertCaptureVerdictParams{
-			CaseID: kase.ID, StepID: cell.StepID, VariantID: cell.VariantID,
+			CaseID: kase.ID, StepID: capture.StepID, VariantID: capture.VariantID,
 			Status: string(status),
 		}); err != nil {
 			return appcomment.Outcome{}, translate("recording a verdict", err)
@@ -376,9 +376,9 @@ func (r *Repository) move(
 	}
 	outcome := review.Compute(facts)
 
-	for cell, status := range outcome.Verdicts {
+	for capture, status := range outcome.Verdicts {
 		if err := q.UpsertCaptureVerdict(ctx, sqlcgen.UpsertCaptureVerdictParams{
-			CaseID: kase.ID, StepID: cell.StepID, VariantID: cell.VariantID,
+			CaseID: kase.ID, StepID: capture.StepID, VariantID: capture.VariantID,
 			Status: string(status),
 		}); err != nil {
 			return appcomment.Outcome{}, translate("recording a verdict", err)

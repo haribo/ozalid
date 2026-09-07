@@ -62,13 +62,13 @@ GROUP BY k.id
 ORDER BY k.title;
 
 -- Everything the state computation reads, for one case at one edition.
--- name: CaseCaptureCells :many
+-- name: CaseCaptures :many
 SELECT s.id AS step_id, c.variant_id
 FROM steps s
 JOIN captures c ON c.step_id = s.id AND c.edition_id = $2
 WHERE s.case_id = $1;
 
--- name: CaseAcceptedCells :many
+-- name: CaseAcceptedCaptures :many
 SELECT step_id, variant_id FROM capture_verdicts
 WHERE case_id = $1 AND status = 'accepted';
 
@@ -93,7 +93,7 @@ RETURNING *;
 -- The anchor is the capture the reviewer was looking at: the one of the
 -- edition the case is judged against, for this step and variant. It is what
 -- the comment shows for as long as it lives — a step's name is a label, and
--- positions shift (#132). Null when the square had no capture, which is what
+-- positions shift (#132). Null when the step and variant had no capture, which is what
 -- there was to see.
 -- name: AttachCommentVariant :exec
 INSERT INTO comment_variants (comment_id, variant_id, capture_id)
@@ -110,7 +110,7 @@ SELECT @comment_id, @variant_id, (
 )
 ON CONFLICT DO NOTHING;
 
--- The verdict of a cell is recomputed, never set by a caller: recording a
+-- The verdict of a capture is recomputed, never set by a caller: recording a
 -- comment and recomputing what it covers happen together (ADR 0012).
 -- name: UpsertCaptureVerdict :exec
 INSERT INTO capture_verdicts (case_id, step_id, variant_id, status)
@@ -119,7 +119,7 @@ ON CONFLICT (case_id, step_id, variant_id)
 DO UPDATE SET status = EXCLUDED.status, updated_at = now();
 
 -- Taking an acceptance back deletes the row rather than writing a state: the
--- recompute below re-derives the cell from what remains, and the journal is
+-- recompute below re-derives the capture from what remains, and the journal is
 -- what remembers both moves (#156).
 -- name: DeleteCaptureVerdict :exec
 DELETE FROM capture_verdicts
@@ -193,7 +193,7 @@ SELECT * FROM comment_judgments WHERE comment_id = $1 ORDER BY created_at;
 
 -- The bytes a reviewer approved, taken from the edition they were judging.
 --
--- Nothing is stamped when that edition holds no capture for the square: a
+-- Nothing is stamped when that edition holds no capture for the step and variant: a
 -- validated hole approves nothing. The environment comes from the capture's own
 -- provenance, so a reference never crosses environments (ADR 0004, ADR 0017).
 -- name: StampCaptureReference :exec
@@ -231,10 +231,10 @@ FROM capture_references
 WHERE case_id = $1
 ORDER BY step_id, variant_id, environment_id;
 
--- The accepted refs whose settling made one capture read validated: the ones
+-- The accepted refs whose settling made one capture read accepted: the ones
 -- an unvalidate on that capture must take back (#167). A discarded comment
 -- keeps its refs untouched — discarding was said with a reason and it stands.
--- name: SettledRefsOnCell :many
+-- name: SettledRefsOnCapture :many
 SELECT ci.id, ci.comment_id, ci.state, c.state AS comment_state
 FROM comment_issues ci
 JOIN comments c ON c.id = ci.comment_id
@@ -242,10 +242,10 @@ JOIN comment_variants cv ON cv.comment_id = c.id
 WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
   AND c.state = 'accepted' AND ci.state = 'accepted';
 
--- The reviewer's own drafts on one cell: remarks with no issue attached yet.
+-- The reviewer's own drafts on one capture: remarks with no issue attached yet.
 -- Withdrawing a draft refusal takes them with it — ADR 0020's explicit
 -- exception to "nothing is deleted", scoped to the author's own drafts.
--- name: DraftCommentsOnCell :many
+-- name: DraftCommentsOnCapture :many
 SELECT DISTINCT c.id FROM comments c
 JOIN comment_variants cv ON cv.comment_id = c.id
 WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
@@ -266,7 +266,7 @@ DELETE FROM comment_variants WHERE comment_id = $1;
 -- The settled ref-less remarks whose acceptance made one capture read
 -- accepted: unaccepting that capture takes their judgment back too (#167,
 -- #175) — the rule is "whatever made it accepted", refs and remarks alike.
--- name: SettledRemarksOnCell :many
+-- name: SettledRemarksOnCapture :many
 SELECT c.id, c.state FROM comments c
 JOIN comment_variants cv ON cv.comment_id = c.id
 WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3

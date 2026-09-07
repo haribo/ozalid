@@ -1,7 +1,7 @@
 // Package evidence reads back what a run put in the book.
 //
 // A reviewer judges a case from a grid: its steps in order, the variants that
-// exist, and the capture sitting at each cell.
+// exist, and the capture sitting at each step and variant.
 package evidence
 
 import (
@@ -23,9 +23,9 @@ type Variant struct {
 	Values map[string]string
 }
 
-// Cell is one capture: a variant, the address of its bytes, and where the
+// Capture is one capture: a variant, the address of its bytes, and where the
 // review stands on it.
-type Cell struct {
+type Capture struct {
 	// ID is the capture. It is what the bytes are fetched through, since a
 	// content address names no project and cannot be authorised
 	// (product.md §8.1).
@@ -34,7 +34,7 @@ type Cell struct {
 	Hash      string
 	Status    string
 	// Freshness is empty when there is nothing to compare against: nobody has
-	// approved this square in this capture's environment. That is not the same
+	// approved this step and variant in this capture's environment. That is not the same
 	// as unchanged (ADR 0017).
 	Freshness string
 	// MovedPixels is nil when no pixel reading happened — identical addresses
@@ -48,7 +48,7 @@ type Step struct {
 	ID       string
 	Name     string
 	Position int
-	Cells    []Cell
+	Captures []Capture
 }
 
 // Recording is the flow video for one variant. Optional, never compared

@@ -61,24 +61,24 @@ func toAPIGrid(g evidence.Grid) openapi.Grid {
 	for _, st := range g.Steps {
 		step := openapi.GridStep{
 			Id: st.ID, Name: st.Name, Position: st.Position,
-			Cells: make([]openapi.GridCell, 0, len(st.Cells)),
+			Captures: make([]openapi.GridCapture, 0, len(st.Captures)),
 		}
-		for _, c := range st.Cells {
-			cell := openapi.GridCell{
+		for _, c := range st.Captures {
+			capture := openapi.GridCapture{
 				Id:         c.ID,
 				VariantId:  c.VariantID,
 				Hash:       c.Hash,
-				Status:     openapi.GridCellStatus(c.Status),
+				Status:     openapi.GridCaptureStatus(c.Status),
 				Provenance: toAPIProvenance(c.Provenance),
 			}
 			// Absent rather than empty: "nothing to compare against" is a
 			// different answer from "unchanged" (ADR 0017).
 			if c.Freshness != "" {
-				fresh := openapi.GridCellFreshness(c.Freshness)
-				cell.Freshness = &fresh
+				fresh := openapi.GridCaptureFreshness(c.Freshness)
+				capture.Freshness = &fresh
 			}
-			cell.MovedPixels = c.MovedPixels
-			step.Cells = append(step.Cells, cell)
+			capture.MovedPixels = c.MovedPixels
+			step.Captures = append(step.Captures, capture)
 		}
 		out.Steps = append(out.Steps, step)
 	}

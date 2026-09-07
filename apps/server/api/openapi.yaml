@@ -1262,7 +1262,7 @@ paths:
       summary: Read the evidence a case is judged from
       description: |
         The grid: steps in order, the variants that exist, and the capture sitting
-        at each cell. A cell with no capture is simply absent — not every variant
+        at each step and variant. A missing one is simply absent — not every variant
         exists at every step.
 
         Defaults to the project's most recent edition. A specific one can be asked
@@ -1606,7 +1606,7 @@ paths:
         - session: []
       summary: Save what one review session decided
       description: |
-        One save carries everything the sitting produced: the squares looked at with
+        One save carries everything the sitting produced: the captures looked at with
         nothing to say, and the comments written on the rest. Splitting it would
         leave a case half-judged between two calls.
 
@@ -2360,7 +2360,7 @@ components:
           type: object
           additionalProperties:
             type: string
-    GridCell:
+    GridCapture:
       type: object
       required:
         - id
@@ -2388,7 +2388,7 @@ components:
             - refused
             - accepted
           description: |
-            Where this square stands. Computed by the server from the comments
+            Where this capture stands. Computed by the server from the comments
             covering it — never set by a caller (ADR 0012).
         freshness:
           type: string
@@ -2398,7 +2398,7 @@ components:
           description: |
             Whether this capture still shows what a reviewer approved, computed once
             when it arrived. **Absent means nothing to compare against** — nobody has
-            approved this square in this capture's environment — which is not the
+            approved this step and variant in this capture's environment — which is not the
             same as unchanged (ADR 0017).
 
             Freshness is an overlay, never a state: a `reviewed` case whose captures
@@ -2420,7 +2420,7 @@ components:
         - id
         - name
         - position
-        - cells
+        - captures
       properties:
         id:
           type: string
@@ -2428,11 +2428,11 @@ components:
           type: string
         position:
           type: integer
-        cells:
+        captures:
           type: array
           description: One entry per variant that has a capture at this step.
           items:
-            $ref: '#/components/schemas/GridCell'
+            $ref: '#/components/schemas/GridCapture'
     GridRecording:
       type: object
       required:
@@ -2621,8 +2621,11 @@ components:
           $ref: '#/components/schemas/CommentState'
         caseState:
           $ref: '#/components/schemas/CaseState'
-    CellRef:
+    CaptureRef:
       type: object
+      description: |
+        Names one capture by its step and variant — the address a verdict is
+        written at, distinct from ADR 0017's *reference* (the approved bytes).
       required:
         - stepId
         - variantId
@@ -2656,9 +2659,9 @@ components:
       properties:
         accepted:
           type: array
-          description: The squares the reviewer looked at with nothing to say.
+          description: The captures the reviewer looked at with nothing to say.
           items:
-            $ref: '#/components/schemas/CellRef'
+            $ref: '#/components/schemas/CaptureRef'
         comments:
           type: array
           description: The remarks of this sitting's refusals (ADR 0020).
@@ -2667,21 +2670,21 @@ components:
         unaccepted:
           type: array
           description: |
-            Squares whose acceptance the reviewer takes back — a misclick, or a
+            Captures whose acceptance the reviewer takes back — a misclick, or a
             second look. The verdict is a toggle until the review ends (#156); the
             journal keeps both moves.
           items:
-            $ref: '#/components/schemas/CellRef'
+            $ref: '#/components/schemas/CaptureRef'
         unrefused:
           type: array
           description: |
-            Squares whose draft refusal the reviewer takes back: their own remarks
+            Captures whose draft refusal the reviewer takes back: their own remarks
             with no issue attached are withdrawn with it (ADR 0020).
           items:
-            $ref: '#/components/schemas/CellRef'
-    CellVerdict:
+            $ref: '#/components/schemas/CaptureRef'
+    CaptureVerdict:
       allOf:
-        - $ref: '#/components/schemas/CellRef'
+        - $ref: '#/components/schemas/CaptureRef'
         - type: object
           required:
             - status
@@ -2708,7 +2711,7 @@ components:
           type: array
           description: The status of every capture the case has, after the save.
           items:
-            $ref: '#/components/schemas/CellVerdict'
+            $ref: '#/components/schemas/CaptureVerdict'
   responses:
     BadRequest:
       description: The request is malformed.

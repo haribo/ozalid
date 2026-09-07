@@ -3,12 +3,12 @@
  * The grid a case is judged from: steps down, variants across.
  *
  * It answers one question — what have I validated, and what have I not? — and
- * carries no other detail (frontend ADR 0003). A square that has been judged and
- * has not moved steps back and wears its mark; a square that still needs eyes
+ * carries no other detail (frontend ADR 0003). A capture that has been judged and
+ * has not moved steps back and wears its mark; a capture that still needs eyes
  * stays bare and at full strength. Nothing is edited here: the thumbnail is the
  * way in, and clicking one opens the carousel on that exact capture.
  *
- * A capture sits on an inert ground: no shadow, no gradient, no tinted cell
+ * A capture sits on an inert ground: no shadow, no gradient, no tinted capture
  * behind the image. This interface frames someone else's product, and nothing
  * of ozalid's may be mistaken for part of it.
  */
@@ -18,12 +18,12 @@ import { EmptyState, AppButton, MissingIcon, MovedIcon, StateIcon, VariantHead }
 import { hasMoved, type Tone } from '@/shared/lib'
 
 type Grid = components['schemas']['Grid']
-type Cell = Grid['steps'][number]['cells'][number]
+type Capture = Grid['steps'][number]['captures'][number]
 
 const props = defineProps<{
   slug: string
   grid: Grid
-  openCell?: { stepId: string; variantId: string } | null
+  openCapture?: { stepId: string; variantId: string } | null
 }>()
 const emit = defineEmits<{ open: [stepId: string, variantId: string] }>()
 
@@ -31,8 +31,8 @@ const variants = computed(() => props.grid.variants)
 
 /** A step missing a variant its siblings carry is a hole, not a blank: the run
  * failed there, and drawing it neutrally would hide that (ADR 0016). */
-function cellOf(step: Grid['steps'][number], variantId: string) {
-  return step.cells.find((c) => c.variantId === variantId)
+function captureOf(step: Grid['steps'][number], variantId: string) {
+  return step.captures.find((c) => c.variantId === variantId)
 }
 
 function recordingOf(variantId: string) {
@@ -60,30 +60,30 @@ const TONE: Record<string, Tone> = { accepted: 'done', refused: 'dev' }
 const LABEL: Record<string, string> = { accepted: 'accepted', refused: 'refused' }
 
 /**
- * The six readings a cell can have, and no others.
+ * The six readings a capture can have, and no others.
  *
  * A capture that has moved is one of them: for the only question the grid asks,
- * it has not been validated — not the bytes on display. It renders as a square
+ * it has not been validated — not the bytes on display. It renders as a capture
  * to judge, and the mark saying why it came back takes the place of the verdict
  * badge it used to wear. Validated-and-moved and commented-and-moved are one
- * cell: what separated them is exactly what the grid no longer reports
+ * capture: what separated them is exactly what the grid no longer reports
  * (frontend ADR 0003).
  */
-function reading(cell: Cell): 'moved' | 'judged' | 'pending' {
-  if (hasMoved(cell.freshness)) return 'moved'
-  if (cell.status === 'accepted' || cell.status === 'refused') return 'judged'
+function reading(capture: Capture): 'moved' | 'judged' | 'pending' {
+  if (hasMoved(capture.freshness)) return 'moved'
+  if (capture.status === 'accepted' || capture.status === 'refused') return 'judged'
   return 'pending'
 }
 
 /** Judged and settled: it steps back, because full intensity is reserved for
  * what still needs eyes. That is what makes the answer readable at a glance
  * rather than by counting. */
-function settled(cell: Cell) {
-  return reading(cell) === 'judged'
+function settled(capture: Capture) {
+  return reading(capture) === 'judged'
 }
 
-function isOpen(step: Grid['steps'][number], cell: Cell) {
-  return props.openCell?.stepId === step.id && props.openCell?.variantId === cell.variantId
+function isOpen(step: Grid['steps'][number], capture: Capture) {
+  return props.openCapture?.stepId === step.id && props.openCapture?.variantId === capture.variantId
 }
 
 const hasRecordings = computed(() => props.grid.recordings.length > 0)
@@ -165,15 +165,15 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
               :key="v.id"
               class="border-r border-b border-slate-200 p-2.5 text-center align-middle last:border-r-0 dark:border-slate-700"
             >
-              <template v-if="cellOf(step, v.id)">
+              <template v-if="captureOf(step, v.id)">
                 <span class="relative inline-block leading-none">
                   <AppButton
                     :class="[
                       isPortrait(v.values) ? SIZE.tall : SIZE.wide,
-                      reading(cellOf(step, v.id)!) === 'judged'
-                        ? RING[cellOf(step, v.id)!.status]
+                      reading(captureOf(step, v.id)!) === 'judged'
+                        ? RING[captureOf(step, v.id)!.status]
                         : NEUTRAL,
-                      isOpen(step, cellOf(step, v.id)!)
+                      isOpen(step, captureOf(step, v.id)!)
                         ? 'ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-900'
                         : '',
                     ]"
@@ -182,31 +182,31 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
                     @click="emit('open', step.id, v.id)"
                   >
                     <img
-                      :src="`/api/projects/${slug}/captures/${cellOf(step, v.id)!.id}`"
+                      :src="`/api/projects/${slug}/captures/${captureOf(step, v.id)!.id}`"
                       :alt="`${step.name} — ${v.label}`"
                       loading="lazy"
                       class="block h-full w-full bg-slate-100 object-cover dark:bg-slate-900"
-                      :class="settled(cellOf(step, v.id)!) ? 'opacity-40' : ''"
+                      :class="settled(captureOf(step, v.id)!) ? 'opacity-40' : ''"
                     />
                   </AppButton>
                   <span
-                    v-if="settled(cellOf(step, v.id)!)"
+                    v-if="settled(captureOf(step, v.id)!)"
                     class="pointer-events-none absolute inset-0 grid place-items-center"
-                    :class="INK[cellOf(step, v.id)!.status]"
+                    :class="INK[captureOf(step, v.id)!.status]"
                   >
                     <StateIcon
-                      :tone="TONE[cellOf(step, v.id)!.status]"
+                      :tone="TONE[captureOf(step, v.id)!.status]"
                       :size="18"
-                      :label="LABEL[cellOf(step, v.id)!.status]"
+                      :label="LABEL[captureOf(step, v.id)!.status]"
                       :class="
-                        cellOf(step, v.id)!.status === 'accepted'
+                        captureOf(step, v.id)!.status === 'accepted'
                           ? 'bg-emerald-50 dark:bg-emerald-950'
                           : 'bg-amber-50 dark:bg-amber-950'
                       "
                     />
                   </span>
                   <span
-                    v-else-if="reading(cellOf(step, v.id)!) === 'moved'"
+                    v-else-if="reading(captureOf(step, v.id)!) === 'moved'"
                     class="pointer-events-none absolute inset-0 grid place-items-center text-indigo-600 dark:text-indigo-300"
                   >
                     <MovedIcon :size="18" label="moved" class="bg-indigo-50 dark:bg-indigo-950" />
@@ -234,7 +234,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
     </div>
 
     <!-- The words are gone from under the thumbnails, so the language is learnt
-         here instead — once, rather than translated under every cell. -->
+         here instead — once, rather than translated under every capture. -->
     <div
       class="mt-2.5 flex flex-wrap justify-center gap-x-5 gap-y-1.5 font-mono text-mono text-slate-500 dark:text-slate-400"
     >

@@ -24,7 +24,7 @@ SELECT
     c.provenance,
     c.freshness,
     c.moved_pixels,
-    -- A square with no verdict row has not been judged yet: the reviewer holds
+    -- A capture with no verdict row has not been judged yet: the reviewer holds
     -- the ball on it (ADR 0012).
     coalesce(cv.status, 'to-review') AS status
 -- A step belongs to the view only if the displayed edition captured it: since

@@ -19,7 +19,7 @@ import (
 // rather than a case sitting in a wrong place.
 func (s *Service) compareAgainstApproved(
 	ctx context.Context, projectSlug string, m contract.Manifest, threshold int,
-) (map[Square]Verdict, error) {
+) (map[ReferenceKey]Verdict, error) {
 	approved, err := s.repo.ApprovedBytes(ctx, projectSlug, m)
 	if err != nil {
 		return nil, err
@@ -35,19 +35,19 @@ func (s *Service) compareAgainstApproved(
 		return nil, err
 	}
 
-	out := map[Square]Verdict{}
+	out := map[ReferenceKey]Verdict{}
 	for _, c := range m.Cases {
 		for position, st := range c.Steps {
 			for _, capture := range st.Captures {
-				square := Square{
+				key := ReferenceKey{
 					CaseID:        c.ID,
 					StepPosition:  position,
 					VariantLabel:  contract.VariantLabel(capture.Variant, order),
 					EnvironmentID: capture.Provenance.EnvironmentID,
 				}
-				reference, ok := approved[square]
+				reference, ok := approved[key]
 				if !ok {
-					// Nobody has approved this square in this environment.
+					// Nobody has approved this step and variant in this environment.
 					// Silence is the honest answer (ADR 0017).
 					continue
 				}
@@ -55,7 +55,7 @@ func (s *Service) compareAgainstApproved(
 				if err != nil {
 					return nil, err
 				}
-				out[square] = verdict
+				out[key] = verdict
 			}
 		}
 	}

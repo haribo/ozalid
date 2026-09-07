@@ -56,23 +56,23 @@ func badReview(kind, title, detail string) openapi.SaveReview400ApplicationProbl
 func toSave(body openapi.ReviewSave) session.Save {
 	var save session.Save
 	if body.Accepted != nil {
-		for _, cell := range *body.Accepted {
-			save.Accepted = append(save.Accepted, review.Cell{
-				StepID: cell.StepId, VariantID: cell.VariantId,
+		for _, capture := range *body.Accepted {
+			save.Accepted = append(save.Accepted, review.Capture{
+				StepID: capture.StepId, VariantID: capture.VariantId,
 			})
 		}
 	}
 	if body.Unaccepted != nil {
-		for _, cell := range *body.Unaccepted {
-			save.Unaccepted = append(save.Unaccepted, review.Cell{
-				StepID: cell.StepId, VariantID: cell.VariantId,
+		for _, capture := range *body.Unaccepted {
+			save.Unaccepted = append(save.Unaccepted, review.Capture{
+				StepID: capture.StepId, VariantID: capture.VariantId,
 			})
 		}
 	}
 	if body.Unrefused != nil {
-		for _, cell := range *body.Unrefused {
-			save.Unrefused = append(save.Unrefused, review.Cell{
-				StepID: cell.StepId, VariantID: cell.VariantId,
+		for _, capture := range *body.Unrefused {
+			save.Unrefused = append(save.Unrefused, review.Capture{
+				StepID: capture.StepId, VariantID: capture.VariantId,
 			})
 		}
 	}
@@ -87,12 +87,12 @@ func toSave(body openapi.ReviewSave) session.Save {
 }
 
 func toAPIOutcome(r session.Result) openapi.ReviewOutcome {
-	verdicts := make([]openapi.CellVerdict, 0, len(r.Verdicts))
-	for cell, status := range r.Verdicts {
-		verdicts = append(verdicts, openapi.CellVerdict{
-			StepId:    cell.StepID,
-			VariantId: cell.VariantID,
-			Status:    openapi.CellVerdictStatus(status),
+	verdicts := make([]openapi.CaptureVerdict, 0, len(r.Verdicts))
+	for capture, status := range r.Verdicts {
+		verdicts = append(verdicts, openapi.CaptureVerdict{
+			StepId:    capture.StepID,
+			VariantId: capture.VariantID,
+			Status:    openapi.CaptureVerdictStatus(status),
 		})
 	}
 	return openapi.ReviewOutcome{

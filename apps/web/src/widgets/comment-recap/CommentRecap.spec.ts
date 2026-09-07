@@ -13,8 +13,8 @@ const grid: Grid = {
     { id: 'v2', label: 'desktop·dark', values: { viewport: 'desktop', theme: 'dark' } },
   ],
   steps: [
-    { id: 's1', name: 'opens the link', position: 0, cells: [] },
-    { id: 's2', name: 'arrives on their account', position: 1, cells: [] },
+    { id: 's1', name: 'opens the link', position: 0, captures: [] },
+    { id: 's2', name: 'arrives on their account', position: 1, captures: [] },
   ],
   recordings: [],
 }
@@ -96,7 +96,7 @@ describe('CommentRecap', () => {
     expect(w.text()).toContain('discarded')
   })
 
-  it("gathers a step's comments under one cell, in the grid's order", () => {
+  it("gathers a step's comments under one capture, in the grid's order", () => {
     // Read as a continuation of the grid, not as a separate list.
     const w = mount(CommentRecap, {
       props: {

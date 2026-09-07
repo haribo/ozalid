@@ -27,7 +27,7 @@ reviewer.
 
 **Rejected alternative — the non-blocking comment.** It made the reviewer
 classify work they do not own, and it produced "commented but validated"
-squares that nobody was accountable for.
+captures that nobody was accountable for.
 
 ## Consequences
 

@@ -3,9 +3,9 @@ ReviewSave:
   properties:
     accepted:
       type: array
-      description: The squares the reviewer looked at with nothing to say.
+      description: The captures the reviewer looked at with nothing to say.
       items:
-        $ref: "#/CellRef"
+        $ref: "#/CaptureRef"
     comments:
       type: array
       description: The remarks of this sitting's refusals (ADR 0020).
@@ -14,21 +14,24 @@ ReviewSave:
     unaccepted:
       type: array
       description: |
-        Squares whose acceptance the reviewer takes back — a misclick, or a
+        Captures whose acceptance the reviewer takes back — a misclick, or a
         second look. The verdict is a toggle until the review ends (#156); the
         journal keeps both moves.
       items:
-        $ref: "#/CellRef"
+        $ref: "#/CaptureRef"
     unrefused:
       type: array
       description: |
-        Squares whose draft refusal the reviewer takes back: their own remarks
+        Captures whose draft refusal the reviewer takes back: their own remarks
         with no issue attached are withdrawn with it (ADR 0020).
       items:
-        $ref: "#/CellRef"
+        $ref: "#/CaptureRef"
 
-CellRef:
+CaptureRef:
   type: object
+  description: |
+    Names one capture by its step and variant — the address a verdict is
+    written at, distinct from ADR 0017's *reference* (the approved bytes).
   required: [stepId, variantId]
   properties:
     stepId: { type: string }
@@ -61,11 +64,11 @@ ReviewOutcome:
       type: array
       description: The status of every capture the case has, after the save.
       items:
-        $ref: "#/CellVerdict"
+        $ref: "#/CaptureVerdict"
 
-CellVerdict:
+CaptureVerdict:
   allOf:
-    - $ref: "#/CellRef"
+    - $ref: "#/CaptureRef"
     - type: object
       required: [status]
       properties:
