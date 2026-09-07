@@ -947,11 +947,8 @@ func TestAMoveTheStateDoesNotAllowIsRefusedWithoutTouchingAnything(t *testing.T)
 	}
 	id := commentOn(t, ctx, repo, project.Slug, kase.ID, cells[1])
 
-	// Nothing can be delivered before it is tracked.
-	if _, err := repo.Deliver(ctx, project.Slug, id, "", actor.Actor{ID: "ci", Kind: actor.Human}); !errors.Is(err, review.ErrMoveNotAllowed) {
-		t.Errorf("err = %v, want ErrMoveNotAllowed", err)
-	}
-	// Nor judged before it is delivered.
+	// Nothing can be judged before it is delivered — a draft delivers as-is
+	// since #175, but judging it still waits for that delivery.
 	if _, err := repo.Judge(ctx, project.Slug, id, "", actor.Actor{ID: "nina", Kind: actor.Human}, true, ""); !errors.Is(err, review.ErrMoveNotAllowed) {
 		t.Errorf("err = %v, want ErrMoveNotAllowed", err)
 	}

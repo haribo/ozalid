@@ -51,11 +51,44 @@ func (r *Repository) Deliver(
 	ctx context.Context, slug, commentID, issueRefID string, by actor.Actor,
 ) (appcomment.Outcome, error) {
 	return r.move(ctx, slug, commentID, by, review.MoveDeliver, "", func(ctx context.Context, q *sqlcgen.Queries, c sqlcgen.Comment) (review.CommentState, error) {
+		// A ref-less remark delivers as itself (#175): the branch loop's
+		// "this edition answers your remark" needs no issue.
+		bare, err := r.refless(ctx, q, c)
+		if err != nil {
+			return "", err
+		}
+		if bare {
+			return r.moveComment(ctx, q, c, review.MoveDeliver, "")
+		}
 		if _, err := r.moveRef(ctx, q, slug, commentID, issueRefID, review.MoveDeliver, ""); err != nil {
 			return "", err
 		}
 		return r.derive(ctx, q, c)
 	})
+}
+
+// refless reports whether the comment carries no issue ref: the remark then
+// moves through its own machine rather than deriving from refs (#175).
+func (r *Repository) refless(ctx context.Context, q *sqlcgen.Queries, c sqlcgen.Comment) (bool, error) {
+	states, err := q.CommentIssueStates(ctx, c.ID)
+	if err != nil {
+		return false, translate("reading the refs", err)
+	}
+	return len(states) == 0, nil
+}
+
+// moveComment applies one comment-level transition and writes it back.
+func (r *Repository) moveComment(
+	ctx context.Context, q *sqlcgen.Queries, c sqlcgen.Comment, m review.Move, reason string,
+) (review.CommentState, error) {
+	to, err := review.Transition(review.CommentState(c.State), m, reason)
+	if err != nil {
+		return "", err
+	}
+	if err := q.SetCommentState(ctx, sqlcgen.SetCommentStateParams{ID: c.ID, State: string(to)}); err != nil {
+		return "", translate("moving the comment", err)
+	}
+	return to, nil
 }
 
 func (r *Repository) Judge(
@@ -68,6 +101,25 @@ func (r *Repository) Judge(
 	}
 
 	return r.move(ctx, slug, commentID, by, move, remark, func(ctx context.Context, q *sqlcgen.Queries, c sqlcgen.Comment) (review.CommentState, error) {
+		// A ref-less remark is judged as itself (#175); the judgment row
+		// simply carries no ref.
+		bare, err := r.refless(ctx, q, c)
+		if err != nil {
+			return "", err
+		}
+		if bare {
+			to, err := r.moveComment(ctx, q, c, move, remark)
+			if err != nil {
+				return "", err
+			}
+			if err := q.RecordJudgment(ctx, sqlcgen.RecordJudgmentParams{
+				CommentID: commentID,
+				Verdict:   verdict, Remark: nonEmpty(remark), ActorID: by.ID,
+			}); err != nil {
+				return "", translate("recording the judgment", err)
+			}
+			return to, nil
+		}
 		refID, err := r.moveRef(ctx, q, slug, commentID, issueRefID, move, remark)
 		if err != nil {
 			return "", err
@@ -91,6 +143,22 @@ func (r *Repository) Unjudge(
 	ctx context.Context, slug, commentID, issueRefID string, by actor.Actor,
 ) (appcomment.Outcome, error) {
 	return r.move(ctx, slug, commentID, by, review.MoveUnjudge, "", func(ctx context.Context, q *sqlcgen.Queries, c sqlcgen.Comment) (review.CommentState, error) {
+		bare, err := r.refless(ctx, q, c)
+		if err != nil {
+			return "", err
+		}
+		if bare {
+			to, err := r.moveComment(ctx, q, c, review.MoveUnjudge, "")
+			if err != nil {
+				return "", err
+			}
+			if err := q.RecordJudgment(ctx, sqlcgen.RecordJudgmentParams{
+				CommentID: commentID, Verdict: "taken-back", ActorID: by.ID,
+			}); err != nil {
+				return "", translate("recording the take-back", err)
+			}
+			return to, nil
+		}
 		refID, err := r.moveRef(ctx, q, slug, commentID, issueRefID, review.MoveUnjudge, "")
 		if err != nil {
 			return "", err

@@ -262,3 +262,13 @@ UPDATE comments SET body = $2, updated_at = now() WHERE id = $1;
 
 -- name: DetachCommentVariants :exec
 DELETE FROM comment_variants WHERE comment_id = $1;
+
+-- The settled ref-less remarks whose acceptance made one capture read
+-- accepted: unaccepting that capture takes their judgment back too (#167,
+-- #175) — the rule is "whatever made it accepted", refs and remarks alike.
+-- name: SettledRemarksOnCell :many
+SELECT c.id, c.state FROM comments c
+JOIN comment_variants cv ON cv.comment_id = c.id
+WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
+  AND c.state = 'accepted'
+  AND NOT EXISTS (SELECT 1 FROM comment_issues ci WHERE ci.comment_id = c.id);
