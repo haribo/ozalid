@@ -15,15 +15,15 @@ const props = defineProps<{ slug: string; categories: Category[] }>()
 
 function parts(c: Category) {
   return [
-    { tone: 'done' as const, count: c.cases.reviewed, label: 'relus' },
+    { tone: 'done' as const, count: c.cases.accepted, label: 'accepted' },
     { tone: 'reviewer' as const, count: c.cases.toReview, label: 'to review' },
-    { tone: 'dev' as const, count: c.cases.toFix, label: 'to fix' },
+    { tone: 'dev' as const, count: c.cases.refused, label: 'refused' },
     { tone: 'idle' as const, count: c.cases.notInstrumented, label: 'not instrumented' },
   ]
 }
 
 function total(c: Category) {
-  return c.cases.reviewed + c.cases.toReview + c.cases.toFix + c.cases.notInstrumented
+  return c.cases.accepted + c.cases.toReview + c.cases.refused + c.cases.notInstrumented
 }
 </script>
 

@@ -22,12 +22,12 @@ describe('StateIcon', () => {
       idle: 'not instrumented',
       reviewer: 'to review',
       dev: 'to fix',
-      done: 'reviewed',
+      done: 'accepted',
     })
   })
 
   it('lets a caller override the label, for a count', () => {
-    const w = mount(StateIcon, { props: { tone: 'done', label: '12 reviewed' } })
-    expect(w.attributes('aria-label')).toBe('12 reviewed')
+    const w = mount(StateIcon, { props: { tone: 'done', label: '12 accepted' } })
+    expect(w.attributes('aria-label')).toBe('12 accepted')
   })
 })

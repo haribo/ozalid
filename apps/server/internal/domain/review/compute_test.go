@@ -52,7 +52,7 @@ func TestACaseWithEverythingAcceptedAndNothingOpenIsReviewed(t *testing.T) {
 		Captures: facts("v1", "v2"),
 		Accepted: captures("v1", "v2"),
 	})
-	if got.State != review.CaseReviewed {
+	if got.State != review.CaseAccepted {
 		t.Errorf("state = %q, want reviewed — the only clean state", got.State)
 	}
 	for capture, status := range got.Verdicts {
@@ -78,8 +78,8 @@ func TestAnOpenCommentPutsTheBallInTheDevsCourt(t *testing.T) {
 		Accepted: captures("v1"),
 		Comments: []review.Comment{{State: review.CommentToTrack, Captures: anchors("v2")}},
 	})
-	if got.State != review.CaseToFix {
-		t.Errorf("state = %q, want to-fix", got.State)
+	if got.State != review.CaseRefused {
+		t.Errorf("state = %q, want refused", got.State)
 	}
 	// The comment's own state says whether it needs tracking or fixing; the
 	// case only says whose turn it is (ADR 0012).
@@ -114,7 +114,7 @@ func TestASettledCommentStopsCountingButTheCellKeepsItsVerdict(t *testing.T) {
 	})
 	// Nothing is deleted — a discarded comment stays visible on its case
 	// (ADR 0006) — but it no longer holds the case open.
-	if got.State != review.CaseReviewed {
+	if got.State != review.CaseAccepted {
 		t.Errorf("state = %q, want reviewed once every comment is settled", got.State)
 	}
 	if got.Verdicts[review.Capture{StepID: "s1", VariantID: "v1"}] != review.CaptureAccepted {
@@ -148,8 +148,8 @@ func TestACommentOnACellThatNoLongerExistsIsIgnored(t *testing.T) {
 	}
 	// It still holds the case open: the problem was not solved by the capture
 	// disappearing.
-	if got.State != review.CaseToFix {
-		t.Errorf("state = %q, want to-fix", got.State)
+	if got.State != review.CaseRefused {
+		t.Errorf("state = %q, want refused", got.State)
 	}
 }
 
@@ -189,7 +189,7 @@ func TestSettlingACommentCountsAsJudgingItsSquares(t *testing.T) {
 		if got.Verdicts[review.Capture{StepID: "s1", VariantID: "v2"}] != review.CaptureAccepted {
 			t.Errorf("%s: the capture reads %q, want validated", settled, got.Verdicts[review.Capture{StepID: "s1", VariantID: "v2"}])
 		}
-		if got.State != review.CaseReviewed {
+		if got.State != review.CaseAccepted {
 			t.Errorf("%s: state = %q, want reviewed", settled, got.State)
 		}
 	}
@@ -208,8 +208,8 @@ func TestASquareWithOneSettledAndOneOpenCommentStillNeedsFixing(t *testing.T) {
 	if got.Verdicts[review.Capture{StepID: "s1", VariantID: "v1"}] != review.CaptureRefused {
 		t.Error("a settled comment silenced an open one on the same capture")
 	}
-	if got.State != review.CaseToFix {
-		t.Errorf("state = %q, want to-fix", got.State)
+	if got.State != review.CaseRefused {
+		t.Errorf("state = %q, want refused", got.State)
 	}
 }
 

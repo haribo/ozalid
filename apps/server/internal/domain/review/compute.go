@@ -125,12 +125,12 @@ func Compute(f Facts) Outcome {
 	// that (ADR 0012).
 	for _, c := range f.Comments {
 		if c.State.Open() {
-			out.State = CaseToFix
+			out.State = CaseRefused
 			return out
 		}
 	}
 
-	out.State = CaseReviewed
+	out.State = CaseAccepted
 	return out
 }
 
@@ -175,7 +175,7 @@ func verdictsOf(f Facts) map[Capture]CaptureStatus {
 
 	// A delivered comment hands its captures back to the reviewer: the ball is
 	// theirs, and the grid says so. The dev-side pass runs second, so a capture
-	// also claimed by a tracked or refused comment stays to-fix — the finest
+	// also claimed by a tracked or refused comment stays refused — the finest
 	// open claim wins, exactly as for the comment itself (#150).
 	for _, c := range f.Comments {
 		if c.State != CommentToReview {

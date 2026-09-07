@@ -6,7 +6,7 @@
  */
 
 /** Who holds the ball on a case. */
-export type CaseState = 'not-instrumented' | 'to-review' | 'to-fix' | 'reviewed'
+export type CaseState = 'not-instrumented' | 'to-review' | 'refused' | 'accepted'
 
 /** What a capture is waiting for. */
 export type CaptureStatus = 'to-review' | 'refused' | 'accepted' | 'moved'
@@ -17,8 +17,8 @@ export type Tone = 'idle' | 'reviewer' | 'dev' | 'done'
 const CASE_TONES: Record<CaseState, Tone> = {
   'not-instrumented': 'idle',
   'to-review': 'reviewer',
-  'to-fix': 'dev',
-  reviewed: 'done',
+  refused: 'dev',
+  accepted: 'done',
 }
 
 /** The tone a case state carries. Hue encodes who has to act, not severity. */
@@ -31,7 +31,7 @@ export function ballHolder(state: CaseState): 'reviewer' | 'dev' | 'nobody' {
   switch (state) {
     case 'to-review':
       return 'reviewer'
-    case 'to-fix':
+    case 'refused':
       return 'dev'
     default:
       return 'nobody'
@@ -43,5 +43,5 @@ export const TONE_LABELS: Record<Tone, string> = {
   idle: 'not instrumented',
   reviewer: 'to review',
   dev: 'to fix',
-  done: 'reviewed',
+  done: 'accepted',
 }

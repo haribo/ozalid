@@ -36,7 +36,7 @@ NewProject:
 
 CaseState:
   type: string
-  enum: [not-instrumented, to-review, to-fix, reviewed]
+  enum: [not-instrumented, to-review, refused, accepted]
   description: |
     Who holds the ball. Computed by the server from the case's comments; no
     endpoint accepts it as an argument.
@@ -103,7 +103,7 @@ Category:
 
 StateCounts:
   type: object
-  required: [notInstrumented, toReview, toFix, reviewed]
+  required: [notInstrumented, toReview, refused, accepted]
   description: |
     How many cases sit in each state under this node, across its **whole
     descendance** — not just its direct children. A branch in trouble has to be
@@ -111,8 +111,8 @@ StateCounts:
   properties:
     notInstrumented: { type: integer }
     toReview: { type: integer }
-    toFix: { type: integer }
-    reviewed: { type: integer }
+    refused: { type: integer }
+    accepted: { type: integer }
 
 CaptureCounts:
   type: object

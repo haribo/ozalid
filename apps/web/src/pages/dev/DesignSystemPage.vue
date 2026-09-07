@@ -26,7 +26,7 @@ import {
 } from '@/shared/ui'
 import type { CaseState, Tone } from '@/shared/lib'
 
-const CASE_STATES: CaseState[] = ['not-instrumented', 'to-review', 'to-fix', 'reviewed']
+const CASE_STATES: CaseState[] = ['not-instrumented', 'to-review', 'refused', 'accepted']
 const TONES: Tone[] = ['idle', 'reviewer', 'dev', 'done']
 const ADMIN_ICONS = [
   'people',

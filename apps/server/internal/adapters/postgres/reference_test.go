@@ -109,7 +109,7 @@ func TestASquareThatNobodyLookedAtIsNeverStamped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("re-reading the case: %v", err)
 	}
-	if after.State != string(review.CaseReviewed) {
+	if after.State != string(review.CaseAccepted) {
 		t.Fatalf("state = %q, want reviewed once the only comment is settled", after.State)
 	}
 
@@ -493,7 +493,7 @@ func TestSwitchingVerdictsIsOneGesture(t *testing.T) {
 	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, capture); status != "accepted" {
 		t.Errorf("after the switch back, capture = %q, want accepted", status)
 	}
-	if out.State != review.CaseReviewed {
+	if out.State != review.CaseAccepted {
 		t.Errorf("case = %q, want reviewed — the draft went with its refusal", out.State)
 	}
 }
@@ -627,7 +627,7 @@ func TestADraftRemarkLoopsWithoutAnIssue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("accepting: %v", err)
 	}
-	if out.CommentState != review.CommentAccepted || out.CaseState != review.CaseReviewed {
+	if out.CommentState != review.CommentAccepted || out.CaseState != review.CaseAccepted {
 		t.Errorf("after accept: comment=%q case=%q, want accepted/reviewed", out.CommentState, out.CaseState)
 	}
 	judgments, err := repo.Queries().CommentJudgments(ctx, id)

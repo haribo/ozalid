@@ -469,8 +469,8 @@ func toAPINode(n catalogue.CategoryNode) openapi.Category {
 	out.Cases = openapi.StateCounts{
 		NotInstrumented: int(n.Cases.NotInstrumented),
 		ToReview:        int(n.Cases.ToReview),
-		ToFix:           int(n.Cases.ToFix),
-		Reviewed:        int(n.Cases.Reviewed),
+		Refused:         int(n.Cases.Refused),
+		Accepted:        int(n.Cases.Accepted),
 	}
 	out.LastActivity = n.LastActivity
 	return out
