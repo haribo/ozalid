@@ -115,20 +115,6 @@ export async function push(title: string, shots: Shot[]) {
   expect(shots.length, 'nothing was captured').toBeGreaterThan(0)
   const caseId = await caseFor(title)
 
-  for (const shot of shots) {
-    const hash = hashOf(shot.bytes)
-    const held = await fetch(`${PUSH_API}/api/projects/${PROJECT}/blobs/${hash}`, {
-      method: 'HEAD',
-      headers: { authorization: `Bearer ${TOKEN}` },
-    })
-    if (held.status === 404) {
-      await call(`/projects/${PROJECT}/blobs/${hash}`, {
-        method: 'PUT',
-        body: new Uint8Array(shot.bytes),
-      })
-    }
-  }
-
   // One step per screen, one capture per variant. The order of the steps is the
   // order they were walked, which is what makes the grid read as the flow.
   const steps: { name: string; captures: unknown[] }[] = []
@@ -145,11 +131,37 @@ export async function push(title: string, shots: Shot[]) {
     })
   }
 
-  await call(`/projects/${PROJECT}/editions`, {
+  // The frugal way (#186, docs/pushing-evidence.md): push the manifest first,
+  // and the refusal names every missing address in one response — no
+  // capture-by-capture HEAD round-trips. On a run where nothing changed, the
+  // first push simply succeeds and no bytes move at all.
+  const manifest = JSON.stringify({ cases: [{ id: caseId, steps }] })
+  const first = await fetch(`${PUSH_API}/api/projects/${PROJECT}/editions`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ cases: [{ id: caseId, steps }] }),
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+    body: manifest,
   })
+  if (!first.ok) {
+    const refusalBody = (await first.json()) as { type?: string; missingContent?: string[] }
+    if (!String(refusalBody.type).includes('missing-content')) {
+      throw new Error(`POST /editions — ${first.status} ${JSON.stringify(refusalBody)}`)
+    }
+
+    const missing = new Set(refusalBody.missingContent ?? [])
+    for (const shot of shots) {
+      if (!missing.has(hashOf(shot.bytes))) continue
+      await call(`/projects/${PROJECT}/blobs/${hashOf(shot.bytes)}`, {
+        method: 'PUT',
+        body: new Uint8Array(shot.bytes),
+      })
+    }
+
+    await call(`/projects/${PROJECT}/editions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: manifest,
+    })
+  }
 
   // The branch loop (#175): pushing with OZALID_PUSH_DELIVER=1 is the claim
   // "this edition answers your remarks" — every ref-less draft on the pushed
