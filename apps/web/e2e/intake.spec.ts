@@ -109,3 +109,36 @@ test('a case must name a category, and one from another project is not found', a
   })
   expect(filed.status).toBe(201)
 })
+
+test('a manifest carrying the same square twice is refused, naming it (#182)', async ({ page }) => {
+  // Before the fix this hit the storage's unique key and answered a bare
+  // 500 — the client-side collision took an elimination round to trace.
+  const created = await api(`/projects/${PROJECT}/cases`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: `twice — ${Date.now()}`, categoryId: await suiteCategory() }),
+  })
+  const kase = (await created.json()) as { id: string }
+
+  await page.setContent(
+    `<!doctype html><body style="margin:0;width:80px;height:40px;background:#123456">`,
+  )
+  const bytes = await page.screenshot({ clip: { x: 0, y: 0, width: 80, height: 40 } })
+  const hash = `sha256:${createHash('sha256').update(bytes).digest('hex')}`
+  await api(`/projects/${PROJECT}/blobs/${hash}`, { method: 'PUT', body: new Uint8Array(bytes) })
+
+  const step = {
+    name: 'opens the door',
+    captures: [{ variant: { theme: 'dark' }, hash, provenance: { environmentId: 'ci' } }],
+  }
+  const refused = await api(`/projects/${PROJECT}/editions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ cases: [{ id: kase.id, steps: [step, step] }] }),
+  })
+  expect(refused.status).toBe(409)
+  const problem = (await refused.json()) as { type: string; detail: string }
+  expect(problem.type).toContain('duplicate-capture')
+  expect(problem.detail).toContain('opens the door')
+  expect(problem.detail).toContain('dark')
+})
