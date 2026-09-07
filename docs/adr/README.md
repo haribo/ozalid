@@ -32,6 +32,7 @@ on the new one. The full lifecycle is set by
 | [0018](0018-an-actor-is-never-invented.md) | An actor is never invented — *partly superseded by 0019* |
 | [0019](0019-two-kinds-of-account-one-set-of-rights.md) | Two kinds of account, one set of rights |
 | [0020](0020-a-remark-is-a-verdict.md) | A remark is a verdict |
+| [0021](0021-a-status-says-where-the-next-action-happens.md) | A status says where the next action happens |
 
 0001 to 0008 were decided in a single design conversation on 2026-08-18/19 and
 settle what the product is. 0009 to 0011 followed on 2026-08-19 and settle how

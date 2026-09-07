@@ -38,16 +38,20 @@ Two things follow, and they define the product:
 | **Step** | A named business moment inside a case ("submits the form"). Ordered. |
 | **Axis** | A rendering dimension the project declares — `theme`, `viewport`, `locale`, or anything else. ozalid ships no built-in list. |
 | **Variant** | A combination of axis values. An axis the client does not supply is simply absent from the combination. |
-| **Capture** | One image: a given step, in a given variant, at a given edition. Comparable, hashed, referenced. **PNG**: a lossy format re-encodes the same screen into different pixels, which makes "has it changed?" unanswerable ([§3.3](#33-freshness-is-the-evidence-still-the-evidence-that-was-judged)). Intake refuses anything else. |
+| **Capture** | One image: a given step, in a given variant, at a given edition. Comparable, hashed, referenced. **PNG**: a lossy format re-encodes the same screen into different pixels, which makes "has it changed?" unanswerable ([§3.3](#33-movement-is-the-evidence-still-the-evidence-that-was-judged)). Intake refuses anything else. |
 | **Recording** | The flow video. Optional, viewable, **never** compared byte-wise and never a source of state ([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md)). |
 | **Edition** | One accepted intake of a run. Immutable once accepted. |
 | **Comment** | A reviewer's report against **a capture and the sibling captures of the variants it covers**. The capture, not the step, is the anchor: steps have no identity of their own, and their names are labels. A comment shows the image it was written about for as long as it lives. Its text is the reviewer's **draft**: it is what the issues are written from, and once a ref is attached the book reads the issue's title. A durable entity with its own lifecycle ([§6](#6-comments)). Formerly called a *problem*. |
-| **Verdict** | The stored status of one capture: `to-review`, `refused`, `accepted`. Computed by the server from the comments covering it. |
+| **Verdict** | The status of one capture: `to-review`, `refused`, `accepted`, `moved`. **Derived at read time** from the stored facts — never stored, never received (ADR 0021). |
 | **Reference** | The capture bytes a given capture was last approved against. What "has it changed?" is measured from. |
 
-Grammar convention, inherited and kept: **"to + verb" means pending, a past
-participle means done**. `to review` is work waiting; `reviewed` is work
-finished.
+Grammar convention, sharpened by
+[ADR 0021](../adr/0021-a-status-says-where-the-next-action-happens.md): **a
+status says where the next action happens**. "to + verb" means ozalid is
+waiting for something done inside it; a past participle means it is done
+inside, and whatever comes next happens outside. `to-review` is work waiting
+here; `refused` and `accepted` are conclusions given here — what follows a
+refusal happens at the dev's, outside.
 
 ## 3. Case state
 
@@ -66,21 +70,35 @@ the comments ([ADR 0012](../adr/0012-case-carries-the-ball-comment-carries-the-d
 | --- | --- | --- |
 | `not-instrumented` | No capture and no verdict. Outside the funnel. | nobody |
 | `to-review` | Something is waiting for the reviewer's judgment. | reviewer |
-| `to-fix` | Nothing awaits the reviewer, and at least one comment awaits the dev. | dev |
-| `reviewed` | No open comment. The only clean state. | nobody |
+| `refused` | Nothing awaits the reviewer, and at least one comment awaits the dev. | dev |
+| `accepted` | No open comment. The only clean state. | nobody |
 
-`to-review` outranks `to-fix` when both apply: a verdict can cancel work in
-progress, so it comes first.
+`to-review` outranks `refused` when both apply: a verdict can cancel work in
+progress, so it comes first. A case and its captures share one vocabulary
+(ADR 0021): `to-fix` and `reviewed` were the same facts under other words.
 
-Each capture also carries a **stored status** — `to-review`, `refused`,
-`accepted` — recomputed by the server whenever a comment covering it changes.
-Recording a comment and recomputing the captures it covers happen in one
-operation; nothing else writes that status.
+Each capture also carries a status — `to-review`, `refused`, `accepted`,
+`moved` — **derived at read time** from the stored facts: who accepted it and
+when, the remarks covering it, the references. Only facts are stored; the
+computation never reads its own output (ADR 0021, the root cause behind #154
+and #167). Rules of the derivation:
+
+- `moved` applies to a capture that is otherwise `accepted` and whose image
+  changed; an open comment outranks it — the reason that capture waits is
+  already known. `moved` does **not** rise to the case: the case reads
+  `to-review`.
+- A `refused` capture receiving a new image returns to `to-review`: the
+  pixels on display are ones nobody has judged. The refusal's **comment**
+  keeps its own cycle — §7's "returning to to-review is requested by the
+  dev" governs the comment, whose judgment still waits for a delivery.
+- `missing` stays the completeness axis
+  ([ADR 0016](../adr/0016-a-case-is-complete-or-it-says-so.md)), never folded
+  into the status.
 
 ### 3.2 Occupancy (is someone working on it right now)
 
 Independent of the cycle state, and that separation is the point: when a
-reviewer opens a case that sits at `to-fix`, it must still read `to-fix`
+reviewer opens a case that sits at `refused`, it must still read `refused`
 afterwards.
 
 - `free`, or `held by <user> since <timestamp>`.
@@ -88,13 +106,13 @@ afterwards.
 - Locks expire: the session sends a heartbeat, and a lock whose heartbeat has
   gone silent for longer than the configured window is released automatically.
 
-### 3.3 Freshness (is the evidence still the evidence that was judged)
+### 3.3 Movement (is the evidence still the evidence that was judged)
 
-Computed at intake, per capture, against that capture's reference:
-
-- `current` — the bytes the reviewer approved are still the bytes on display.
-- `to-re-review` — the capture moved. The changed captures are marked
-  individually; the reviewer re-passes those, not the whole case.
+What was an overlay called *freshness* is the `moved` status since ADR 0021:
+one derived status per capture, no second field. The comparison still runs at
+intake, per capture, against that capture's reference; what it stores is the
+**measurement** (`moved_pixels`) — the conclusion depends on a threshold that
+can change, and is derived at read time.
 
 A reference belongs to an environment
 ([ADR 0017](../adr/0017-a-reference-belongs-to-an-environment.md)). A capture is
@@ -124,11 +142,12 @@ Captures whose dimensions differ are moved without being compared: there is no
 pixel-to-pixel reading of two images that are not the same shape.
 
 Recordings are never compared: encoding is not deterministic, so a video can
-never prove anything about its own freshness
+never prove anything about its own movement
 ([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md)).
 
-Freshness is an **overlay**, not a state. A `reviewed` case whose captures move
-is still `reviewed` until the reviewer says otherwise.
+Movement stays at the capture: an `accepted` case whose captures move is
+still `accepted` until the reviewer says otherwise — the `moved` captures
+carry the mark, not the case (ADR 0021).
 
 ### 3.4 Completeness (is all the evidence there)
 
@@ -146,8 +165,8 @@ A hole is not a capture. It carries no verdict, cannot be judged, and is shown
 as an anomaly rather than as an absence — a run failed, and saying "no capture"
 where a capture was expected hides that.
 
-Like freshness, completeness is an **overlay**, not a state. A case whose
-reviewer approved every capture that exists is `reviewed` *and* incomplete: two
+Like movement, completeness never folds into the cycle state. A case whose
+reviewer approved every capture that exists is `accepted` *and* incomplete: two
 true facts, neither hiding the other. Forcing the hole into the cycle state
 would hand the ball to a reviewer who can do nothing about it.
 
@@ -171,10 +190,10 @@ Facts that trigger a recomputation:
 | --- | --- |
 | A review is saved (capture verdicts + comments) | any cycle transition |
 | A comment is linked to an issue | comment → `tracked` |
-| A comment is discarded with a reason | may clear the last blocker → `reviewed` |
+| A comment is discarded with a reason | may clear the last blocker → `accepted` |
 | The dev asks for a judgment on a delivered comment | comment → `to-review`, case → `to-review` |
 | A delivery is accepted or refused | comment → `accepted` or `refused` |
-| An edition is accepted | freshness only — never the cycle state |
+| An edition is accepted | capture movement only — never the cycle state |
 
 **The verdict pair** (ADR 0020, #170, #171). Reviewing is giving one of two
 verdicts — **accept** or **refuse** — on a bare capture exactly as on a
@@ -184,7 +203,7 @@ half is the state; a capture reads `to-review`, `accepted` or `refused` —
 takes the verdict back — a misclick, or a second look — and switching
 verdicts is one gesture, never a trip through "not judged": refusing an
 accepted capture takes the acceptance back in the same write. The journal
-keeps every move, and the reference stamped at acceptance stays: freshness is
+keeps every move, and the reference stamped at acceptance stays: movement is
 history, not a verdict. Verified by `TestAcceptingIsAToggle`,
 `TestSwitchingVerdictsIsOneGesture`.
 
@@ -349,7 +368,7 @@ parser's.
 Intake is governed by a **per-project policy** ([ADR 0007](../adr/0007-run-intake-policy.md)):
 
 - `strict` — intake is refused outright while any case sits outside
-  `{reviewed, to-fix, not-instrumented}` — that is, while any case is
+  `{accepted, refused, not-instrumented}` — that is, while any case is
   `to-review`. The refusal lists the blocking cases. This keeps pressure on
   finishing reviews, at the cost of blocking the whole project on one
   unfinished review.
@@ -501,7 +520,7 @@ enters through the API, no path writes state behind it.**
 
 ```
 POST   /projects/:p/editions                  intake a run (manifest + blobs)
-GET    /projects/:p/cases?state=…&freshness=…  filter on stored state, no scan
+GET    /projects/:p/cases?state=…            filter on the case state, no scan
 GET    /projects/:p/cases/:id                 case detail, captures, comments
 POST   /projects/:p/cases                     create a case, returns its id
 PATCH  /projects/:p/cases/:id                 title, description, category
