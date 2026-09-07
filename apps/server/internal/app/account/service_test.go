@@ -41,6 +41,9 @@ func (nothingRepo) ListTokens(context.Context, string, string) ([]account.Servic
 	return nil, nil
 }
 func (nothingRepo) RetireToken(context.Context, string, string, string) error { return nil }
+func (nothingRepo) TokenIdentity(context.Context, string) (account.TokenIdentity, bool, error) {
+	return account.TokenIdentity{}, false, nil
+}
 
 // recordingRepo remembers what the service handed it.
 type recordingRepo struct {

@@ -123,3 +123,20 @@ func (r *Repository) RetireToken(ctx context.Context, slug, serviceAccountID, to
 	}
 	return nil
 }
+
+// TokenIdentity answers whose key the calling program holds (#180): the
+// service account, and the one project it opens. A deactivated account
+// resolves to nothing, exactly as its token does.
+func (r *Repository) TokenIdentity(ctx context.Context, serviceAccountID string) (account.TokenIdentity, bool, error) {
+	row, err := r.q.ServiceAccountIdentity(ctx, serviceAccountID)
+	if err != nil {
+		if isNoRows(err) {
+			return account.TokenIdentity{}, false, nil
+		}
+		return account.TokenIdentity{}, false, fmt.Errorf("reading the token's identity: %w", err)
+	}
+	return account.TokenIdentity{
+		ID: row.ID, Name: row.Name,
+		ProjectSlug: row.ProjectSlug, ProjectName: row.ProjectName,
+	}, true, nil
+}
