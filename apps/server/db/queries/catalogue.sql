@@ -35,3 +35,27 @@ WHERE c.id = $1
   AND c.project_id = (SELECT p.id FROM projects p WHERE p.slug = $2)
   AND NOT EXISTS (SELECT 1 FROM categories s WHERE s.parent_id = c.id)
   AND NOT EXISTS (SELECT 1 FROM cases k WHERE k.category_id = c.id);
+
+-- Scoped by the project, like everything else (#71).
+-- name: GetCategoryInProject :one
+SELECT c.* FROM categories c
+JOIN projects p ON p.id = c.project_id
+WHERE c.id = $1 AND p.slug = $2;
+
+-- The ancestors of one category, root first. What refuses making a node its
+-- own ancestor (#179).
+-- name: CategoryAncestors :many
+WITH RECURSIVE up AS (
+    SELECT cat.id, cat.parent_id FROM categories cat WHERE cat.id = $1
+    UNION ALL
+    SELECT c.id, c.parent_id FROM categories c JOIN up ON c.id = up.parent_id
+)
+SELECT up.id FROM up;
+
+-- Rename, re-parent and reorder in one write (#179). The sibling-name unique
+-- key stays the arbiter of collisions.
+-- name: UpdateCategory :one
+UPDATE categories
+SET name = $2, parent_id = $3, position = $4
+WHERE id = $1
+RETURNING *;

@@ -939,7 +939,16 @@ export interface paths {
         delete: operations["deleteCategory"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Rename or move a node
+         * @description Rename, re-parent and reorder in one call — a language fix no longer costs
+         *     delete + recreate + re-parenting every case of the subtree (#179).
+         *
+         *     `parentId` present moves the node: another category's id, or the empty
+         *     string for the root. A move that would make a node its own ancestor is
+         *     refused, as is a sibling name collision.
+         */
+        patch: operations["updateCategory"];
         trace?: never;
     };
 }
@@ -2830,6 +2839,50 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             /** @description The category is not empty. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["problem"];
+                };
+            };
+        };
+    };
+    updateCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                categoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    /** @description Another category's id, or the empty string for the root. Absent = unchanged. */
+                    parentId?: string;
+                    position?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The category, as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Category"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description A sibling already bears the name, or the move would make the node its own ancestor. */
             409: {
                 headers: {
                     [name: string]: unknown;

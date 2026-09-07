@@ -8,6 +8,52 @@ parameters:
     required: true
     schema: { type: string }
 
+patch:
+  operationId: updateCategory
+  security:
+    - serviceToken: []
+    - session: []
+  summary: Rename or move a node
+  description: |
+    Rename, re-parent and reorder in one call — a language fix no longer costs
+    delete + recreate + re-parenting every case of the subtree (#179).
+
+    `parentId` present moves the node: another category's id, or the empty
+    string for the root. A move that would make a node its own ancestor is
+    refused, as is a sibling name collision.
+  tags: [categories]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            name: { type: string, minLength: 1 }
+            parentId:
+              type: string
+              description: Another category's id, or the empty string for the root. Absent = unchanged.
+            position: { type: integer }
+  responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "200":
+      description: The category, as it now stands.
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/Category"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
+    "409":
+      description: A sibling already bears the name, or the move would make the node its own ancestor.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "../components/problem.yaml"
+
 delete:
   operationId: deleteCategory
   security:
