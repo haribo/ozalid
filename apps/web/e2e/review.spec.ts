@@ -264,3 +264,73 @@ test('refusing writes the remark and the capture stays on screen', async ({ page
   await expect(carousel).toBeVisible()
   await expect(page.locator('table').first().locator('[aria-label="refused"]')).toHaveCount(0)
 })
+
+test('a capture taller than the stage is scaled to fit, never overflowing', async ({
+  page,
+  request,
+  browser,
+}) => {
+  // An oversized capture, pushed the way a client would push one (#177).
+  const seeded = await seed(page)
+  const shooter = await browser.newPage({ viewport: { width: 900, height: 1800 } })
+  await shooter.setContent(
+    `<!doctype html><style>body{margin:0;width:900px;height:1800px;background:#eef}</style><p>tall</p>`,
+  )
+  const bytes = await shooter.screenshot()
+  await shooter.close()
+  const { createHash } = await import('node:crypto')
+  const hash = `sha256:${createHash('sha256').update(bytes).digest('hex')}`
+  const API = process.env.OZALID_API ?? 'http://localhost:8091'
+  const TOKEN = process.env.OZALID_E2E_TOKEN ?? ''
+  await request.put(`${API}/api/projects/${seeded.slug}/blobs/${hash}`, {
+    headers: { authorization: `Bearer ${TOKEN}` },
+    data: bytes,
+  })
+  const categories = await (
+    await request.get(`${API}/api/projects/${seeded.slug}/categories`, {
+      headers: { authorization: `Bearer ${TOKEN}` },
+    })
+  ).json()
+  const making = await request.post(`${API}/api/projects/${seeded.slug}/cases`, {
+    headers: { authorization: `Bearer ${TOKEN}` },
+    data: { title: `tall ${Date.now()}`, categoryId: categories[0].id },
+  })
+  expect(making.status(), await making.text()).toBe(201)
+  const made = await making.json()
+  await request.post(`${API}/api/projects/${seeded.slug}/editions`, {
+    headers: { authorization: `Bearer ${TOKEN}` },
+    data: {
+      cases: [
+        {
+          id: made.id,
+          steps: [
+            {
+              name: 'a very tall screen',
+              captures: [
+                {
+                  variant: { theme: 'light', device: 'desktop' },
+                  hash,
+                  provenance: { environmentId: 'ci' },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  })
+
+  await page.goto(`/projects/${seeded.slug}/cases/${made.id}`)
+  await page.locator('tbody button[aria-label*="a very tall screen"]').first().click()
+  const dialog = page.getByRole('dialog', { name: 'capture' })
+  const img = dialog.locator('img')
+  await expect(img).toBeVisible()
+
+  // The pixels are judged at the largest size that fits (#125) — and fitting
+  // is the whole claim: the image never leaves the viewport.
+  const box = (await img.boundingBox())!
+  const viewport = page.viewportSize()!
+  expect(box.y).toBeGreaterThanOrEqual(0)
+  expect(box.y + box.height).toBeLessThanOrEqual(viewport.height)
+  expect(box.x + box.width).toBeLessThanOrEqual(viewport.width)
+})
