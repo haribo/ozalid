@@ -11,17 +11,17 @@ saying where that separation lives.
 ## Context
 
 Freshness answers one question: are the bytes on display still the bytes the
-reviewer approved? It is answered by keeping, per square, the content address
+reviewer approved? It is answered by keeping, per step and variant, the content address
 that was approved — the *reference*.
 
 The table has held one row per `(case, step, variant)` since the initial
-schema. That key assumes every capture of a square comes from the same place.
+schema. That key assumes every capture at one step and variant comes from the same place.
 
 It does not. Two machines rendering the same screen produce different bytes:
 font rasterisation differs, antialiasing differs, a scrollbar is a different
 width. Nothing changed in the product, and the images differ anyway.
 
-With one row per square, a suite run on CI and on a developer's laptop writes
+With one row per step and variant, a suite run on CI and on a developer's laptop writes
 to the same reference. Every alternation between the two reports the whole case
 as moved. That is an alert that is always on, which is the exact defect
 [ADR 0013](0013-a-recording-is-not-a-capture.md) removed `to-re-watch` for.
@@ -32,7 +32,7 @@ as moved. That is an alert that is always on, which is the exact defect
 provenance: `(case, step, variant, environment)`. A capture is only ever
 compared against a reference from its own environment.
 
-**A square with no reference in its environment is unjudged there, not moved.**
+**A capture with no reference in its environment is unjudged there, not moved.**
 It has never been approved on that machine, and the interface says so rather
 than raising an alarm about a change nobody can see.
 
@@ -42,7 +42,7 @@ case and must stay free of ceremony.
 
 ## Alternatives rejected
 
-**Keeping one reference per square**, letting the last run win. Rejected: the
+**Keeping one reference per step and variant**, letting the last run win. Rejected: the
 catalogue flips on every alternation between two runners. An alert nobody can
 turn off is an alert nobody reads.
 

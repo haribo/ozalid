@@ -35,14 +35,14 @@ type NewComment struct {
 
 // Save is what one sitting produced.
 type Save struct {
-	// Accepted are the squares the reviewer looked at with nothing to say.
-	Accepted []review.Cell
+	// Accepted are the captures the reviewer looked at with nothing to say.
+	Accepted []review.Capture
 	// Unaccepted are acceptances taken back — a misclick, or a second look.
 	// The verdict is a toggle until the review ends (#156, ADR 0020).
-	Unaccepted []review.Cell
+	Unaccepted []review.Capture
 	// Unrefused are draft refusals withdrawn: the reviewer's own remarks with
 	// no issue attached go with them (ADR 0020's explicit exception).
-	Unrefused []review.Cell
+	Unrefused []review.Capture
 	// Comments are the remarks of this sitting's refusals.
 	Comments []NewComment
 }
@@ -50,7 +50,7 @@ type Save struct {
 // Result reports what the save amounted to.
 type Result struct {
 	State    review.CaseState
-	Verdicts map[review.Cell]review.CaptureStatus
+	Verdicts map[review.Capture]review.CaptureStatus
 	Comments int
 }
 

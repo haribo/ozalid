@@ -93,13 +93,13 @@ afterwards.
 Computed at intake, per capture, against that capture's reference:
 
 - `current` — the bytes the reviewer approved are still the bytes on display.
-- `to-re-review` — the capture moved. The changed cells are marked
+- `to-re-review` — the capture moved. The changed captures are marked
   individually; the reviewer re-passes those, not the whole case.
 
 A reference belongs to an environment
 ([ADR 0017](../adr/0017-a-reference-belongs-to-an-environment.md)). A capture is
 compared only against a reference produced by the same environment; where there
-is none, the square is unjudged there rather than moved — nobody has approved
+is none, the capture is unjudged there rather than moved — nobody has approved
 those bytes on that machine.
 
 A capture counts as moved when its hash differs **and** a bounded pixel
@@ -218,12 +218,12 @@ draft can no longer be edited or withdrawn. Verified by
 
 **The carousel never marks the capture**: no veil, no disc — the verdict
 lives in the bar, and the grid keeps its marks. One issue at a time in the
-zone: the square's other references live in the recap.
+zone: the capture's other references live in the recap.
 
-A cell covered by a comment whose **every open ref is delivered** reads
+A capture covered by a comment whose **every open ref is delivered** reads
 `to-review`: the ball is the reviewer's, and the grid says so. It reads
 `refused` only while some ref still sits with the dev — tracked or refused —
-and a dev-side claim on the same cell outranks a delivered one, exactly as for
+and a dev-side claim on the same capture outranks a delivered one, exactly as for
 the comment itself. Decided when two delivered issues showed beside the dev's
 amber bubble (#150).
 
@@ -358,7 +358,7 @@ Intake is governed by a **per-project policy** ([ADR 0007](../adr/0007-run-intak
   **A delivery advances the case at once**: judging a fix means reading the
   bytes that claim to fix it, so `deliver` releases the case onto the latest
   edition even mid-review. The pin only protects what is still being judged of
-  the current sweep — accepted cells keep their verdicts, and a capture that
+  the current sweep — accepted captures keep their verdicts, and a capture that
   changed under one comes back marked `moved`, as always. Decided when a
   reviewer was asked to judge a fix while the pin showed them the screen from
   before it (#142).

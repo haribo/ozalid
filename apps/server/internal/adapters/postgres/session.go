@@ -57,11 +57,11 @@ func (r *Repository) SaveReview(
 		}
 	}
 
-	// Accepted squares are written before the computation reads them back, so
+	// Accepted captures are written before the computation reads them back, so
 	// what it sees is the whole session and not half of it.
-	for _, cell := range save.Accepted {
+	for _, capture := range save.Accepted {
 		if err := q.UpsertCaptureVerdict(ctx, sqlcgen.UpsertCaptureVerdictParams{
-			CaseID: caseID, StepID: cell.StepID, VariantID: cell.VariantID,
+			CaseID: caseID, StepID: capture.StepID, VariantID: capture.VariantID,
 			Status: string(review.CaptureAccepted),
 		}); err != nil {
 			return session.Result{}, translate("recording a verdict", err)
@@ -69,7 +69,7 @@ func (r *Repository) SaveReview(
 
 		// And the bytes behind it are remembered, so a later run can say
 		// whether this exact image moved. Only what the reviewer validated in
-		// this sitting is stamped: a square that turned `validated` because its
+		// this sitting is stamped: a capture that turned `validated` because its
 		// last comment was settled was never looked at, and claiming otherwise
 		// would make "who approved this" a lie.
 		//
@@ -78,7 +78,7 @@ func (r *Repository) SaveReview(
 			continue
 		}
 		if err := q.StampCaptureReference(ctx, sqlcgen.StampCaptureReferenceParams{
-			CaseID: caseID, StepID: cell.StepID, VariantID: cell.VariantID,
+			CaseID: caseID, StepID: capture.StepID, VariantID: capture.VariantID,
 			EditionID: *kase.CurrentEditionID, ApprovedBy: by.ID,
 		}); err != nil {
 			return session.Result{}, translate("stamping the reference", err)
@@ -93,15 +93,15 @@ func (r *Repository) SaveReview(
 	// comment re-derives, and the capture follows. Either way the journal
 	// keeps every move, and the reference stamp stays — freshness is history,
 	// not a verdict.
-	for _, cell := range save.Unaccepted {
+	for _, capture := range save.Unaccepted {
 		if err := q.DeleteCaptureVerdict(ctx, sqlcgen.DeleteCaptureVerdictParams{
-			CaseID: caseID, StepID: cell.StepID, VariantID: cell.VariantID,
+			CaseID: caseID, StepID: capture.StepID, VariantID: capture.VariantID,
 		}); err != nil {
 			return session.Result{}, translate("taking a verdict back", err)
 		}
 
-		refs, err := q.SettledRefsOnCell(ctx, sqlcgen.SettledRefsOnCellParams{
-			CaseID: caseID, StepID: cell.StepID, VariantID: cell.VariantID,
+		refs, err := q.SettledRefsOnCapture(ctx, sqlcgen.SettledRefsOnCaptureParams{
+			CaseID: caseID, StepID: capture.StepID, VariantID: capture.VariantID,
 		})
 		if err != nil {
 			return session.Result{}, translate("reading the settled refs", err)
@@ -131,8 +131,8 @@ func (r *Repository) SaveReview(
 
 		// The same rule for ref-less remarks (#175): the acceptance that
 		// settled them is taken back, comment-level, history kept.
-		remarks, err := q.SettledRemarksOnCell(ctx, sqlcgen.SettledRemarksOnCellParams{
-			CaseID: caseID, StepID: cell.StepID, VariantID: cell.VariantID,
+		remarks, err := q.SettledRemarksOnCapture(ctx, sqlcgen.SettledRemarksOnCaptureParams{
+			CaseID: caseID, StepID: capture.StepID, VariantID: capture.VariantID,
 		})
 		if err != nil {
 			return session.Result{}, translate("reading the settled remarks", err)
@@ -159,9 +159,9 @@ func (r *Repository) SaveReview(
 	// with no issue attached it never counted anywhere (ADR 0020, the explicit
 	// exception to "nothing is deleted"). Tracked remarks go through the
 	// judgment take-back instead.
-	for _, cell := range save.Unrefused {
-		drafts, err := q.DraftCommentsOnCell(ctx, sqlcgen.DraftCommentsOnCellParams{
-			CaseID: caseID, StepID: cell.StepID, VariantID: cell.VariantID, AuthorID: by.ID,
+	for _, capture := range save.Unrefused {
+		drafts, err := q.DraftCommentsOnCapture(ctx, sqlcgen.DraftCommentsOnCaptureParams{
+			CaseID: caseID, StepID: capture.StepID, VariantID: capture.VariantID, AuthorID: by.ID,
 		})
 		if err != nil {
 			return session.Result{}, translate("reading the drafts", err)
@@ -179,9 +179,9 @@ func (r *Repository) SaveReview(
 	}
 	outcome := review.Compute(facts)
 
-	for cell, status := range outcome.Verdicts {
+	for capture, status := range outcome.Verdicts {
 		if err := q.UpsertCaptureVerdict(ctx, sqlcgen.UpsertCaptureVerdictParams{
-			CaseID: caseID, StepID: cell.StepID, VariantID: cell.VariantID,
+			CaseID: caseID, StepID: capture.StepID, VariantID: capture.VariantID,
 			Status: string(status),
 		}); err != nil {
 			return session.Result{}, translate("recording a verdict", err)
@@ -239,25 +239,25 @@ func gatherFacts(ctx context.Context, q *sqlcgen.Queries, kase sqlcgen.Case) (re
 
 	edition, err := q.LatestEdition(ctx, kase.ProjectID)
 	if err == nil {
-		captures, err := q.CaseCaptureCells(ctx, sqlcgen.CaseCaptureCellsParams{
+		captures, err := q.CaseCaptures(ctx, sqlcgen.CaseCapturesParams{
 			CaseID: kase.ID, EditionID: edition.ID,
 		})
 		if err != nil {
 			return facts, translate("reading the captures", err)
 		}
 		for _, c := range captures {
-			facts.Captures = append(facts.Captures, review.Cell{StepID: c.StepID, VariantID: c.VariantID})
+			facts.Captures = append(facts.Captures, review.Capture{StepID: c.StepID, VariantID: c.VariantID})
 		}
 	} else if !isNoRows(err) {
 		return facts, translate("reading the edition", err)
 	}
 
-	validated, err := q.CaseAcceptedCells(ctx, kase.ID)
+	validated, err := q.CaseAcceptedCaptures(ctx, kase.ID)
 	if err != nil {
 		return facts, translate("reading the verdicts", err)
 	}
 	for _, v := range validated {
-		facts.Accepted = append(facts.Accepted, review.Cell{StepID: v.StepID, VariantID: v.VariantID})
+		facts.Accepted = append(facts.Accepted, review.Capture{StepID: v.StepID, VariantID: v.VariantID})
 	}
 
 	comments, err := q.CaseComments(ctx, sqlcgen.CaseCommentsParams{CaseID: kase.ID, ProjectID: kase.ProjectID})
@@ -267,7 +267,7 @@ func gatherFacts(ctx context.Context, q *sqlcgen.Queries, kase sqlcgen.Case) (re
 	for _, c := range comments {
 		comment := review.Comment{State: review.CommentState(c.State)}
 		for _, variantID := range c.VariantIds {
-			comment.Cells = append(comment.Cells, review.Cell{StepID: c.StepID, VariantID: variantID})
+			comment.Captures = append(comment.Captures, review.Capture{StepID: c.StepID, VariantID: variantID})
 		}
 		facts.Comments = append(facts.Comments, comment)
 	}

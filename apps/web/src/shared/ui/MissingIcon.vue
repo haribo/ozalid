@@ -4,7 +4,7 @@
  *
  * A status like the others, so it wears the disc (frontend ADR 0003). It is not
  * a verdict — nobody judged anything — but it answers the grid's question all
- * the same: this square has not been validated, and it cannot be.
+ * the same: this capture has not been accepted, and it cannot be.
  */
 withDefaults(defineProps<{ size?: number; label?: string }>(), {
   size: 13,

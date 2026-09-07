@@ -37,15 +37,15 @@ func (r *Repository) AxisOrder(ctx context.Context, projectSlug string) ([]strin
 	return order, nil
 }
 
-// ApprovedBytes returns, per square, the content address a reviewer last
+// ApprovedBytes returns, per step and variant, the content address a reviewer last
 // approved.
 //
-// Squares with no reference are absent rather than empty: "nobody approved
+// Captures with no reference are absent rather than empty: "nobody approved
 // this" and "what was approved is gone" are different answers, and only the
 // first one is true here.
 func (r *Repository) ApprovedBytes(
 	ctx context.Context, projectSlug string, m contract.Manifest,
-) (map[appintake.Square]string, error) {
+) (map[appintake.ReferenceKey]string, error) {
 	ids := make([]string, 0, len(m.Cases))
 	for _, c := range m.Cases {
 		ids = append(ids, c.ID)
@@ -55,9 +55,9 @@ func (r *Repository) ApprovedBytes(
 		return nil, translate("reading the references", err)
 	}
 
-	out := make(map[appintake.Square]string, len(rows))
+	out := make(map[appintake.ReferenceKey]string, len(rows))
 	for _, row := range rows {
-		out[appintake.Square{
+		out[appintake.ReferenceKey{
 			CaseID:        row.CaseID,
 			StepPosition:  int(row.StepPosition),
 			VariantLabel:  row.VariantLabel,

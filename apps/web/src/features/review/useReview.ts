@@ -9,7 +9,7 @@ type Comment = components['schemas']['Comment']
  *
  * Each verdict is sent as it is made. Nothing accumulates in the browser: a
  * review started on one machine continues on another, and closing the tab
- * loses nothing. A case with eight squares of twelve judged is not a broken
+ * loses nothing. A case with eight captures of twelve judged is not a broken
  * state — it is `to-review`, exactly what the server computes.
  *
  * The single exception is a write the server refused for want of a session:
@@ -41,7 +41,7 @@ export function useReview(slug: () => string, caseId: () => string) {
     comments.value = said.error ? [] : said.data
   }
 
-  /** Accept one square — and, switching from a refusal, withdraw the draft
+  /** Accept one capture — and, switching from a refusal, withdraw the draft
    * remark in the same write: one gesture, never two (ADR 0020). */
   async function accept(stepId: string, variantId: string, withdraw = false) {
     await send({

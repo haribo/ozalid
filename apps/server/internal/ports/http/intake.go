@@ -59,7 +59,7 @@ func (s *Server) CreateEdition(ctx context.Context, request openapi.CreateEditio
 		), nil
 	case errors.Is(err, intake.ErrDuplicateCapture):
 		return openapi.CreateEdition409ApplicationProblemPlusJSONResponse(
-			refusal("duplicate-capture", "The manifest carries the same square twice",
+			refusal("duplicate-capture", "The manifest carries the same capture twice",
 				"One (case, step, variant) capture appears more than once. "+err.Error(), nil),
 		), nil
 	case errors.Is(err, intake.ErrBlockedByPolicy):

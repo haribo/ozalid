@@ -110,7 +110,9 @@ test('a case must name a category, and one from another project is not found', a
   expect(filed.status).toBe(201)
 })
 
-test('a manifest carrying the same square twice is refused, naming it (#182)', async ({ page }) => {
+test('a manifest carrying the same capture twice is refused, naming it (#182)', async ({
+  page,
+}) => {
   // Before the fix this hit the storage's unique key and answered a bare
   // 500 — the client-side collision took an elimination round to trace.
   const created = await api(`/projects/${PROJECT}/cases`, {

@@ -10,7 +10,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { commentOnStep, moveTheDarkVariant, seed, acceptEverything } from './fixture'
 import { emptyMailbox, linkSentTo } from './mailbox'
 
-/** The grid's own cells. The recap is another table, and its ticks are actions
+/** The grid's own captures. The recap is another table, and its ticks are actions
  * rather than statuses — an assertion that spans both proves nothing about
  * either. */
 const gridMarks = (page: Page) => page.locator('table').first().locator('tbody [role="img"]')
@@ -22,13 +22,13 @@ test('a case arrives with everything left to judge', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'reset a forgotten password' })).toBeVisible()
   await expect(page.getByText('to-review')).toBeVisible()
 
-  // Six squares, none of them marked: nothing has been said, and a bare capture
+  // Six captures, none of them marked: nothing has been said, and a bare capture
   // is the only reading that leaves every pixel visible (frontend ADR 0003).
   await expect(page.locator('tbody button[aria-label*="in the carousel"]')).toHaveCount(6)
   await expect(gridMarks(page)).toHaveCount(0)
 })
 
-test('clicking a capture opens the carousel on that exact square', async ({ page }) => {
+test('clicking a capture opens the carousel on that exact capture', async ({ page }) => {
   const seeded = await seed(page)
   await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
   await page.locator('tbody button[aria-label*="in the carousel"]').nth(2).click()
@@ -52,7 +52,7 @@ test('space accepts, and the server is what says so', async ({ page }) => {
   await expect(page.locator('table').first().locator('[aria-label="accepted"]')).toHaveCount(1)
 
   // And the same key takes it back (#156): a misclick is not a life
-  // sentence. The carousel route survived the reload, so the square is still
+  // sentence. The carousel route survived the reload, so the capture is still
   // under the keyboard.
   await page.keyboard.press(' ')
   await page.keyboard.press('Escape')
@@ -103,7 +103,7 @@ test('a capture that moved comes back asking to be looked at', async ({ page }) 
   await moveTheDarkVariant(page, seeded)
   await page.reload()
 
-  // Three dark squares moved, the light ones did not. The verdict they carried
+  // Three dark captures moved, the light ones did not. The verdict they carried
   // is gone from the grid: for the question it asks, they are to judge again.
   await expect(page.locator('table').first().locator('[aria-label="moved"]')).toHaveCount(3)
   await expect(page.locator('table').first().locator('[aria-label="accepted"]')).toHaveCount(3)
@@ -134,7 +134,7 @@ test('every mark the grid draws wears a disc', async ({ page }) => {
 })
 
 test('the captures in the grid actually decode, not just point somewhere', async ({ page }) => {
-  // Counting squares passes whether or not the bytes arrive. `naturalWidth` is
+  // Counting captures passes whether or not the bytes arrive. `naturalWidth` is
   // zero for an image the browser could not decode, so this is what tells a
   // broken address apart from a working one (#71).
   const seeded = await seed(page)
@@ -162,12 +162,12 @@ test('a capture has an address, and the window is what sizes it', async ({ page 
     await page.request.get(`/api/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)
   ).json()
   const step = grid.steps[1]
-  const cell = step.cells[0]
+  const capture = step.captures[0]
 
   // Loaded directly, the way a colleague sent "look at step 2 in dark" would:
-  // no grid was clicked, yet the dialog opens on that exact square (#125).
+  // no grid was clicked, yet the dialog opens on that exact capture (#125).
   await page.goto(
-    `/projects/${seeded.slug}/cases/${seeded.caseId}/steps/${step.id}/variants/${cell.variantId}`,
+    `/projects/${seeded.slug}/cases/${seeded.caseId}/steps/${step.id}/variants/${capture.variantId}`,
   )
   const carousel = page.getByRole('dialog', { name: 'capture' })
   await expect(carousel).toContainText(step.name)
@@ -186,7 +186,7 @@ test('a capture has an address, and the window is what sizes it', async ({ page 
   expect((await shot.boundingBox())!.width).toBeLessThan(natural)
 
   // Arrows walk by replacing, so leaving means the grid — not a retrace of
-  // every square looked at.
+  // every capture looked at.
   await page.keyboard.press('ArrowLeft')
   await expect(page).toHaveURL(new RegExp(`/steps/${grid.steps[0].id}/`))
   await page.keyboard.press('Escape')
@@ -207,7 +207,7 @@ test('a verdict held through an expired session survives closing the carousel', 
   ).json()
   const step = grid.steps[0]
   await page.goto(
-    `/projects/${seeded.slug}/cases/${seeded.caseId}/steps/${step.id}/variants/${step.cells[0].variantId}`,
+    `/projects/${seeded.slug}/cases/${seeded.caseId}/steps/${step.id}/variants/${step.captures[0].variantId}`,
   )
   await expect(page.getByRole('dialog', { name: 'capture' })).toBeVisible()
 
@@ -239,7 +239,7 @@ test('a verdict held through an expired session survives closing the carousel', 
   await other.getByRole('button', { name: 'Send the link' }).click()
   await other.goto(`/sign-in/${await linkSentTo(email)}`)
 
-  // The held verdict lands: the cell the space bar judged is accepted.
+  // The held verdict lands: the capture the space bar judged is accepted.
   await expect(page.getByText('Session expired')).toHaveCount(0)
   await expect(
     page.locator('table').first().locator('[aria-label="accepted"]').first(),

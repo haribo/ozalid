@@ -17,7 +17,7 @@ const grid: Grid = {
       id: 's1',
       name: 'opens the link',
       position: 0,
-      cells: [
+      captures: [
         { id: 'cap1', variantId: 'v1', hash: 'sha256:a', status: 'to-review' },
         { id: 'cap2', variantId: 'v2', hash: 'sha256:b', status: 'accepted' },
       ],
@@ -50,7 +50,7 @@ const draft: Comment = {
 }
 
 describe('CaptureCarousel', () => {
-  it('says which step it is on — the counter counts steps, not squares (#149)', () => {
+  it('says which step it is on — the counter counts steps, not captures (#149)', () => {
     expect(mountAt('v1').text()).toContain('1 / 1')
     expect(mountAt('v2').text()).toContain('1 / 1')
   })
@@ -69,7 +69,7 @@ describe('CaptureCarousel', () => {
       steps: [
         {
           ...grid.steps[0],
-          cells: [
+          captures: [
             {
               id: 'cap1',
               variantId: 'v1',
@@ -78,7 +78,7 @@ describe('CaptureCarousel', () => {
               freshness: 'to-re-review',
               movedPixels: 143,
             },
-            grid.steps[0].cells[1],
+            grid.steps[0].captures[1],
           ],
         },
       ],
@@ -163,7 +163,7 @@ describe('the refuse sheet (ADR 0020)', () => {
     expect(w.find('textarea').exists()).toBe(false)
   })
 
-  it('switches verdicts in one gesture: refusing an accepted square takes the acceptance back', async () => {
+  it('switches verdicts in one gesture: refusing an accepted capture takes the acceptance back', async () => {
     const w = mountAt('v2')
     await half(w, 'refuse').trigger('click')
     await w.find('textarea').setValue('second look')
@@ -222,9 +222,9 @@ describe("drafts are the reviewer's own (ADR 0020)", () => {
       steps: [
         {
           ...grid.steps[0],
-          cells: [
+          captures: [
             { id: 'cap1', variantId: 'v1', hash: 'sha256:a', status: 'refused' },
-            grid.steps[0].cells[1],
+            grid.steps[0].captures[1],
           ],
         },
       ],
@@ -321,7 +321,7 @@ describe('arrows walk the steps (#149)', () => {
         id: 's2',
         name: 'types',
         position: 1,
-        cells: [
+        captures: [
           { id: 'cap3', variantId: 'v1', hash: 'sha256:c', status: 'to-review' },
           { id: 'cap4', variantId: 'v2', hash: 'sha256:d', status: 'to-review' },
         ],
@@ -331,7 +331,7 @@ describe('arrows walk the steps (#149)', () => {
         name: 'lands',
         position: 2,
         // v2 only: walking right at v1 skips this step.
-        cells: [{ id: 'cap5', variantId: 'v2', hash: 'sha256:e', status: 'to-review' }],
+        captures: [{ id: 'cap5', variantId: 'v2', hash: 'sha256:e', status: 'to-review' }],
       },
     ],
     recordings: [],
@@ -406,9 +406,9 @@ describe('the branch loop: a remark without an issue (#175)', () => {
       steps: [
         {
           ...grid.steps[0],
-          cells: [
+          captures: [
             { id: 'cap1', variantId: 'v1', hash: 'sha256:a', status: 'refused' },
-            grid.steps[0].cells[1],
+            grid.steps[0].captures[1],
           ],
         },
       ],

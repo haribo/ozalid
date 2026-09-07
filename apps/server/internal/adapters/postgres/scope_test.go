@@ -85,10 +85,10 @@ func TestAVerdictCannotBeRecordedThroughSomebodyElsesProject(t *testing.T) {
 	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 0)); err != nil {
 		t.Fatalf("taking the edition in: %v", err)
 	}
-	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	capture := onlyCapture(t, ctx, repo, project.Slug, kase.ID)
 
 	_, err := repo.SaveReview(ctx, other.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human},
-		session.Save{Accepted: []review.Cell{cell}})
+		session.Save{Accepted: []review.Capture{capture}})
 	if !errors.Is(err, app.ErrNotFound) {
 		t.Fatalf("SaveReview under the wrong project = %v, want ErrNotFound", err)
 	}
@@ -99,7 +99,7 @@ func TestAVerdictCannotBeRecordedThroughSomebodyElsesProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading the grid back: %v", err)
 	}
-	if got := grid.Steps[0].Cells[0].Status; got != "to-review" {
+	if got := grid.Steps[0].Captures[0].Status; got != "to-review" {
 		t.Errorf("status = %q, want it untouched at %q", got, "to-review")
 	}
 }
@@ -111,7 +111,7 @@ func TestCommentsAreNotReadableThroughSomebodyElsesProject(t *testing.T) {
 	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 0)); err != nil {
 		t.Fatalf("taking the edition in: %v", err)
 	}
-	commentOn(t, ctx, repo, project.Slug, kase.ID, onlyCell(t, ctx, repo, project.Slug, kase.ID))
+	commentOn(t, ctx, repo, project.Slug, kase.ID, onlyCapture(t, ctx, repo, project.Slug, kase.ID))
 
 	said, err := repo.OfCase(ctx, project.Slug, kase.ID)
 	if err != nil || len(said) != 1 {
@@ -130,7 +130,7 @@ func TestACommentCannotBeMovedThroughSomebodyElsesProject(t *testing.T) {
 	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 0)); err != nil {
 		t.Fatalf("taking the edition in: %v", err)
 	}
-	commentID := commentOn(t, ctx, repo, project.Slug, kase.ID, onlyCell(t, ctx, repo, project.Slug, kase.ID))
+	commentID := commentOn(t, ctx, repo, project.Slug, kase.ID, onlyCapture(t, ctx, repo, project.Slug, kase.ID))
 
 	_, err := repo.Track(ctx, other.Slug, commentID, actor.Actor{ID: "dev", Kind: actor.Human},
 		appcomment.IssueRef{ID: "142"})
@@ -193,7 +193,7 @@ func TestACapturesBytesAreNotReachableThroughSomebodyElsesProject(t *testing.T) 
 	if err != nil {
 		t.Fatalf("reading the grid: %v", err)
 	}
-	captureID := grid.Steps[0].Cells[0].ID
+	captureID := grid.Steps[0].Captures[0].ID
 	if captureID == "" {
 		t.Fatal("the grid carries no capture id, so this test proves nothing")
 	}

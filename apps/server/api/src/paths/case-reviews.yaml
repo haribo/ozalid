@@ -15,7 +15,7 @@ post:
     - session: []
   summary: Save what one review session decided
   description: |
-    One save carries everything the sitting produced: the squares looked at with
+    One save carries everything the sitting produced: the captures looked at with
     nothing to say, and the comments written on the rest. Splitting it would
     leave a case half-judged between two calls.
 

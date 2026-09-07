@@ -156,7 +156,7 @@ export async function commentOnStep(
   const grid = (await (
     await call(`/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)
   ).json()) as {
-    steps: { id: string; cells: { variantId: string }[] }[]
+    steps: { id: string; captures: { variantId: string }[] }[]
   }
   const step = grid.steps[stepIndex]
   await call(
@@ -166,25 +166,25 @@ export async function commentOnStep(
         {
           stepId: step.id,
           body,
-          variantIds: step.cells.map((c) => c.variantId),
+          variantIds: step.captures.map((c) => c.variantId),
         },
       ],
     }),
   )
 }
 
-/** Accept every square, the way a reviewer who had nothing to say would. */
+/** Accept every capture, the way a reviewer who had nothing to say would. */
 export async function acceptEverything(seeded: Seeded): Promise<void> {
   const grid = (await (
     await call(`/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)
   ).json()) as {
-    steps: { id: string; cells: { variantId: string }[] }[]
+    steps: { id: string; captures: { variantId: string }[] }[]
   }
   await call(
     `/projects/${seeded.slug}/cases/${seeded.caseId}/reviews`,
     post({
       accepted: grid.steps.flatMap((s) =>
-        s.cells.map((c) => ({ stepId: s.id, variantId: c.variantId })),
+        s.captures.map((c) => ({ stepId: s.id, variantId: c.variantId })),
       ),
     }),
   )

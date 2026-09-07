@@ -7,14 +7,14 @@ import (
 	"github.com/haribo/ozalid/internal/contract"
 )
 
-// Square names one capture cell across an intake, independently of the ids the
+// ReferenceKey names one capture capture across an intake, independently of the ids the
 // database will assign it.
 //
 // A step is identified by its position and a variant by its canonical label,
 // because those are what the schema keys them on. The environment is part of
 // the name: a reference belongs to one, and comparing across two of them says
 // nothing (ADR 0017).
-type Square struct {
+type ReferenceKey struct {
 	CaseID        string
 	StepPosition  int
 	VariantLabel  string
@@ -31,13 +31,13 @@ type Repository interface {
 	// variant label computed here reads the same as the one the write will
 	// store.
 	AxisOrder(ctx context.Context, projectSlug string) ([]string, error)
-	// ApprovedBytes returns, per square, the content address a reviewer last
-	// approved. A square absent from the map has none, which is not the same as
+	// ApprovedBytes returns, per step and variant, the content address a reviewer last
+	// approved. A key absent from the map has none, which is not the same as
 	// having one that matches.
-	ApprovedBytes(ctx context.Context, projectSlug string, m contract.Manifest) (map[Square]string, error)
+	ApprovedBytes(ctx context.Context, projectSlug string, m contract.Manifest) (map[ReferenceKey]string, error)
 	// PixelThreshold is how many differing pixels this project calls noise.
 	PixelThreshold(ctx context.Context, projectSlug string) (int, error)
-	WriteEdition(ctx context.Context, projectSlug string, m contract.Manifest, fresh map[Square]Verdict) (Result, error)
+	WriteEdition(ctx context.Context, projectSlug string, m contract.Manifest, fresh map[ReferenceKey]Verdict) (Result, error)
 }
 
 // Blobs reads capture bytes back. Intake needs them for two things: proving a
@@ -46,7 +46,7 @@ type Blobs interface {
 	Get(ctx context.Context, hash string) (io.ReadCloser, error)
 }
 
-// Verdict is what the comparison found for one square, ready to be stored.
+// Verdict is what the comparison found for one step and variant, ready to be stored.
 type Verdict struct {
 	State string
 	// Pixels is how many differed, or nil when no pixel reading happened:

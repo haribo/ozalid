@@ -18,7 +18,7 @@ import (
 // the content addresses — and only then is anything written. A failure at any
 // point rolls the lot back, so a half-written edition never exists.
 func (r *Repository) WriteEdition(
-	ctx context.Context, projectSlug string, m contract.Manifest, fresh map[appintake.Square]appintake.Verdict,
+	ctx context.Context, projectSlug string, m contract.Manifest, fresh map[appintake.ReferenceKey]appintake.Verdict,
 ) (appintake.Result, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -109,9 +109,9 @@ func (r *Repository) WriteEdition(
 					return appintake.Result{}, fmt.Errorf("encoding the provenance: %w", err)
 				}
 				// The comparison already ran, keyed on what the manifest says
-				// rather than on ids it never sees. A square nobody has
+				// rather than on ids it never sees. A capture nobody has
 				// approved is absent from the map, and stays silent.
-				verdict := fresh[appintake.Square{
+				verdict := fresh[appintake.ReferenceKey{
 					CaseID:        mc.ID,
 					StepPosition:  position,
 					VariantLabel:  contract.VariantLabel(mcap.Variant, variants.order),

@@ -24,11 +24,11 @@ var (
 	// ErrDuplicateCase means the same case appeared twice. Two tests writing to
 	// one case would corrupt it silently, so the whole manifest is refused.
 	ErrDuplicateCase = errors.New("intake: the same case appears twice")
-	// ErrDuplicateCapture means one (case, step, variant) square appears twice
+	// ErrDuplicateCapture means one (case, step, variant) capture appears twice
 	// in the manifest. Refused before anything is written, naming the exact
-	// square — hitting the storage's unique key instead answered a bare 500
+	// capture — hitting the storage's unique key instead answered a bare 500
 	// that cost an elimination round to trace (#182).
-	ErrDuplicateCapture = errors.New("intake: the same square appears twice")
+	ErrDuplicateCapture = errors.New("intake: the same capture appears twice")
 	// ErrMissingBlobs means the manifest referenced content the store does not
 	// hold. The caller uploads them and pushes again.
 	ErrMissingBlobs = errors.New("intake: missing content")
@@ -119,7 +119,7 @@ func (s *Service) Take(ctx context.Context, projectSlug string, m contract.Manif
 // can reach the store or the database.
 // validateSquares refuses a manifest carrying the same (case, step, variant)
 // twice — steps are matched by name at intake, so two same-named steps with
-// the same variant are one square said twice (#182).
+// the same variant are one capture said twice (#182).
 func validateSquares(m contract.Manifest) error {
 	for _, c := range m.Cases {
 		seen := make(map[string]struct{})

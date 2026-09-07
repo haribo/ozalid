@@ -35,32 +35,32 @@ type AttachCommentVariantParams struct {
 // The anchor is the capture the reviewer was looking at: the one of the
 // edition the case is judged against, for this step and variant. It is what
 // the comment shows for as long as it lives — a step's name is a label, and
-// positions shift (#132). Null when the square had no capture, which is what
+// positions shift (#132). Null when the step and variant had no capture, which is what
 // there was to see.
 func (q *Queries) AttachCommentVariant(ctx context.Context, arg AttachCommentVariantParams) error {
 	_, err := q.db.Exec(ctx, attachCommentVariant, arg.CommentID, arg.VariantID)
 	return err
 }
 
-const caseAcceptedCells = `-- name: CaseAcceptedCells :many
+const caseAcceptedCaptures = `-- name: CaseAcceptedCaptures :many
 SELECT step_id, variant_id FROM capture_verdicts
 WHERE case_id = $1 AND status = 'accepted'
 `
 
-type CaseAcceptedCellsRow struct {
+type CaseAcceptedCapturesRow struct {
 	StepID    string
 	VariantID string
 }
 
-func (q *Queries) CaseAcceptedCells(ctx context.Context, caseID string) ([]CaseAcceptedCellsRow, error) {
-	rows, err := q.db.Query(ctx, caseAcceptedCells, caseID)
+func (q *Queries) CaseAcceptedCaptures(ctx context.Context, caseID string) ([]CaseAcceptedCapturesRow, error) {
+	rows, err := q.db.Query(ctx, caseAcceptedCaptures, caseID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []CaseAcceptedCellsRow{}
+	items := []CaseAcceptedCapturesRow{}
 	for rows.Next() {
-		var i CaseAcceptedCellsRow
+		var i CaseAcceptedCapturesRow
 		if err := rows.Scan(&i.StepID, &i.VariantID); err != nil {
 			return nil, err
 		}
@@ -72,33 +72,33 @@ func (q *Queries) CaseAcceptedCells(ctx context.Context, caseID string) ([]CaseA
 	return items, nil
 }
 
-const caseCaptureCells = `-- name: CaseCaptureCells :many
+const caseCaptures = `-- name: CaseCaptures :many
 SELECT s.id AS step_id, c.variant_id
 FROM steps s
 JOIN captures c ON c.step_id = s.id AND c.edition_id = $2
 WHERE s.case_id = $1
 `
 
-type CaseCaptureCellsParams struct {
+type CaseCapturesParams struct {
 	CaseID    string
 	EditionID string
 }
 
-type CaseCaptureCellsRow struct {
+type CaseCapturesRow struct {
 	StepID    string
 	VariantID string
 }
 
 // Everything the state computation reads, for one case at one edition.
-func (q *Queries) CaseCaptureCells(ctx context.Context, arg CaseCaptureCellsParams) ([]CaseCaptureCellsRow, error) {
-	rows, err := q.db.Query(ctx, caseCaptureCells, arg.CaseID, arg.EditionID)
+func (q *Queries) CaseCaptures(ctx context.Context, arg CaseCapturesParams) ([]CaseCapturesRow, error) {
+	rows, err := q.db.Query(ctx, caseCaptures, arg.CaseID, arg.EditionID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []CaseCaptureCellsRow{}
+	items := []CaseCapturesRow{}
 	for rows.Next() {
-		var i CaseCaptureCellsRow
+		var i CaseCapturesRow
 		if err := rows.Scan(&i.StepID, &i.VariantID); err != nil {
 			return nil, err
 		}
@@ -575,7 +575,7 @@ type DeleteCaptureVerdictParams struct {
 }
 
 // Taking an acceptance back deletes the row rather than writing a state: the
-// recompute below re-derives the cell from what remains, and the journal is
+// recompute below re-derives the capture from what remains, and the journal is
 // what remembers both moves (#156).
 func (q *Queries) DeleteCaptureVerdict(ctx context.Context, arg DeleteCaptureVerdictParams) error {
 	_, err := q.db.Exec(ctx, deleteCaptureVerdict, arg.CaseID, arg.StepID, arg.VariantID)
@@ -615,7 +615,7 @@ func (q *Queries) DiscardComment(ctx context.Context, arg DiscardCommentParams) 
 	return err
 }
 
-const draftCommentsOnCell = `-- name: DraftCommentsOnCell :many
+const draftCommentsOnCapture = `-- name: DraftCommentsOnCapture :many
 SELECT DISTINCT c.id FROM comments c
 JOIN comment_variants cv ON cv.comment_id = c.id
 WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
@@ -623,18 +623,18 @@ WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
   AND NOT EXISTS (SELECT 1 FROM comment_issues ci WHERE ci.comment_id = c.id)
 `
 
-type DraftCommentsOnCellParams struct {
+type DraftCommentsOnCaptureParams struct {
 	CaseID    string
 	StepID    string
 	VariantID string
 	AuthorID  string
 }
 
-// The reviewer's own drafts on one cell: remarks with no issue attached yet.
+// The reviewer's own drafts on one capture: remarks with no issue attached yet.
 // Withdrawing a draft refusal takes them with it — ADR 0020's explicit
 // exception to "nothing is deleted", scoped to the author's own drafts.
-func (q *Queries) DraftCommentsOnCell(ctx context.Context, arg DraftCommentsOnCellParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, draftCommentsOnCell,
+func (q *Queries) DraftCommentsOnCapture(ctx context.Context, arg DraftCommentsOnCaptureParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, draftCommentsOnCapture,
 		arg.CaseID,
 		arg.StepID,
 		arg.VariantID,
@@ -825,7 +825,7 @@ func (q *Queries) SetCommentState(ctx context.Context, arg SetCommentStateParams
 	return err
 }
 
-const settledRefsOnCell = `-- name: SettledRefsOnCell :many
+const settledRefsOnCapture = `-- name: SettledRefsOnCapture :many
 SELECT ci.id, ci.comment_id, ci.state, c.state AS comment_state
 FROM comment_issues ci
 JOIN comments c ON c.id = ci.comment_id
@@ -834,31 +834,31 @@ WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
   AND c.state = 'accepted' AND ci.state = 'accepted'
 `
 
-type SettledRefsOnCellParams struct {
+type SettledRefsOnCaptureParams struct {
 	CaseID    string
 	StepID    string
 	VariantID string
 }
 
-type SettledRefsOnCellRow struct {
+type SettledRefsOnCaptureRow struct {
 	ID           string
 	CommentID    string
 	State        string
 	CommentState string
 }
 
-// The accepted refs whose settling made one capture read validated: the ones
+// The accepted refs whose settling made one capture read accepted: the ones
 // an unvalidate on that capture must take back (#167). A discarded comment
 // keeps its refs untouched — discarding was said with a reason and it stands.
-func (q *Queries) SettledRefsOnCell(ctx context.Context, arg SettledRefsOnCellParams) ([]SettledRefsOnCellRow, error) {
-	rows, err := q.db.Query(ctx, settledRefsOnCell, arg.CaseID, arg.StepID, arg.VariantID)
+func (q *Queries) SettledRefsOnCapture(ctx context.Context, arg SettledRefsOnCaptureParams) ([]SettledRefsOnCaptureRow, error) {
+	rows, err := q.db.Query(ctx, settledRefsOnCapture, arg.CaseID, arg.StepID, arg.VariantID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []SettledRefsOnCellRow{}
+	items := []SettledRefsOnCaptureRow{}
 	for rows.Next() {
-		var i SettledRefsOnCellRow
+		var i SettledRefsOnCaptureRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CommentID,
@@ -875,7 +875,7 @@ func (q *Queries) SettledRefsOnCell(ctx context.Context, arg SettledRefsOnCellPa
 	return items, nil
 }
 
-const settledRemarksOnCell = `-- name: SettledRemarksOnCell :many
+const settledRemarksOnCapture = `-- name: SettledRemarksOnCapture :many
 SELECT c.id, c.state FROM comments c
 JOIN comment_variants cv ON cv.comment_id = c.id
 WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
@@ -883,13 +883,13 @@ WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
   AND NOT EXISTS (SELECT 1 FROM comment_issues ci WHERE ci.comment_id = c.id)
 `
 
-type SettledRemarksOnCellParams struct {
+type SettledRemarksOnCaptureParams struct {
 	CaseID    string
 	StepID    string
 	VariantID string
 }
 
-type SettledRemarksOnCellRow struct {
+type SettledRemarksOnCaptureRow struct {
 	ID    string
 	State string
 }
@@ -897,15 +897,15 @@ type SettledRemarksOnCellRow struct {
 // The settled ref-less remarks whose acceptance made one capture read
 // accepted: unaccepting that capture takes their judgment back too (#167,
 // #175) — the rule is "whatever made it accepted", refs and remarks alike.
-func (q *Queries) SettledRemarksOnCell(ctx context.Context, arg SettledRemarksOnCellParams) ([]SettledRemarksOnCellRow, error) {
-	rows, err := q.db.Query(ctx, settledRemarksOnCell, arg.CaseID, arg.StepID, arg.VariantID)
+func (q *Queries) SettledRemarksOnCapture(ctx context.Context, arg SettledRemarksOnCaptureParams) ([]SettledRemarksOnCaptureRow, error) {
+	rows, err := q.db.Query(ctx, settledRemarksOnCapture, arg.CaseID, arg.StepID, arg.VariantID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []SettledRemarksOnCellRow{}
+	items := []SettledRemarksOnCaptureRow{}
 	for rows.Next() {
-		var i SettledRemarksOnCellRow
+		var i SettledRemarksOnCaptureRow
 		if err := rows.Scan(&i.ID, &i.State); err != nil {
 			return nil, err
 		}
@@ -943,7 +943,7 @@ type StampCaptureReferenceParams struct {
 
 // The bytes a reviewer approved, taken from the edition they were judging.
 //
-// Nothing is stamped when that edition holds no capture for the square: a
+// Nothing is stamped when that edition holds no capture for the step and variant: a
 // validated hole approves nothing. The environment comes from the capture's own
 // provenance, so a reference never crosses environments (ADR 0004, ADR 0017).
 func (q *Queries) StampCaptureReference(ctx context.Context, arg StampCaptureReferenceParams) error {
@@ -987,7 +987,7 @@ type UpsertCaptureVerdictParams struct {
 	Status    string
 }
 
-// The verdict of a cell is recomputed, never set by a caller: recording a
+// The verdict of a capture is recomputed, never set by a caller: recording a
 // comment and recomputing what it covers happen together (ADR 0012).
 func (q *Queries) UpsertCaptureVerdict(ctx context.Context, arg UpsertCaptureVerdictParams) error {
 	_, err := q.db.Exec(ctx, upsertCaptureVerdict,

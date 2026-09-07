@@ -100,8 +100,8 @@ func freshnessOf(t *testing.T, ctx context.Context, repo *postgres.Repository, s
 	if err != nil {
 		t.Fatalf("reading the grid: %v", err)
 	}
-	cell := grid.Steps[0].Cells[0]
-	return cell.Freshness, cell.MovedPixels
+	capture := grid.Steps[0].Captures[0]
+	return capture.Freshness, capture.MovedPixels
 }
 
 func validateOnly(t *testing.T, ctx context.Context, repo *postgres.Repository, slug, caseID string) {
@@ -111,8 +111,8 @@ func validateOnly(t *testing.T, ctx context.Context, repo *postgres.Repository, 
 		t.Fatalf("reading the grid: %v", err)
 	}
 	if _, err := repo.SaveReview(ctx, slug, caseID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Accepted: []review.Cell{{
-			StepID: grid.Steps[0].ID, VariantID: grid.Steps[0].Cells[0].VariantID,
+		Accepted: []review.Capture{{
+			StepID: grid.Steps[0].ID, VariantID: grid.Steps[0].Captures[0].VariantID,
 		}},
 	}); err != nil {
 		t.Fatalf("saving the review: %v", err)

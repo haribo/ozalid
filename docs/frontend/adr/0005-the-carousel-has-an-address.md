@@ -36,12 +36,12 @@ which then keeps everything it was holding underneath.
 The capture takes the window and is **never stretched**: at most its natural
 size, since blown-up pixels are falsified pixels. Arrow keys walk by
 `router.replace`, so the back button means the grid rather than a retrace of
-every square looked at; `Esc` closes by pushing the case URL, because a link
+every capture looked at; `Esc` closes by pushing the case URL, because a link
 opened straight onto a capture has no history behind it.
 
 ## Alternatives rejected
 
-**A modal.** No address, so no way to send somebody to a square; no back
+**A modal.** No address, so no way to send somebody to a capture; no back
 button; and an overlay that duplicates what routes already do.
 
 **A separate page.** The honest-looking version of the route — and the one
@@ -55,7 +55,7 @@ exactly the reason the child arrangement exists.
   including the resumed-verdict walk.
 - The carousel declares `role="dialog"`, and tests find it by that rather than
   by a style utility — the previous hook (`.rounded-lg`) died in this change.
-- A direct load of a carousel URL must land signed-in on that exact square;
+- A direct load of a carousel URL must land signed-in on that exact capture;
   the end-to-end suite asserts it.
 
 ## Cross-references

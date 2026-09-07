@@ -27,7 +27,7 @@ test('a comment splits into two issues, and each lives its own round', async ({
         {
           stepId: step.id,
           body: 'two problems in one breath',
-          variantIds: [step.cells[0].variantId],
+          variantIds: [step.captures[0].variantId],
         },
       ],
     },

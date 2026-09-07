@@ -17,10 +17,10 @@ import (
 func TestValidatingASquareRemembersTheBytesThatWereApproved(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	hash := pushEdition(t, ctx, repo, project, kase, "the form on ci", "ci")
-	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	capture := onlyCapture(t, ctx, repo, project.Slug, kase.ID)
 
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Accepted: []review.Cell{cell},
+		Accepted: []review.Capture{capture},
 	}); err != nil {
 		t.Fatalf("saving the review: %v", err)
 	}
@@ -45,20 +45,20 @@ func TestValidatingASquareRemembersTheBytesThatWereApproved(t *testing.T) {
 
 func TestEachEnvironmentKeepsItsOwnReference(t *testing.T) {
 	// Two machines rendering the same screen produce different bytes. One row
-	// per square would make every alternation between them look like a change
+	// per step and variant would make every alternation between them look like a change
 	// (ADR 0017).
 	ctx, repo, project, kase := intakeFixture(t)
 
 	fromCI := pushEdition(t, ctx, repo, project, kase, "the form on ci", "ci")
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Accepted: []review.Cell{onlyCell(t, ctx, repo, project.Slug, kase.ID)},
+		Accepted: []review.Capture{onlyCapture(t, ctx, repo, project.Slug, kase.ID)},
 	}); err != nil {
 		t.Fatalf("saving the first review: %v", err)
 	}
 
 	fromLaptop := pushEdition(t, ctx, repo, project, kase, "the form on a laptop", "laptop")
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Accepted: []review.Cell{onlyCell(t, ctx, repo, project.Slug, kase.ID)},
+		Accepted: []review.Capture{onlyCapture(t, ctx, repo, project.Slug, kase.ID)},
 	}); err != nil {
 		t.Fatalf("saving the second review: %v", err)
 	}
@@ -83,16 +83,16 @@ func TestEachEnvironmentKeepsItsOwnReference(t *testing.T) {
 }
 
 func TestASquareThatNobodyLookedAtIsNeverStamped(t *testing.T) {
-	// A square turns `validated` when its last comment is settled. Nobody
+	// A capture turns `validated` when its last comment is settled. Nobody
 	// approved those bytes, so nothing is remembered about them.
 	ctx, repo, project, kase := intakeFixture(t)
 	pushEdition(t, ctx, repo, project, kase, "the form on ci", "ci")
-	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	capture := onlyCapture(t, ctx, repo, project.Slug, kase.ID)
 
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Comments: []session.NewComment{{
-			StepID: cell.StepID, Body: "the button is cropped",
-			VariantIDs: []string{cell.VariantID},
+			StepID: capture.StepID, Body: "the button is cropped",
+			VariantIDs: []string{capture.VariantID},
 		}},
 	}); err != nil {
 		t.Fatalf("saving the review: %v", err)
@@ -129,12 +129,12 @@ func TestTheJournalRecordsWhatTheActorSaysItIs(t *testing.T) {
 	// is, and nothing guesses (ADR 0018).
 	ctx, repo, project, kase := intakeFixture(t)
 	pushEdition(t, ctx, repo, project, kase, "the form on ci", "ci")
-	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	capture := onlyCapture(t, ctx, repo, project.Slug, kase.ID)
 
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Comments: []session.NewComment{{
-			StepID: cell.StepID, Body: "the button is cropped",
-			VariantIDs: []string{cell.VariantID},
+			StepID: capture.StepID, Body: "the button is cropped",
+			VariantIDs: []string{capture.VariantID},
 		}},
 	}); err != nil {
 		t.Fatalf("saving the review: %v", err)
@@ -228,11 +228,11 @@ func TestADeliveryAdvancesTheCaseOntoItsEdition(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading the grid: %v", err)
 	}
-	if len(grid.Steps) != 1 || len(grid.Steps[0].Cells) != 1 {
-		t.Fatalf("grid = %+v, want the single fixed cell", grid.Steps)
+	if len(grid.Steps) != 1 || len(grid.Steps[0].Captures) != 1 {
+		t.Fatalf("grid = %+v, want the single fixed capture", grid.Steps)
 	}
-	if grid.Steps[0].Cells[0].Hash != after {
-		t.Errorf("the case still shows %s, want the delivered %s", grid.Steps[0].Cells[0].Hash, after)
+	if grid.Steps[0].Captures[0].Hash != after {
+		t.Errorf("the case still shows %s, want the delivered %s", grid.Steps[0].Captures[0].Hash, after)
 	}
 }
 
@@ -242,17 +242,17 @@ func TestADeliveryAdvancesTheCaseOntoItsEdition(t *testing.T) {
 func TestAcceptingIsAToggle(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	pushEdition(t, ctx, repo, project, kase, "the form to toggle", "ci")
-	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	capture := onlyCapture(t, ctx, repo, project.Slug, kase.ID)
 	nina := actor.Actor{ID: "nina", Kind: actor.Human}
 
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
-		Accepted: []review.Cell{cell},
+		Accepted: []review.Capture{capture},
 	}); err != nil {
 		t.Fatalf("validating: %v", err)
 	}
 
 	out, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
-		Unaccepted: []review.Cell{cell},
+		Unaccepted: []review.Capture{capture},
 	})
 	if err != nil {
 		t.Fatalf("taking it back: %v", err)
@@ -266,9 +266,9 @@ func TestAcceptingIsAToggle(t *testing.T) {
 		t.Fatalf("reading the grid: %v", err)
 	}
 	for _, s := range grid.Steps {
-		for _, c := range s.Cells {
-			if c.VariantID == cell.VariantID && c.Status == "accepted" {
-				t.Error("the cell still reads validated")
+		for _, c := range s.Captures {
+			if c.VariantID == capture.VariantID && c.Status == "accepted" {
+				t.Error("the capture still reads validated")
 			}
 		}
 	}
@@ -296,18 +296,18 @@ func TestAcceptingIsAToggle(t *testing.T) {
 func TestUnacceptTakesASettledJudgmentBack(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	pushEdition(t, ctx, repo, project, kase, "the door before judging", "ci")
-	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	capture := onlyCapture(t, ctx, repo, project.Slug, kase.ID)
 	nina := actor.Actor{ID: "nina", Kind: actor.Human}
 	q := repo.Queries()
 
 	created, err := q.CreateComment(ctx, sqlcgen.CreateCommentParams{
-		CaseID: kase.ID, StepID: cell.StepID, Body: "label inside the frame", AuthorID: nina.ID,
+		CaseID: kase.ID, StepID: capture.StepID, Body: "label inside the frame", AuthorID: nina.ID,
 	})
 	if err != nil {
 		t.Fatalf("creating the comment: %v", err)
 	}
 	if err := q.AttachCommentVariant(ctx, sqlcgen.AttachCommentVariantParams{
-		CommentID: created.ID, VariantID: cell.VariantID,
+		CommentID: created.ID, VariantID: capture.VariantID,
 	}); err != nil {
 		t.Fatalf("attaching the variant: %v", err)
 	}
@@ -323,18 +323,18 @@ func TestUnacceptTakesASettledJudgmentBack(t *testing.T) {
 
 	// Accepting settled the reference, so the capture derives validated — the
 	// exact state the production case sat in.
-	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, cell); status != "accepted" {
-		t.Fatalf("after accepting, cell = %q, want validated", status)
+	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, capture); status != "accepted" {
+		t.Fatalf("after accepting, capture = %q, want validated", status)
 	}
 
 	out, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
-		Unaccepted: []review.Cell{cell},
+		Unaccepted: []review.Capture{capture},
 	})
 	if err != nil {
 		t.Fatalf("taking the validation back: %v", err)
 	}
 
-	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, cell); status == "accepted" {
+	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, capture); status == "accepted" {
 		t.Error("the capture still reads validated: the take-back did nothing")
 	}
 	if out.State != review.CaseToReview {
@@ -372,21 +372,21 @@ func TestUnacceptTakesASettledJudgmentBack(t *testing.T) {
 	}
 }
 
-// statusOf reads one cell's status off the grid, as the client would.
-func statusOf(t *testing.T, ctx context.Context, repo *postgres.Repository, slug, caseID string, cell review.Cell) string {
+// statusOf reads one capture's status off the grid, as the client would.
+func statusOf(t *testing.T, ctx context.Context, repo *postgres.Repository, slug, caseID string, capture review.Capture) string {
 	t.Helper()
 	grid, err := repo.CaseGrid(ctx, slug, caseID, nil)
 	if err != nil {
 		t.Fatalf("reading the grid: %v", err)
 	}
 	for _, s := range grid.Steps {
-		for _, c := range s.Cells {
-			if s.ID == cell.StepID && c.VariantID == cell.VariantID {
+		for _, c := range s.Captures {
+			if s.ID == capture.StepID && c.VariantID == capture.VariantID {
 				return c.Status
 			}
 		}
 	}
-	t.Fatalf("cell %v not on the grid", cell)
+	t.Fatalf("capture %v not on the grid", capture)
 	return ""
 }
 
@@ -395,18 +395,18 @@ func statusOf(t *testing.T, ctx context.Context, repo *postgres.Repository, slug
 func TestARefusalCanBeTakenBack(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	pushEdition(t, ctx, repo, project, kase, "the door to refuse", "ci")
-	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	capture := onlyCapture(t, ctx, repo, project.Slug, kase.ID)
 	nina := actor.Actor{ID: "nina", Kind: actor.Human}
 	q := repo.Queries()
 
 	created, err := q.CreateComment(ctx, sqlcgen.CreateCommentParams{
-		CaseID: kase.ID, StepID: cell.StepID, Body: "too much green", AuthorID: nina.ID,
+		CaseID: kase.ID, StepID: capture.StepID, Body: "too much green", AuthorID: nina.ID,
 	})
 	if err != nil {
 		t.Fatalf("creating the comment: %v", err)
 	}
 	if err := q.AttachCommentVariant(ctx, sqlcgen.AttachCommentVariantParams{
-		CommentID: created.ID, VariantID: cell.VariantID,
+		CommentID: created.ID, VariantID: capture.VariantID,
 	}); err != nil {
 		t.Fatalf("attaching the variant: %v", err)
 	}
@@ -458,11 +458,11 @@ func TestARefusalCanBeTakenBack(t *testing.T) {
 func TestSwitchingVerdictsIsOneGesture(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	pushEdition(t, ctx, repo, project, kase, "the door to flip on", "ci")
-	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	capture := onlyCapture(t, ctx, repo, project.Slug, kase.ID)
 	nina := actor.Actor{ID: "nina", Kind: actor.Human}
 
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
-		Accepted: []review.Cell{cell},
+		Accepted: []review.Capture{capture},
 	}); err != nil {
 		t.Fatalf("accepting: %v", err)
 	}
@@ -470,28 +470,28 @@ func TestSwitchingVerdictsIsOneGesture(t *testing.T) {
 	// Accepted → refused: the refusal's remark and the acceptance take-back
 	// travel together.
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
-		Unaccepted: []review.Cell{cell},
+		Unaccepted: []review.Capture{capture},
 		Comments: []session.NewComment{{
-			StepID: cell.StepID, Body: "too much green", VariantIDs: []string{cell.VariantID},
+			StepID: capture.StepID, Body: "too much green", VariantIDs: []string{capture.VariantID},
 		}},
 	}); err != nil {
 		t.Fatalf("switching to refused: %v", err)
 	}
-	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, cell); status != "refused" {
-		t.Fatalf("after the switch, cell = %q, want refused", status)
+	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, capture); status != "refused" {
+		t.Fatalf("after the switch, capture = %q, want refused", status)
 	}
 
 	// Refused → accepted: the acceptance and the draft withdrawal travel
 	// together, no sheet, no intermediate state.
 	out, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
-		Accepted:  []review.Cell{cell},
-		Unrefused: []review.Cell{cell},
+		Accepted:  []review.Capture{capture},
+		Unrefused: []review.Capture{capture},
 	})
 	if err != nil {
 		t.Fatalf("switching back: %v", err)
 	}
-	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, cell); status != "accepted" {
-		t.Errorf("after the switch back, cell = %q, want accepted", status)
+	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, capture); status != "accepted" {
+		t.Errorf("after the switch back, capture = %q, want accepted", status)
 	}
 	if out.State != review.CaseReviewed {
 		t.Errorf("case = %q, want reviewed — the draft went with its refusal", out.State)
@@ -503,28 +503,28 @@ func TestSwitchingVerdictsIsOneGesture(t *testing.T) {
 func TestADraftRefusalWithdrawsItsRemark(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	pushEdition(t, ctx, repo, project, kase, "the door to refuse", "ci")
-	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	capture := onlyCapture(t, ctx, repo, project.Slug, kase.ID)
 	nina := actor.Actor{ID: "nina", Kind: actor.Human}
 
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
 		Comments: []session.NewComment{{
-			StepID: cell.StepID, Body: "a remark I regret", VariantIDs: []string{cell.VariantID},
+			StepID: capture.StepID, Body: "a remark I regret", VariantIDs: []string{capture.VariantID},
 		}},
 	}); err != nil {
 		t.Fatalf("refusing: %v", err)
 	}
-	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, cell); status != "refused" {
-		t.Fatalf("after refusing, cell = %q, want refused", status)
+	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, capture); status != "refused" {
+		t.Fatalf("after refusing, capture = %q, want refused", status)
 	}
 
 	out, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
-		Unrefused: []review.Cell{cell},
+		Unrefused: []review.Capture{capture},
 	})
 	if err != nil {
 		t.Fatalf("withdrawing: %v", err)
 	}
-	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, cell); status != "to-review" {
-		t.Errorf("cell = %q after the withdrawal, want to-review", status)
+	if status := statusOf(t, ctx, repo, project.Slug, kase.ID, capture); status != "to-review" {
+		t.Errorf("capture = %q after the withdrawal, want to-review", status)
 	}
 	if out.State != review.CaseToReview {
 		t.Errorf("case = %q, want to-review", out.State)
@@ -543,12 +543,12 @@ func TestADraftRefusalWithdrawsItsRemark(t *testing.T) {
 func TestADraftRemarkIsEditable(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	pushEdition(t, ctx, repo, project, kase, "the door to edit on", "ci")
-	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	capture := onlyCapture(t, ctx, repo, project.Slug, kase.ID)
 	nina := actor.Actor{ID: "nina", Kind: actor.Human}
 
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
 		Comments: []session.NewComment{{
-			StepID: cell.StepID, Body: "too much gren", VariantIDs: []string{cell.VariantID},
+			StepID: capture.StepID, Body: "too much gren", VariantIDs: []string{capture.VariantID},
 		}},
 	}); err != nil {
 		t.Fatalf("refusing: %v", err)
@@ -559,7 +559,7 @@ func TestADraftRemarkIsEditable(t *testing.T) {
 	}
 	id := comments[0].ID
 
-	if _, err := repo.Edit(ctx, project.Slug, id, nina, "too much green", []string{cell.VariantID}); err != nil {
+	if _, err := repo.Edit(ctx, project.Slug, id, nina, "too much green", []string{capture.VariantID}); err != nil {
 		t.Fatalf("editing: %v", err)
 	}
 	comments, _ = repo.OfCase(ctx, project.Slug, kase.ID)
@@ -569,7 +569,7 @@ func TestADraftRemarkIsEditable(t *testing.T) {
 
 	// Someone else's draft is not editable.
 	other := actor.Actor{ID: "sam", Kind: actor.Human}
-	if _, err := repo.Edit(ctx, project.Slug, id, other, "mine now", []string{cell.VariantID}); !errors.Is(err, appcomment.ErrNotTheAuthor) {
+	if _, err := repo.Edit(ctx, project.Slug, id, other, "mine now", []string{capture.VariantID}); !errors.Is(err, appcomment.ErrNotTheAuthor) {
 		t.Errorf("err = %v, want ErrNotTheAuthor", err)
 	}
 
@@ -577,7 +577,7 @@ func TestADraftRemarkIsEditable(t *testing.T) {
 	if _, err := repo.Track(ctx, project.Slug, id, nina, appcomment.IssueRef{ID: "9"}); err != nil {
 		t.Fatalf("tracking: %v", err)
 	}
-	if _, err := repo.Edit(ctx, project.Slug, id, nina, "rewriting history", []string{cell.VariantID}); !errors.Is(err, appcomment.ErrNotADraft) {
+	if _, err := repo.Edit(ctx, project.Slug, id, nina, "rewriting history", []string{capture.VariantID}); !errors.Is(err, appcomment.ErrNotADraft) {
 		t.Errorf("err = %v, want ErrNotADraft", err)
 	}
 }
@@ -588,13 +588,13 @@ func TestADraftRemarkIsEditable(t *testing.T) {
 func TestADraftRemarkLoopsWithoutAnIssue(t *testing.T) {
 	ctx, repo, project, kase := intakeFixture(t)
 	pushEdition(t, ctx, repo, project, kase, "the screen before the fix", "ci")
-	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	capture := onlyCapture(t, ctx, repo, project.Slug, kase.ID)
 	nina := actor.Actor{ID: "nina", Kind: actor.Human}
 
 	// The reviewer refuses with a remark; no issue is ever attached.
 	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
 		Comments: []session.NewComment{{
-			StepID: cell.StepID, Body: "too much green", VariantIDs: []string{cell.VariantID},
+			StepID: capture.StepID, Body: "too much green", VariantIDs: []string{capture.VariantID},
 		}},
 	}); err != nil {
 		t.Fatalf("refusing: %v", err)
@@ -618,7 +618,7 @@ func TestADraftRemarkLoopsWithoutAnIssue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading the grid: %v", err)
 	}
-	if grid.Steps[0].Cells[0].Hash != fixed {
+	if grid.Steps[0].Captures[0].Hash != fixed {
 		t.Errorf("the case still shows the old bytes — delivery must advance it onto the fix")
 	}
 

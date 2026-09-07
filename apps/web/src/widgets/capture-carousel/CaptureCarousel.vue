@@ -4,7 +4,7 @@
  *
  * One capture at full size, the two verdicts within reach, and the keyboard
  * doing the work: arrows to move, space to validate, Escape to leave. On a
- * case of twelve squares the reviewer never touches the mouse.
+ * case of twelve captures the reviewer never touches the mouse.
  */
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import type { components } from '@/shared/api'
@@ -26,7 +26,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   move: [stepId: string, variantId: string]
-  /** Accept the capture; withdraw carries the cell's draft refusals when the
+  /** Accept the capture; withdraw carries the capture's draft refusals when the
    * verdict is switched in one gesture (ADR 0020). */
   accept: [stepId: string, variantId: string, withdraw: boolean]
   unaccept: [stepId: string, variantId: string]
@@ -45,26 +45,26 @@ const stepIndex = computed(() => props.grid.steps.findIndex((s) => s.id === prop
 
 const step = computed(() => props.grid.steps.find((s) => s.id === props.stepId))
 const variant = computed(() => props.grid.variants.find((v) => v.id === props.variantId))
-const cell = computed(() => step.value?.cells.find((c) => c.variantId === props.variantId))
+const capture = computed(() => step.value?.captures.find((c) => c.variantId === props.variantId))
 
-/** The comments covering this exact square — what is already known about it. */
+/** The comments covering this exact capture — what is already known about it. */
 const onSquare = computed(() =>
   props.comments.filter((c) => c.stepId === props.stepId && c.variantIds.includes(props.variantId)),
 )
 
-/** The issue refs of the comments covering this square, each with its owner. */
+/** The issue refs of the comments covering this capture, each with its owner. */
 const refsOnSquare = computed(() =>
   onSquare.value.flatMap((c) => (c.issues ?? []).map((tracked) => ({ comment: c, ref: tracked }))),
 )
 
 /** A delivery waiting for a verdict. That is what gets judged here, not the
- * capture itself. One at a time: the square's other refs live in the recap,
+ * capture itself. One at a time: the capture's other refs live in the recap,
  * and the next delivered one takes this spot once this one is judged (#171). */
 const toJudge = computed(() =>
   refsOnSquare.value.find(({ ref: tracked }) => tracked.state === 'to-review'),
 )
 
-/** A judgment already given on this square, still reconsiderable. */
+/** A judgment already given on this capture, still reconsiderable. */
 const acceptedRef = computed(() =>
   refsOnSquare.value.find(({ ref: tracked }) => tracked.state === 'accepted'),
 )
@@ -84,7 +84,7 @@ const refusedRemark = computed(() =>
   onSquare.value.find((c) => (c.issues ?? []).length === 0 && c.state === 'refused'),
 )
 
-/** The reviewer's own drafts on this square: remarks no issue is attached to
+/** The reviewer's own drafts on this capture: remarks no issue is attached to
  * yet. Editable and withdrawable — they never counted anywhere (ADR 0020). */
 const drafts = computed(() =>
   onSquare.value.filter((c) => (c.issues ?? []).length === 0 && c.state === 'to-track'),
@@ -99,27 +99,27 @@ const trackedTitles = computed(() =>
 )
 
 /** What the pair shows. The fix's judgment outranks the capture's own status:
- * when an issue is on this square, the verdict is about the fix. */
+ * when an issue is on this capture, the verdict is about the fix. */
 const verdict = computed<'none' | 'accepted' | 'refused'>(() => {
   if (toJudge.value || remarkToJudge.value) return 'none'
   if (acceptedRef.value) return 'accepted'
   if (refusedRef.value) return 'refused'
-  if (cell.value?.status === 'accepted') return 'accepted'
-  if (cell.value?.status === 'refused') return 'refused'
+  if (capture.value?.status === 'accepted') return 'accepted'
+  if (capture.value?.status === 'refused') return 'refused'
   return 'none'
 })
 
 /** A capture that has moved is back to needing eyes, whatever its verdict
  * says. The image itself never wears a mark (ADR 0020): the badge says it
  * moved, the bar says the verdict, the grid keeps its discs. */
-const moved = computed(() => hasMoved(cell.value?.freshness))
+const moved = computed(() => hasMoved(capture.value?.freshness))
 
 /** Left and right walk the steps, keeping the variant; a step that lacks it
  * is skipped rather than switching the lens under the reviewer (#149). */
 function go(delta: number) {
   for (let i = stepIndex.value + delta; i >= 0 && i < props.grid.steps.length; i += delta) {
     const candidate = props.grid.steps[i]
-    if (candidate.cells.some((c) => c.variantId === props.variantId)) {
+    if (candidate.captures.some((c) => c.variantId === props.variantId)) {
       emit('move', candidate.id, props.variantId)
       return
     }
@@ -130,7 +130,7 @@ function go(delta: number) {
 function goVariant(delta: number) {
   const here = props.grid.variants.findIndex((v) => v.id === props.variantId)
   const next = props.grid.variants[here + delta]
-  if (next && step.value?.cells.some((c) => c.variantId === next.id)) {
+  if (next && step.value?.captures.some((c) => c.variantId === next.id)) {
     emit('move', props.stepId, next.id)
   }
 }
@@ -210,7 +210,7 @@ function send() {
       stepId: props.stepId,
       body,
       variantIds: [...chosen.value],
-      unaccept: cell.value?.status === 'accepted',
+      unaccept: capture.value?.status === 'accepted',
     })
   }
   closeSheet()
@@ -349,19 +349,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
            and never saw the grid's mark. Anchored to the stage corner, not the
            image — the image's own box is what scales (#177). -->
       <span
-        v-if="cell && moved"
+        v-if="capture && moved"
         class="absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded border border-indigo-500 bg-white px-2 py-1 font-mono text-mono text-indigo-700 dark:border-indigo-400 dark:bg-slate-900 dark:text-indigo-300"
       >
-        <MovedIcon :size="12" />moved<template v-if="cell.movedPixels !== undefined">
-          · {{ cell.movedPixels }} px</template
+        <MovedIcon :size="12" />moved<template v-if="capture.movedPixels !== undefined">
+          · {{ capture.movedPixels }} px</template
         >
       </span>
       <!-- The capture takes the space the window offers and never leaves it:
            the wrapper fills the stage, so the max constraints bind against a
            definite box and a capture of any size scales to fit (#177, #125). -->
-      <span v-if="cell" class="flex h-full w-full min-h-0 items-center justify-center">
+      <span v-if="capture" class="flex h-full w-full min-h-0 items-center justify-center">
         <img
-          :src="`/api/projects/${slug}/captures/${cell.id}`"
+          :src="`/api/projects/${slug}/captures/${capture.id}`"
           :alt="`${step?.name} — ${variant?.label}`"
           class="max-h-full max-w-full border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900"
         />

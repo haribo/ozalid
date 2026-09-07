@@ -8,8 +8,8 @@ package review
 // a transition can be replayed from the journal and compared against what was
 // stored.
 
-// Cell names one square of a case's grid.
-type Cell struct {
+// Capture names one capture of the grid: a step crossed with a variant.
+type Capture struct {
 	StepID    string
 	VariantID string
 }
@@ -18,18 +18,18 @@ type Cell struct {
 // text, its author and its history are irrelevant here.
 type Comment struct {
 	State CommentState
-	// Cells the comment covers: its step, crossed with the variants it applies
-	// to. One defect over four variants is one comment over four cells.
-	Cells []Cell
+	// Captures the comment covers: its step, crossed with the variants it applies
+	// to. One defect over four variants is one comment over four captures.
+	Captures []Capture
 }
 
 // Facts is everything the computation reads. Nothing else may influence the
 // result — that is what makes a replay meaningful.
 type Facts struct {
 	// Captures present at the edition the case points at.
-	Captures []Cell
-	// Cells the reviewer has explicitly accepted.
-	Accepted []Cell
+	Captures []Capture
+	// Captures the reviewer has explicitly accepted.
+	Accepted []Capture
 	// Every comment on the case, settled ones included: a discarded comment
 	// stops counting, but it still exists (ADR 0006).
 	Comments []Comment
@@ -39,10 +39,10 @@ type Facts struct {
 type Outcome struct {
 	State CaseState
 	// Verdicts is the status of every capture the case has.
-	Verdicts map[Cell]CaptureStatus
+	Verdicts map[Capture]CaptureStatus
 }
 
-// CaptureStatus is what one square of the grid is waiting for.
+// CaptureStatus is what one capture of the grid is waiting for.
 type CaptureStatus string
 
 const (
@@ -71,7 +71,7 @@ func Compute(f Facts) Outcome {
 		return out
 	}
 
-	// Something still awaits the reviewer: a square nobody has judged, or a
+	// Something still awaits the reviewer: a capture nobody has judged, or a
 	// comment whose delivery has arrived and not been judged.
 	for _, status := range verdicts {
 		if status == CaptureToReview {
@@ -106,20 +106,20 @@ func Compute(f Facts) Outcome {
 //
 //  1. everything starts unjudged;
 //  2. what the reviewer explicitly validated is validated;
-//  3. a square whose comment has been settled counts as judged — settling it
+//  3. a capture whose comment has been settled counts as judged — settling it
 //     *was* the judgment, and asking the reviewer to then validate what they
 //     just accepted or set aside would be asking twice;
-//  4. an open comment wins over all of it: a square someone reported a problem
-//     on is not a square that is fine, whatever was ticked before.
-func verdictsOf(f Facts) map[Cell]CaptureStatus {
-	verdicts := make(map[Cell]CaptureStatus, len(f.Captures))
-	for _, cell := range f.Captures {
-		verdicts[cell] = CaptureToReview
+//  4. an open comment wins over all of it: a capture someone reported a problem
+//     on is not a capture that is fine, whatever was ticked before.
+func verdictsOf(f Facts) map[Capture]CaptureStatus {
+	verdicts := make(map[Capture]CaptureStatus, len(f.Captures))
+	for _, capture := range f.Captures {
+		verdicts[capture] = CaptureToReview
 	}
 
-	for _, cell := range f.Accepted {
-		if _, exists := verdicts[cell]; exists {
-			verdicts[cell] = CaptureAccepted
+	for _, capture := range f.Accepted {
+		if _, exists := verdicts[capture]; exists {
+			verdicts[capture] = CaptureAccepted
 		}
 	}
 
@@ -127,24 +127,24 @@ func verdictsOf(f Facts) map[Cell]CaptureStatus {
 		if c.State.Open() {
 			continue
 		}
-		for _, cell := range c.Cells {
-			if _, exists := verdicts[cell]; exists {
-				verdicts[cell] = CaptureAccepted
+		for _, capture := range c.Captures {
+			if _, exists := verdicts[capture]; exists {
+				verdicts[capture] = CaptureAccepted
 			}
 		}
 	}
 
-	// A delivered comment hands its cells back to the reviewer: the ball is
-	// theirs, and the grid says so. The dev-side pass runs second, so a cell
+	// A delivered comment hands its captures back to the reviewer: the ball is
+	// theirs, and the grid says so. The dev-side pass runs second, so a capture
 	// also claimed by a tracked or refused comment stays to-fix — the finest
 	// open claim wins, exactly as for the comment itself (#150).
 	for _, c := range f.Comments {
 		if c.State != CommentToReview {
 			continue
 		}
-		for _, cell := range c.Cells {
-			if _, exists := verdicts[cell]; exists {
-				verdicts[cell] = CaptureToReview
+		for _, capture := range c.Captures {
+			if _, exists := verdicts[capture]; exists {
+				verdicts[capture] = CaptureToReview
 			}
 		}
 	}
@@ -152,9 +152,9 @@ func verdictsOf(f Facts) map[Cell]CaptureStatus {
 		if !c.State.Open() || c.State == CommentToReview {
 			continue
 		}
-		for _, cell := range c.Cells {
-			if _, exists := verdicts[cell]; exists {
-				verdicts[cell] = CaptureRefused
+		for _, capture := range c.Captures {
+			if _, exists := verdicts[capture]; exists {
+				verdicts[capture] = CaptureRefused
 			}
 		}
 	}

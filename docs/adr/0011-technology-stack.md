@@ -118,7 +118,7 @@ decisive technical advantage at this scale, and a lower fluency.
 **Server-rendered HTML with no SPA framework** (Go templates plus a light
 interactivity layer). Not unreasonable for a catalogue, and it would remove the
 frontend build entirely. Rejected: the review surface is stateful — a lock
-heartbeat, an event stream, per-cell verdicts accumulated before a single save,
+heartbeat, an event stream, per-capture verdicts accumulated before a single save,
 image comparison — which is application behaviour, not page navigation.
 
 ## Consequences

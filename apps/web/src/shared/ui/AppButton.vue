@@ -8,7 +8,7 @@
  * icon-only button squares itself and must be given a `label`, since the icon
  * alone says nothing to a screen reader. A success button still emits click:
  * whether it is inert feedback or a toggle is the caller's decision — the
- * carousel's validated square untoggles on it (#156, learnt when a mouse
+ * carousel's accepted capture untoggles on it (#156, learnt when a mouse
  * user could not take a validation back).
  *
  * A raw `<button>` outside shared/ui is a lint error, which is what keeps the

@@ -16,7 +16,7 @@ get:
   summary: Read the evidence a case is judged from
   description: |
     The grid: steps in order, the variants that exist, and the capture sitting
-    at each cell. A cell with no capture is simply absent — not every variant
+    at each step and variant. A missing one is simply absent — not every variant
     exists at every step.
 
     Defaults to the project's most recent edition. A specific one can be asked
