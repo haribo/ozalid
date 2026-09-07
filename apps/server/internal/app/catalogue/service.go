@@ -161,6 +161,19 @@ func (s *Service) SummariseCases(ctx context.Context, projectID string, category
 	return s.repo.SummariseCases(ctx, projectID, categoryID)
 }
 
+// UpdateCategory renames, re-parents or reorders a node — a language fix no
+// longer costs delete + recreate + re-parenting the subtree (#179).
+func (s *Service) UpdateCategory(ctx context.Context, slug, id string, patch CategoryPatch) (catalogue.Category, error) {
+	if patch.Name != nil {
+		cleaned := strings.TrimSpace(*patch.Name)
+		if cleaned == "" {
+			return catalogue.Category{}, catalogue.ErrNameRequired
+		}
+		patch.Name = &cleaned
+	}
+	return s.repo.UpdateCategory(ctx, slug, id, patch)
+}
+
 // DeleteCategory removes an empty node.
 //
 // Only an empty one: deleting a filing drawer must not silently move what was

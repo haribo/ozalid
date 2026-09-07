@@ -365,6 +365,62 @@ func (s *Server) DeleteCategory(ctx context.Context, request openapi.DeleteCateg
 	return openapi.DeleteCategory204Response{}, nil
 }
 
+// UpdateCategory renames, re-parents or reorders a node (#179): a language
+// fix no longer costs delete + recreate + re-parenting the subtree.
+func (s *Server) UpdateCategory(ctx context.Context, request openapi.UpdateCategoryRequestObject) (openapi.UpdateCategoryResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.WriteProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.UpdateCategory401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.UpdateCategory403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
+
+	var patch app.CategoryPatch
+	patch.Name = request.Body.Name
+	if request.Body.Position != nil {
+		position := int32(*request.Body.Position)
+		patch.Position = &position
+	}
+	if request.Body.ParentId != nil {
+		// The empty string moves the node to the root; an id moves it under
+		// that category (#179).
+		if *request.Body.ParentId == "" {
+			patch.Parent = &app.CategoryParent{}
+		} else {
+			patch.Parent = &app.CategoryParent{ID: request.Body.ParentId}
+		}
+	}
+
+	updated, err := s.catalogue.UpdateCategory(ctx, request.Slug, request.CategoryId, patch)
+	switch {
+	case errors.Is(err, catalogue.ErrNameRequired):
+		return openapi.UpdateCategory409ApplicationProblemPlusJSONResponse(
+			problem("name-required", "A category needs a name", http.StatusConflict, ""),
+		), nil
+	case errors.Is(err, catalogue.ErrCategoryCycle):
+		return openapi.UpdateCategory409ApplicationProblemPlusJSONResponse(
+			problem("category-cycle", "A category cannot become its own ancestor", http.StatusConflict,
+				"The move would put the node inside its own subtree."),
+		), nil
+	case errors.Is(err, app.ErrConflict):
+		return openapi.UpdateCategory409ApplicationProblemPlusJSONResponse(
+			problem("duplicate-name", "A sibling already bears the name", http.StatusConflict,
+				"Siblings cannot share a name, at the root included."),
+		), nil
+	case errors.Is(err, app.ErrNotFound):
+		return openapi.UpdateCategory404ApplicationProblemPlusJSONResponse{
+			NotFoundApplicationProblemPlusJSONResponse: notFound("category"),
+		}, nil
+	case err != nil:
+		return nil, err
+	}
+	return openapi.UpdateCategory200JSONResponse(toAPICategory(updated)), nil
+}
+
 func notFound(what string) openapi.NotFoundApplicationProblemPlusJSONResponse {
 	return openapi.NotFoundApplicationProblemPlusJSONResponse(
 		problem(what+"-not-found", "No such "+what, http.StatusNotFound, ""),

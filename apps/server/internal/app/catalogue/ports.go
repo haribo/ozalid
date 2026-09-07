@@ -26,6 +26,7 @@ type Repository interface {
 	ArchiveCase(ctx context.Context, slug, id string) (bool, error)
 
 	CreateCategory(ctx context.Context, projectID string, parentID *string, name string, position int32) (catalogue.Category, error)
+	UpdateCategory(ctx context.Context, slug, id string, patch CategoryPatch) (catalogue.Category, error)
 	ListCategories(ctx context.Context, projectID string) ([]catalogue.Category, error)
 	CategoryTree(ctx context.Context, projectID string) ([]catalogue.CategoryNode, error)
 
@@ -42,6 +43,17 @@ type Actor struct {
 	ID   string
 	Kind string // "human" or "machine"
 }
+
+// CategoryPatch is what an update may change. A nil field is left alone;
+// Parent set with a nil ID moves the node to the root (#179).
+type CategoryPatch struct {
+	Name     *string
+	Parent   *CategoryParent
+	Position *int32
+}
+
+// CategoryParent names where a node moves: a category's id, or the root.
+type CategoryParent struct{ ID *string }
 
 // Errors the layers above match on. The adapter translates whatever its driver
 // reports into one of these, so no layer above it ever knows a Postgres error

@@ -160,6 +160,53 @@ func (r *Repository) CreateCategory(ctx context.Context, projectID string, paren
 	return toCategory(row), nil
 }
 
+// UpdateCategory renames, re-parents or reorders a node in one write (#179).
+//
+// The move is refused when it would make the node its own ancestor — the
+// ancestors of the target parent are walked before anything is written — and
+// a sibling name collision surfaces as the conflict it is.
+func (r *Repository) UpdateCategory(ctx context.Context, slug, id string, patch app.CategoryPatch) (catalogue.Category, error) {
+	current, err := r.q.GetCategoryInProject(ctx, sqlcgen.GetCategoryInProjectParams{ID: id, Slug: slug})
+	if err != nil {
+		return catalogue.Category{}, translate("reading the category", err)
+	}
+
+	name, parentID, position := current.Name, current.ParentID, current.Position
+	if patch.Name != nil {
+		name = *patch.Name
+	}
+	if patch.Position != nil {
+		position = *patch.Position
+	}
+	if patch.Parent != nil {
+		parentID = patch.Parent.ID
+		if parentID != nil {
+			// The new parent must be of the same project, and not descend
+			// from the node being moved.
+			if _, err := r.q.GetCategoryInProject(ctx, sqlcgen.GetCategoryInProjectParams{ID: *parentID, Slug: slug}); err != nil {
+				return catalogue.Category{}, translate("reading the new parent", err)
+			}
+			ancestors, err := r.q.CategoryAncestors(ctx, *parentID)
+			if err != nil {
+				return catalogue.Category{}, translate("walking the ancestors", err)
+			}
+			for _, ancestor := range ancestors {
+				if ancestor == id {
+					return catalogue.Category{}, catalogue.ErrCategoryCycle
+				}
+			}
+		}
+	}
+
+	row, err := r.q.UpdateCategory(ctx, sqlcgen.UpdateCategoryParams{
+		ID: id, Name: name, ParentID: parentID, Position: position,
+	})
+	if err != nil {
+		return catalogue.Category{}, translate("updating the category", err)
+	}
+	return toCategory(row), nil
+}
+
 func (r *Repository) ListCategories(ctx context.Context, projectID string) ([]catalogue.Category, error) {
 	rows, err := r.q.ListCategories(ctx, projectID)
 	if err != nil {
