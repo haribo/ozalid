@@ -90,16 +90,34 @@ Rules must be concise. One rule per line where possible.
   the command. Respect each playbook's approval gates
 - Before making a change, check the branch. On `main` or `develop`, propose a
   branch name and wait
-- **Issue verification gate**: before implementing any issue, audit it against
-  the current code and design — never trust the issue text. Cite `file:line` for
-  every claim confirmed, and state what could not be confirmed. A claim that
-  proves false is written into the issue as a correction comment, never dropped
-- Once verified and before implementing: explain the problem simply in the
-  conversation and wait for the user to validate that explanation. Trivial
-  changes are exempt
-- An unrelated bug found while working becomes an issue, never a fix in the
-  current branch
 - No AI references in commits, code, issues or pull requests
+
+## Implementing an issue
+
+- No issue is trusted — not one written a year ago, not one written an hour
+  ago, not one you wrote yourself. Age is not the criterion: an issue can
+  describe code written the same day and still have a false central claim
+- Verify every claim against the current code and docs, and cite `file:line`
+  for each one confirmed — "I read the code" is not verification, a citation
+  the reader can re-open is. Say explicitly what you could not confirm
+- Record the outcome in the issue itself, never only in the conversation: a
+  claim that proved false becomes a correction comment, an issue already
+  delivered is closed with the evidence, an issue whose premise drifted gets
+  an audit comment and a re-scope. The issue is what a later session reads;
+  the conversation is not
+- Then, before touching anything: explain what the issue actually consists
+  of — simply and concisely, with an example when an example is what makes it
+  clear — including what the verification changed about it
+- Wait for explicit validation of that explanation. No implementation without
+  it. What is validated is the problem as explained, and the approach too when
+  more than one credible approach exists — agreeing on the problem is not
+  agreeing on the fix
+- Implement the validated scope and nothing else: an unrelated bug, or a good
+  idea found on the way, becomes its own issue and never an extra commit on
+  this branch
+- Exempt: trivial changes (typo, formatting, broken link, dependency bump) —
+  the same boundary that exempts them from needing an issue. Friction that
+  buys nothing is how a rule gets routed around
 
 ## Server (`apps/server/`)
 
