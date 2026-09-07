@@ -57,6 +57,11 @@ func (s *Server) CreateEdition(ctx context.Context, request openapi.CreateEditio
 			refusal("duplicate-case", "The manifest names the same case twice",
 				"Two sources writing to one case would corrupt it silently. "+err.Error(), nil),
 		), nil
+	case errors.Is(err, intake.ErrDuplicateCapture):
+		return openapi.CreateEdition409ApplicationProblemPlusJSONResponse(
+			refusal("duplicate-capture", "The manifest carries the same square twice",
+				"One (case, step, variant) capture appears more than once. "+err.Error(), nil),
+		), nil
 	case errors.Is(err, intake.ErrBlockedByPolicy):
 		return openapi.CreateEdition409ApplicationProblemPlusJSONResponse(
 			refusal("intake-blocked", "A review is still open", err.Error(), nil),
