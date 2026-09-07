@@ -71,12 +71,6 @@ func toAPIGrid(g evidence.Grid) openapi.Grid {
 				Status:     openapi.GridCaptureStatus(c.Status),
 				Provenance: toAPIProvenance(c.Provenance),
 			}
-			// Absent rather than empty: "nothing to compare against" is a
-			// different answer from "unchanged" (ADR 0017).
-			if c.Freshness != "" {
-				fresh := openapi.GridCaptureFreshness(c.Freshness)
-				capture.Freshness = &fresh
-			}
 			capture.MovedPixels = c.MovedPixels
 			step.Captures = append(step.Captures, capture)
 		}

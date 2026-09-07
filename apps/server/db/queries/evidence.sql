@@ -22,11 +22,7 @@ SELECT
     c.id       AS capture_id,
     c.blob_hash,
     c.provenance,
-    c.freshness,
-    c.moved_pixels,
-    -- A capture with no verdict row has not been judged yet: the reviewer holds
-    -- the ball on it (ADR 0012).
-    coalesce(cv.status, 'to-review') AS status
+    c.moved_pixels
 -- A step belongs to the view only if the displayed edition captured it: since
 -- steps outlive editions (#135), one born in a later edition would otherwise
 -- render in an older view as a row of `missing` marks — and `missing` means a
@@ -34,8 +30,6 @@ SELECT
 FROM steps s
 JOIN captures c ON c.step_id = s.id AND c.edition_id = $2
 JOIN variants v ON v.id = c.variant_id
-LEFT JOIN capture_verdicts cv
-       ON cv.case_id = s.case_id AND cv.step_id = s.id AND cv.variant_id = c.variant_id
 WHERE s.case_id = $1
 ORDER BY s.position, v.label;
 

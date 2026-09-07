@@ -28,8 +28,15 @@ type Capture struct {
 	VariantID   string
 	BlobHash    string
 	Provenance  []byte
-	Freshness   *string
 	MovedPixels *int32
+}
+
+type CaptureAcceptance struct {
+	CaseID     string
+	StepID     string
+	VariantID  string
+	AcceptedBy *string
+	AcceptedAt pgtype.Timestamptz
 }
 
 type CaptureReference struct {
@@ -40,14 +47,6 @@ type CaptureReference struct {
 	ApprovedBy    string
 	ApprovedAt    pgtype.Timestamptz
 	EnvironmentID string
-}
-
-type CaptureVerdict struct {
-	CaseID    string
-	StepID    string
-	VariantID string
-	Status    string
-	UpdatedAt pgtype.Timestamptz
 }
 
 type Case struct {

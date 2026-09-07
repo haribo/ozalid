@@ -60,11 +60,11 @@ func (r *Repository) SaveReview(
 	// Accepted captures are written before the computation reads them back, so
 	// what it sees is the whole session and not half of it.
 	for _, capture := range save.Accepted {
-		if err := q.UpsertCaptureVerdict(ctx, sqlcgen.UpsertCaptureVerdictParams{
+		if err := q.RecordCaptureAcceptance(ctx, sqlcgen.RecordCaptureAcceptanceParams{
 			CaseID: caseID, StepID: capture.StepID, VariantID: capture.VariantID,
-			Status: string(review.CaptureAccepted),
+			AcceptedBy: &by.ID,
 		}); err != nil {
-			return session.Result{}, translate("recording a verdict", err)
+			return session.Result{}, translate("recording the acceptance", err)
 		}
 
 		// And the bytes behind it are remembered, so a later run can say
@@ -91,13 +91,13 @@ func (r *Repository) SaveReview(
 	// deleting blindly left the recompute to stamp validated right back — so
 	// the judgment itself is taken back: the ref returns to to-review, the
 	// comment re-derives, and the capture follows. Either way the journal
-	// keeps every move, and the reference stamp stays — freshness is history,
+	// keeps every move, and the reference stamp stays — the reference is history,
 	// not a verdict.
 	for _, capture := range save.Unaccepted {
-		if err := q.DeleteCaptureVerdict(ctx, sqlcgen.DeleteCaptureVerdictParams{
+		if err := q.DeleteCaptureAcceptance(ctx, sqlcgen.DeleteCaptureAcceptanceParams{
 			CaseID: caseID, StepID: capture.StepID, VariantID: capture.VariantID,
 		}); err != nil {
-			return session.Result{}, translate("taking a verdict back", err)
+			return session.Result{}, translate("taking the acceptance back", err)
 		}
 
 		refs, err := q.SettledRefsOnCapture(ctx, sqlcgen.SettledRefsOnCaptureParams{
@@ -173,20 +173,11 @@ func (r *Repository) SaveReview(
 		}
 	}
 
-	facts, err := gatherFacts(ctx, q, kase)
+	facts, err := factsOf(ctx, q, kase)
 	if err != nil {
 		return session.Result{}, err
 	}
 	outcome := review.Compute(facts)
-
-	for capture, status := range outcome.Verdicts {
-		if err := q.UpsertCaptureVerdict(ctx, sqlcgen.UpsertCaptureVerdictParams{
-			CaseID: caseID, StepID: capture.StepID, VariantID: capture.VariantID,
-			Status: string(status),
-		}); err != nil {
-			return session.Result{}, translate("recording a verdict", err)
-		}
-	}
 
 	if outcome.State != before {
 		if err := q.SetCaseState(ctx, sqlcgen.SetCaseStateParams{
@@ -230,49 +221,6 @@ func (r *Repository) SaveReview(
 	return session.Result{
 		State: outcome.State, Verdicts: outcome.Verdicts, Comments: len(save.Comments),
 	}, nil
-}
-
-// gatherFacts reads everything the computation is allowed to see, and nothing
-// else. What is not here cannot influence a state.
-func gatherFacts(ctx context.Context, q *sqlcgen.Queries, kase sqlcgen.Case) (review.Facts, error) {
-	var facts review.Facts
-
-	edition, err := q.LatestEdition(ctx, kase.ProjectID)
-	if err == nil {
-		captures, err := q.CaseCaptures(ctx, sqlcgen.CaseCapturesParams{
-			CaseID: kase.ID, EditionID: edition.ID,
-		})
-		if err != nil {
-			return facts, translate("reading the captures", err)
-		}
-		for _, c := range captures {
-			facts.Captures = append(facts.Captures, review.Capture{StepID: c.StepID, VariantID: c.VariantID})
-		}
-	} else if !isNoRows(err) {
-		return facts, translate("reading the edition", err)
-	}
-
-	validated, err := q.CaseAcceptedCaptures(ctx, kase.ID)
-	if err != nil {
-		return facts, translate("reading the verdicts", err)
-	}
-	for _, v := range validated {
-		facts.Accepted = append(facts.Accepted, review.Capture{StepID: v.StepID, VariantID: v.VariantID})
-	}
-
-	comments, err := q.CaseComments(ctx, sqlcgen.CaseCommentsParams{CaseID: kase.ID, ProjectID: kase.ProjectID})
-	if err != nil {
-		return facts, translate("reading the comments", err)
-	}
-	for _, c := range comments {
-		comment := review.Comment{State: review.CommentState(c.State)}
-		for _, variantID := range c.VariantIds {
-			comment.Captures = append(comment.Captures, review.Capture{StepID: c.StepID, VariantID: variantID})
-		}
-		facts.Comments = append(facts.Comments, comment)
-	}
-
-	return facts, nil
 }
 
 // isNoRows tells "the project has taken nothing in yet" from a real failure.

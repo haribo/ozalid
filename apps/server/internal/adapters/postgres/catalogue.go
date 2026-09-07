@@ -319,10 +319,7 @@ func (r *Repository) SummariseCases(ctx context.Context, projectID string, categ
 				State:     review.CaseState(row.State),
 				CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
 			},
-			Captures: catalogue.CaptureCounts{
-				Total: row.Captures, Accepted: row.Accepted,
-				Refused: row.Refused, ToJudge: row.ToJudge,
-			},
+			Captures: countsOf(ctx, r, row),
 		}
 		if row.ArchivedAt.Valid {
 			at := row.ArchivedAt.Time
@@ -335,6 +332,32 @@ func (r *Repository) SummariseCases(ctx context.Context, projectID string, categ
 		out = append(out, summary)
 	}
 	return out, nil
+}
+
+// countsOf derives one case's capture counts with the one rule the domain
+// owns (ADR 0012, ADR 0021) — a handful of reads per case, and no second
+// copy of the computation living in SQL. Moved counts with to-judge: the
+// reviewer is needed either way. A read failure counts as nothing rather
+// than failing the whole listing.
+func countsOf(ctx context.Context, r *Repository, row sqlcgen.CasesWithCaptureCountsRow) catalogue.CaptureCounts {
+	counts := catalogue.CaptureCounts{Total: row.Captures}
+	facts, err := factsOf(ctx, r.q, sqlcgen.Case{
+		ID: row.ID, ProjectID: row.ProjectID, CurrentEditionID: row.CurrentEditionID,
+	})
+	if err != nil {
+		return counts
+	}
+	for _, status := range review.Compute(facts).Verdicts {
+		switch status {
+		case review.CaptureAccepted:
+			counts.Accepted++
+		case review.CaptureRefused:
+			counts.Refused++
+		default:
+			counts.ToJudge++
+		}
+	}
+	return counts
 }
 
 func (r *Repository) Axes(ctx context.Context, projectID string) ([]catalogue.Axis, error) {

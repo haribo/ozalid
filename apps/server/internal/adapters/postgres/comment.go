@@ -224,19 +224,11 @@ func (r *Repository) Edit(
 		return appcomment.Outcome{}, translate("reading the case", err)
 	}
 	before := review.CaseState(kase.State)
-	facts, err := gatherFacts(ctx, q, kase)
+	facts, err := factsOf(ctx, q, kase)
 	if err != nil {
 		return appcomment.Outcome{}, err
 	}
 	outcome := review.Compute(facts)
-	for capture, status := range outcome.Verdicts {
-		if err := q.UpsertCaptureVerdict(ctx, sqlcgen.UpsertCaptureVerdictParams{
-			CaseID: kase.ID, StepID: capture.StepID, VariantID: capture.VariantID,
-			Status: string(status),
-		}); err != nil {
-			return appcomment.Outcome{}, translate("recording a verdict", err)
-		}
-	}
 	if outcome.State != before {
 		if err := q.SetCaseState(ctx, sqlcgen.SetCaseStateParams{
 			ID: kase.ID, State: string(outcome.State),
@@ -370,20 +362,11 @@ func (r *Repository) move(
 		}
 	}
 
-	facts, err := gatherFacts(ctx, q, kase)
+	facts, err := factsOf(ctx, q, kase)
 	if err != nil {
 		return appcomment.Outcome{}, err
 	}
 	outcome := review.Compute(facts)
-
-	for capture, status := range outcome.Verdicts {
-		if err := q.UpsertCaptureVerdict(ctx, sqlcgen.UpsertCaptureVerdictParams{
-			CaseID: kase.ID, StepID: capture.StepID, VariantID: capture.VariantID,
-			Status: string(status),
-		}); err != nil {
-			return appcomment.Outcome{}, translate("recording a verdict", err)
-		}
-	}
 
 	if outcome.State != before {
 		inputs, err := json.Marshal(map[string]any{

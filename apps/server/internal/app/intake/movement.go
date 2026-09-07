@@ -6,7 +6,7 @@ import (
 	"image"
 	"image/png"
 
-	"github.com/haribo/ozalid/apps/server/internal/domain/freshness"
+	"github.com/haribo/ozalid/apps/server/internal/domain/movement"
 	"github.com/haribo/ozalid/internal/contract"
 )
 
@@ -14,9 +14,10 @@ import (
 // it still shows what a reviewer approved.
 //
 // The lookup and the write are two transactions: a reference could change in
-// between. That is accepted — freshness is an overlay, never a state
-// (product.md §3.3), so the worst case is a mark that the next intake corrects,
-// rather than a case sitting in a wrong place.
+// between. That is accepted — the measurement rides beside the capture and
+// the conclusion is derived at read time (product.md §3.3, ADR 0021), so the
+// worst case is a count the next intake corrects, never a case sitting in a
+// wrong place.
 func (s *Service) compareAgainstApproved(
 	ctx context.Context, projectSlug string, m contract.Manifest, threshold int,
 ) (map[ReferenceKey]Verdict, error) {
@@ -67,7 +68,7 @@ func (s *Service) judge(ctx context.Context, reference, incoming string, thresho
 	// Same address, same bytes, same image. Content addressing makes the common
 	// case free: no read, no decode, no comparison (ADR 0004).
 	if reference == incoming {
-		return Verdict{State: string(freshness.Current)}, nil
+		return Verdict{}, nil
 	}
 
 	before, err := s.decode(ctx, reference)
@@ -79,8 +80,8 @@ func (s *Service) judge(ctx context.Context, reference, incoming string, thresho
 		return Verdict{}, err
 	}
 
-	found := freshness.Compare(before, after, threshold)
-	verdict := Verdict{State: string(found.State)}
+	found := movement.Compare(before, after)
+	var verdict Verdict
 	if found.Pixels >= 0 {
 		pixels := found.Pixels
 		verdict.Pixels = &pixels

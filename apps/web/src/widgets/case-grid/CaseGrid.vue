@@ -15,7 +15,7 @@
 import { computed } from 'vue'
 import type { components } from '@/shared/api'
 import { EmptyState, AppButton, MissingIcon, MovedIcon, StateIcon, VariantHead } from '@/shared/ui'
-import { hasMoved, type Tone } from '@/shared/lib'
+import { type Tone } from '@/shared/lib'
 
 type Grid = components['schemas']['Grid']
 type Capture = Grid['steps'][number]['captures'][number]
@@ -70,7 +70,7 @@ const LABEL: Record<string, string> = { accepted: 'accepted', refused: 'refused'
  * (frontend ADR 0003).
  */
 function reading(capture: Capture): 'moved' | 'judged' | 'pending' {
-  if (hasMoved(capture.freshness)) return 'moved'
+  if (capture.status === 'moved') return 'moved'
   if (capture.status === 'accepted' || capture.status === 'refused') return 'judged'
   return 'pending'
 }

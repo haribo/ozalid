@@ -110,9 +110,9 @@ func (q *Queries) CountCasesToReview(ctx context.Context, projectID string) (int
 }
 
 const createCapture = `-- name: CreateCapture :one
-INSERT INTO captures (edition_id, step_id, variant_id, blob_hash, provenance, freshness, moved_pixels)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, edition_id, step_id, variant_id, blob_hash, provenance, freshness, moved_pixels
+INSERT INTO captures (edition_id, step_id, variant_id, blob_hash, provenance, moved_pixels)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, edition_id, step_id, variant_id, blob_hash, provenance, moved_pixels
 `
 
 type CreateCaptureParams struct {
@@ -121,12 +121,12 @@ type CreateCaptureParams struct {
 	VariantID   string
 	BlobHash    string
 	Provenance  []byte
-	Freshness   *string
 	MovedPixels *int32
 }
 
-// A capture is born with its freshness: it is computed once, against what was
-// approved, and the row never changes again.
+// A capture is born with its measurement: moved_pixels is computed once at
+// intake against what was approved, and the row never changes again. The
+// conclusion — moved or not — is derived at read time (ADR 0021).
 func (q *Queries) CreateCapture(ctx context.Context, arg CreateCaptureParams) (Capture, error) {
 	row := q.db.QueryRow(ctx, createCapture,
 		arg.EditionID,
@@ -134,7 +134,6 @@ func (q *Queries) CreateCapture(ctx context.Context, arg CreateCaptureParams) (C
 		arg.VariantID,
 		arg.BlobHash,
 		arg.Provenance,
-		arg.Freshness,
 		arg.MovedPixels,
 	)
 	var i Capture
@@ -145,7 +144,6 @@ func (q *Queries) CreateCapture(ctx context.Context, arg CreateCaptureParams) (C
 		&i.VariantID,
 		&i.BlobHash,
 		&i.Provenance,
-		&i.Freshness,
 		&i.MovedPixels,
 	)
 	return i, err
@@ -301,6 +299,17 @@ func (q *Queries) ListVariants(ctx context.Context, projectID string) ([]Variant
 		return nil, err
 	}
 	return items, nil
+}
+
+const pixelThresholdByProject = `-- name: PixelThresholdByProject :one
+SELECT pixel_threshold FROM projects WHERE id = $1
+`
+
+func (q *Queries) PixelThresholdByProject(ctx context.Context, id string) (int32, error) {
+	row := q.db.QueryRow(ctx, pixelThresholdByProject, id)
+	var pixel_threshold int32
+	err := row.Scan(&pixel_threshold)
+	return pixel_threshold, err
 }
 
 const projectThreshold = `-- name: ProjectThreshold :one

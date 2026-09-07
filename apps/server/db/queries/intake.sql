@@ -46,11 +46,12 @@ ON CONFLICT (hash) DO NOTHING;
 -- name: BlobExists :one
 SELECT EXISTS (SELECT 1 FROM blobs WHERE hash = $1);
 
--- A capture is born with its freshness: it is computed once, against what was
--- approved, and the row never changes again.
+-- A capture is born with its measurement: moved_pixels is computed once at
+-- intake against what was approved, and the row never changes again. The
+-- conclusion — moved or not — is derived at read time (ADR 0021).
 -- name: CreateCapture :one
-INSERT INTO captures (edition_id, step_id, variant_id, blob_hash, provenance, freshness, moved_pixels)
-VALUES ($1, $2, $3, $4, $5, @freshness, @moved_pixels)
+INSERT INTO captures (edition_id, step_id, variant_id, blob_hash, provenance, moved_pixels)
+VALUES ($1, $2, $3, $4, $5, @moved_pixels)
 RETURNING *;
 
 -- name: CreateRecording :one
@@ -127,3 +128,6 @@ JOIN steps s ON s.id = r.step_id
 JOIN variants v ON v.id = r.variant_id
 WHERE r.case_id = ANY($1::text[]);
 
+
+-- name: PixelThresholdByProject :one
+SELECT pixel_threshold FROM projects WHERE id = $1;

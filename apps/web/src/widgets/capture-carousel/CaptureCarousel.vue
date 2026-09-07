@@ -9,7 +9,6 @@
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import type { components } from '@/shared/api'
 import { AppButton, MovedIcon, VerdictPair } from '@/shared/ui'
-import { hasMoved } from '@/shared/lib'
 
 type Grid = components['schemas']['Grid']
 type Comment = components['schemas']['Comment']
@@ -112,7 +111,7 @@ const verdict = computed<'none' | 'accepted' | 'refused'>(() => {
 /** A capture that has moved is back to needing eyes, whatever its verdict
  * says. The image itself never wears a mark (ADR 0020): the badge says it
  * moved, the bar says the verdict, the grid keeps its discs. */
-const moved = computed(() => hasMoved(capture.value?.freshness))
+const moved = computed(() => capture.value?.status === 'moved')
 
 /** Left and right walk the steps, keeping the variant; a step that lacks it
  * is skipped rather than switching the lens under the reviewer (#149). */

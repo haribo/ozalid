@@ -117,19 +117,15 @@ func (r *Repository) WriteEdition(
 					VariantLabel:  contract.VariantLabel(mcap.Variant, variants.order),
 					EnvironmentID: mcap.Provenance.EnvironmentID,
 				}]
-				var freshness *string
 				var moved *int32
-				if verdict.State != "" {
-					freshness = ptr(verdict.State)
-					if verdict.Pixels != nil {
-						n := int32(*verdict.Pixels)
-						moved = &n
-					}
+				if verdict.Pixels != nil {
+					n := int32(*verdict.Pixels)
+					moved = &n
 				}
 				if _, err := q.CreateCapture(ctx, sqlcgen.CreateCaptureParams{
 					EditionID: edition.ID, StepID: step.ID, VariantID: variantID,
 					BlobHash: mcap.Hash, Provenance: provenance,
-					Freshness: freshness, MovedPixels: moved,
+					MovedPixels: moved,
 				}); err != nil {
 					return appintake.Result{}, translate("recording a capture", err)
 				}

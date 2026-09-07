@@ -33,10 +33,6 @@ type Capture struct {
 	VariantID string
 	Hash      string
 	Status    string
-	// Freshness is empty when there is nothing to compare against: nobody has
-	// approved this step and variant in this capture's environment. That is not the same
-	// as unchanged (ADR 0017).
-	Freshness string
 	// MovedPixels is nil when no pixel reading happened — identical addresses
 	// need none, mismatched dimensions admit none.
 	MovedPixels *int
