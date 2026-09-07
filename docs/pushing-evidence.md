@@ -136,3 +136,12 @@ a tracker and never creates anything there.
 It will not decide a case's state either. States are computed from the facts
 recorded ([ADR 0002](adr/0002-server-owns-the-review-lifecycle.md)), and no
 endpoint accepts one as an argument.
+
+## Delivering remarks in the same breath
+
+A reviewer's draft remark blocks its case until it is answered. When the push
+carries the fix, set `OZALID_PUSH_DELIVER=1`: after the edition lands, every
+ref-less draft remark on the pushed cases is delivered — the explicit claim
+"this edition answers your remark" (#175). The case advances onto the pushed
+bytes and the remark returns to the reviewer's court. Off by default: captures
+also move for refactors, and an edition arriving proves nothing by itself.

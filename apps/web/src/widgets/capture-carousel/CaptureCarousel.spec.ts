@@ -361,3 +361,68 @@ describe('arrows walk the steps (#149)', () => {
     expect(at('s3', 'v2').text()).toContain('3 / 3')
   })
 })
+
+describe('the branch loop: a remark without an issue (#175)', () => {
+  const remark: Comment = {
+    id: 'k5',
+    stepId: 's1',
+    body: 'too much green everywhere',
+    state: 'to-review',
+    variantIds: ['v1'],
+    authorId: 'nina',
+    createdAt: '2026-09-07T09:00:00Z',
+    judgments: [],
+    issues: [],
+  }
+
+  it('judges the delivered remark by its own words — no number', async () => {
+    const w = mountAt('v1', [remark])
+    expect(w.text()).toContain('fix delivered')
+    expect(w.text()).not.toContain('issue #')
+    expect(w.text()).toContain('too much green everywhere')
+
+    await half(w, 'accept').trigger('click')
+    expect(w.emitted('judge')).toEqual([['k5', '', true, '']])
+  })
+
+  it('refuses it through the sheet, remark mandatory, no variant ticks', async () => {
+    const w = mountAt('v1', [remark])
+    await half(w, 'refuse').trigger('click')
+    expect(w.text()).toContain('Refuse the fix')
+    expect(w.find('input[type="checkbox"]').exists()).toBe(false)
+
+    await w.find('textarea').setValue('still three green things')
+    await w.find('form').findAll('button').at(-1)!.trigger('click')
+    expect(w.emitted('judge')).toEqual([['k5', '', false, 'still three green things']])
+  })
+
+  it('reopens a settled remark from the filled half', async () => {
+    const accepted = mountAt('v2', [{ ...remark, state: 'accepted', variantIds: ['v2'] }])
+    await half(accepted, '✓ accepted').trigger('click')
+    expect(accepted.emitted('unjudge')).toEqual([['k5', '']])
+
+    const refusedGrid: Grid = {
+      ...grid,
+      steps: [
+        {
+          ...grid.steps[0],
+          cells: [
+            { id: 'cap1', variantId: 'v1', hash: 'sha256:a', status: 'refused' },
+            grid.steps[0].cells[1],
+          ],
+        },
+      ],
+    }
+    const refused = mount(CaptureCarousel, {
+      props: {
+        slug: 'atlas',
+        grid: refusedGrid,
+        comments: [{ ...remark, state: 'refused' }],
+        stepId: 's1',
+        variantId: 'v1',
+      },
+    })
+    await half(refused, '✗ refused').trigger('click')
+    expect(refused.emitted('unjudge')).toEqual([['k5', '']])
+  })
+})

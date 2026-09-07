@@ -150,4 +150,26 @@ export async function push(title: string, shots: Shot[]) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ cases: [{ id: caseId, steps }] }),
   })
+
+  // The branch loop (#175): pushing with OZALID_PUSH_DELIVER=1 is the claim
+  // "this edition answers your remarks" — every ref-less draft on the pushed
+  // case is delivered in the same breath, and the case advances onto these
+  // very bytes. Off by default: an edition arriving proves nothing by itself
+  // (product.md §7), the claim stays explicit.
+  if (process.env.OZALID_PUSH_DELIVER) {
+    const said = (await (await call(`/projects/${PROJECT}/cases/${caseId}/comments`)).json()) as {
+      id: string
+      state: string
+      issues?: unknown[]
+    }[]
+    for (const remark of said) {
+      if (remark.state === 'to-track' && (remark.issues ?? []).length === 0) {
+        await call(`/projects/${PROJECT}/comments/${remark.id}/delivery`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({}),
+        })
+      }
+    }
+  }
 }

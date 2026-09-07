@@ -875,6 +875,48 @@ func (q *Queries) SettledRefsOnCell(ctx context.Context, arg SettledRefsOnCellPa
 	return items, nil
 }
 
+const settledRemarksOnCell = `-- name: SettledRemarksOnCell :many
+SELECT c.id, c.state FROM comments c
+JOIN comment_variants cv ON cv.comment_id = c.id
+WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
+  AND c.state = 'accepted'
+  AND NOT EXISTS (SELECT 1 FROM comment_issues ci WHERE ci.comment_id = c.id)
+`
+
+type SettledRemarksOnCellParams struct {
+	CaseID    string
+	StepID    string
+	VariantID string
+}
+
+type SettledRemarksOnCellRow struct {
+	ID    string
+	State string
+}
+
+// The settled ref-less remarks whose acceptance made one capture read
+// accepted: unaccepting that capture takes their judgment back too (#167,
+// #175) — the rule is "whatever made it accepted", refs and remarks alike.
+func (q *Queries) SettledRemarksOnCell(ctx context.Context, arg SettledRemarksOnCellParams) ([]SettledRemarksOnCellRow, error) {
+	rows, err := q.db.Query(ctx, settledRemarksOnCell, arg.CaseID, arg.StepID, arg.VariantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SettledRemarksOnCellRow{}
+	for rows.Next() {
+		var i SettledRemarksOnCellRow
+		if err := rows.Scan(&i.ID, &i.State); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const stampCaptureReference = `-- name: StampCaptureReference :exec
 INSERT INTO capture_references (case_id, step_id, variant_id, environment_id, blob_hash, approved_by)
 SELECT

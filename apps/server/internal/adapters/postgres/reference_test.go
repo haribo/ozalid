@@ -581,3 +581,69 @@ func TestADraftRemarkIsEditable(t *testing.T) {
 		t.Errorf("err = %v, want ErrNotADraft", err)
 	}
 }
+
+// The branch loop (#175): a draft remark is delivered, judged and settled
+// without any issue — the case advances onto the fix's edition, the judgment
+// history carries ref-less rows, and both verdicts stay reconsiderable.
+func TestADraftRemarkLoopsWithoutAnIssue(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	pushEdition(t, ctx, repo, project, kase, "the screen before the fix", "ci")
+	cell := onlyCell(t, ctx, repo, project.Slug, kase.ID)
+	nina := actor.Actor{ID: "nina", Kind: actor.Human}
+
+	// The reviewer refuses with a remark; no issue is ever attached.
+	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
+		Comments: []session.NewComment{{
+			StepID: cell.StepID, Body: "too much green", VariantIDs: []string{cell.VariantID},
+		}},
+	}); err != nil {
+		t.Fatalf("refusing: %v", err)
+	}
+	comments, err := repo.OfCase(ctx, project.Slug, kase.ID)
+	if err != nil || len(comments) != 1 {
+		t.Fatalf("comments = %v, %v", comments, err)
+	}
+	id := comments[0].ID
+
+	// The machine pushes the fix and delivers in the same breath.
+	fixed := pushEdition(t, ctx, repo, project, kase, "the screen after the fix", "ci")
+	out, err := repo.Deliver(ctx, project.Slug, id, "", nina)
+	if err != nil {
+		t.Fatalf("delivering the draft: %v", err)
+	}
+	if out.CommentState != review.CommentToReview || out.CaseState != review.CaseToReview {
+		t.Fatalf("after delivery: comment=%q case=%q, want to-review/to-review", out.CommentState, out.CaseState)
+	}
+	grid, err := repo.CaseGrid(ctx, project.Slug, kase.ID, nil)
+	if err != nil {
+		t.Fatalf("reading the grid: %v", err)
+	}
+	if grid.Steps[0].Cells[0].Hash != fixed {
+		t.Errorf("the case still shows the old bytes — delivery must advance it onto the fix")
+	}
+
+	// Accepting settles the remark; the history keeps a ref-less judgment.
+	out, err = repo.Judge(ctx, project.Slug, id, "", nina, true, "")
+	if err != nil {
+		t.Fatalf("accepting: %v", err)
+	}
+	if out.CommentState != review.CommentAccepted || out.CaseState != review.CaseReviewed {
+		t.Errorf("after accept: comment=%q case=%q, want accepted/reviewed", out.CommentState, out.CaseState)
+	}
+	judgments, err := repo.Queries().CommentJudgments(ctx, id)
+	if err != nil || len(judgments) != 1 {
+		t.Fatalf("judgments = %v, %v", judgments, err)
+	}
+	if judgments[0].CommentIssueID != nil {
+		t.Error("the judgment carries a ref — a draft's judgment has none")
+	}
+
+	// And the acceptance is reconsiderable, like any judgment.
+	out, err = repo.Unjudge(ctx, project.Slug, id, "", nina)
+	if err != nil {
+		t.Fatalf("taking it back: %v", err)
+	}
+	if out.CommentState != review.CommentToReview || out.CaseState != review.CaseToReview {
+		t.Errorf("after the take-back: comment=%q case=%q, want to-review/to-review", out.CommentState, out.CaseState)
+	}
+}

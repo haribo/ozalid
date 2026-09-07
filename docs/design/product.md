@@ -300,12 +300,22 @@ A comment is a durable entity, not a scratch note
   can be edited — text and variants — and taking the draft refusal back
   withdraws it (ADR 0020, the explicit exception to "nothing is deleted").
   Once tracked, the issue's title speaks in its place.
+- **A draft remark loops in the branch without an issue** (#175). `delivery`
+  works on a draft: the comment moves `to-track → to-review`, the case
+  advances onto the latest edition — the dev-machine claims "this edition
+  answers your remark" at push time, API only, the book stays the reviewer's.
+  The context line reads `fix delivered` and the remark's own words — no
+  number. Accepting **settles** the remark (history kept, unlike a withdrawn
+  draft); refusing sends it back with a remark, redeliverable; both judgments
+  are reconsiderable, exactly as for refs. Tracking stays the triage's
+  choice, never an automatism. Verified by
+  `TestADraftRemarkLoopsWithoutAnIssue`.
 
 ### 6.1 Lifecycle
 
 | State | Meaning | Terminal |
 | --- | --- | --- |
-| `to-track` | Reported, no issue attached | no |
+| `to-track` | Reported, no issue attached — deliverable as-is (#175) | no |
 | `tracked` | Carries an external issue reference | no |
 | `to-review` | The dev delivered and asked for a judgment | no |
 | `refused` | Refused, with a mandatory remark | no — returns to `to-review` on the next delivery |

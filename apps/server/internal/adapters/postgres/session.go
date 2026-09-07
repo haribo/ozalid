@@ -128,6 +128,31 @@ func (r *Repository) SaveReview(
 				return session.Result{}, err
 			}
 		}
+
+		// The same rule for ref-less remarks (#175): the acceptance that
+		// settled them is taken back, comment-level, history kept.
+		remarks, err := q.SettledRemarksOnCell(ctx, sqlcgen.SettledRemarksOnCellParams{
+			CaseID: caseID, StepID: cell.StepID, VariantID: cell.VariantID,
+		})
+		if err != nil {
+			return session.Result{}, translate("reading the settled remarks", err)
+		}
+		for _, remark := range remarks {
+			to, err := review.Transition(review.CommentState(remark.State), review.MoveUnjudge, "")
+			if err != nil {
+				return session.Result{}, err
+			}
+			if err := q.SetCommentState(ctx, sqlcgen.SetCommentStateParams{
+				ID: remark.ID, State: string(to),
+			}); err != nil {
+				return session.Result{}, translate("taking the judgment back", err)
+			}
+			if err := q.RecordJudgment(ctx, sqlcgen.RecordJudgmentParams{
+				CommentID: remark.ID, Verdict: "taken-back", ActorID: by.ID,
+			}); err != nil {
+				return session.Result{}, translate("recording the take-back", err)
+			}
+		}
 	}
 
 	// Withdrawing a draft refusal takes the reviewer's own remark with it:

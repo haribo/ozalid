@@ -62,6 +62,9 @@ var allowed = map[Move]map[CommentState]CommentState{
 		CommentRefused:  CommentDiscarded,
 	},
 	MoveDeliver: {
+		// A draft loops in the branch without an issue (#175): delivering it
+		// is the machine's claim that the latest edition answers the remark.
+		CommentToTrack: CommentToReview,
 		CommentTracked: CommentToReview,
 		// A refusal is not a way to die: the dev reworks and delivers again,
 		// as many rounds as it takes (ADR 0012).
@@ -73,6 +76,12 @@ var allowed = map[Move]map[CommentState]CommentState{
 	MoveRefuse: {
 		CommentToReview: CommentRefused,
 	},
+	// Both judgments on a ref-less remark are reconsiderable, symmetrically
+	// with the refs' own machine (#175, ADR 0020).
+	MoveUnjudge: {
+		CommentAccepted: CommentToReview,
+		CommentRefused:  CommentToReview,
+	},
 }
 
 // Transition reports what a move does to a comment, or why it cannot.
@@ -81,7 +90,7 @@ var allowed = map[Move]map[CommentState]CommentState{
 // mandatory where they apply, and the check happens here rather than in a
 // handler so no caller can skip it.
 func Transition(from CommentState, move Move, reason string) (CommentState, error) {
-	if !from.Open() {
+	if !from.Open() && move != MoveUnjudge {
 		return from, ErrNotOpen
 	}
 

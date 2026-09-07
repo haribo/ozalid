@@ -68,10 +68,31 @@ func TestRefusingWithoutARemarkIsRefused(t *testing.T) {
 	}
 }
 
-func TestNothingCanBeDeliveredBeforeItIsTracked(t *testing.T) {
-	_, err := review.Transition(review.CommentToTrack, review.MoveDeliver, "")
-	if !errors.Is(err, review.ErrMoveNotAllowed) {
-		t.Errorf("err = %v, want ErrMoveNotAllowed", err)
+// A draft delivers as-is (#175): the machine's claim that the latest edition
+// answers the remark — the branch loop needs no issue.
+func TestADraftDeliversWithoutAnIssue(t *testing.T) {
+	to, err := review.Transition(review.CommentToTrack, review.MoveDeliver, "")
+	if err != nil {
+		t.Fatalf("delivering a draft: %v", err)
+	}
+	if to != review.CommentToReview {
+		t.Errorf("comment = %q, want to-review", to)
+	}
+}
+
+// And a judged ref-less remark is reconsiderable, symmetrically (#175).
+func TestUnjudgeReopensAJudgedRemark(t *testing.T) {
+	for _, from := range []review.CommentState{review.CommentAccepted, review.CommentRefused} {
+		to, err := review.Transition(from, review.MoveUnjudge, "")
+		if err != nil {
+			t.Fatalf("unjudging from %q: %v", from, err)
+		}
+		if to != review.CommentToReview {
+			t.Errorf("comment from %q = %q, want to-review", from, to)
+		}
+	}
+	if _, err := review.Transition(review.CommentDiscarded, review.MoveUnjudge, ""); err == nil {
+		t.Error("unjudge from discarded was allowed — a discard is said with a reason and it stands")
 	}
 }
 

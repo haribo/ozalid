@@ -72,6 +72,18 @@ const refusedRef = computed(() =>
   refsOnSquare.value.find(({ ref: tracked }) => tracked.state === 'refused'),
 )
 
+/** The branch loop (#175): a ref-less remark delivered, judged or settled as
+ * itself — no issue ever attached, the remark's own words do the talking. */
+const remarkToJudge = computed(() =>
+  onSquare.value.find((c) => (c.issues ?? []).length === 0 && c.state === 'to-review'),
+)
+const acceptedRemark = computed(() =>
+  onSquare.value.find((c) => (c.issues ?? []).length === 0 && c.state === 'accepted'),
+)
+const refusedRemark = computed(() =>
+  onSquare.value.find((c) => (c.issues ?? []).length === 0 && c.state === 'refused'),
+)
+
 /** The reviewer's own drafts on this square: remarks no issue is attached to
  * yet. Editable and withdrawable — they never counted anywhere (ADR 0020). */
 const drafts = computed(() =>
@@ -89,7 +101,7 @@ const trackedTitles = computed(() =>
 /** What the pair shows. The fix's judgment outranks the capture's own status:
  * when an issue is on this square, the verdict is about the fix. */
 const verdict = computed<'none' | 'accepted' | 'refused'>(() => {
-  if (toJudge.value) return 'none'
+  if (toJudge.value || remarkToJudge.value) return 'none'
   if (acceptedRef.value) return 'accepted'
   if (refusedRef.value) return 'refused'
   if (cell.value?.status === 'accepted') return 'accepted'
@@ -160,8 +172,9 @@ function pickAll() {
 
 const canSend = computed(() => {
   if (remark.value.trim() === '') return false
-  // A fix's refusal needs no variants: the issue already owns its own.
-  return toJudge.value ? true : chosen.value.length > 0
+  // A fix's refusal needs no variants: the issue — or the delivered remark —
+  // already owns its own.
+  return toJudge.value || remarkToJudge.value ? true : chosen.value.length > 0
 })
 
 function openSheet() {
@@ -190,6 +203,8 @@ function send() {
     emit('edit', sheet.value.editing, body, [...chosen.value])
   } else if (toJudge.value) {
     emit('judge', toJudge.value.comment.id, toJudge.value.ref.id, false, body)
+  } else if (remarkToJudge.value) {
+    emit('judge', remarkToJudge.value.id, '', false, body)
   } else {
     emit('refuse', {
       stepId: props.stepId,
@@ -209,6 +224,14 @@ function onAccept() {
     emit('judge', toJudge.value.comment.id, toJudge.value.ref.id, true, '')
     return
   }
+  if (remarkToJudge.value) {
+    emit('judge', remarkToJudge.value.id, '', true, '')
+    return
+  }
+  if (acceptedRemark.value) {
+    emit('unjudge', acceptedRemark.value.id, '')
+    return
+  }
   if (acceptedRef.value) {
     // The filled half un-presses: the judgment is taken back (#167).
     emit('unjudge', acceptedRef.value.comment.id, acceptedRef.value.ref.id)
@@ -226,6 +249,10 @@ function onRefuse() {
   if (props.busy || sheet.value) return
   if (refusedRef.value) {
     emit('unjudge', refusedRef.value.comment.id, refusedRef.value.ref.id)
+    return
+  }
+  if (refusedRemark.value) {
+    emit('unjudge', refusedRemark.value.id, '')
     return
   }
   if (verdict.value === 'refused') {
@@ -356,6 +383,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           {{ toJudge.ref.title || toJudge.comment.body }}
         </p>
       </template>
+      <!-- The branch loop (#175): no number — the remark's own words talk. -->
+      <template v-else-if="remarkToJudge">
+        <p class="font-mono text-label tracking-widest text-slate-500 uppercase">fix delivered</p>
+        <p class="max-w-[52ch] text-body text-slate-600 dark:text-slate-300">
+          {{ remarkToJudge.body }}
+        </p>
+      </template>
       <p
         v-else-if="acceptedRef"
         class="font-mono text-label tracking-widest text-emerald-700 uppercase dark:text-emerald-400"
@@ -414,7 +448,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               ? 'Edit the remark'
               : toJudge
                 ? `Refuse the fix — issue #${toJudge.ref.issueId}`
-                : 'Refuse the capture'
+                : remarkToJudge
+                  ? 'Refuse the fix'
+                  : 'Refuse the capture'
           }}
         </h3>
         <label class="flex flex-col gap-1">
@@ -428,7 +464,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           ></textarea>
         </label>
         <div
-          v-if="!toJudge"
+          v-if="!toJudge && !remarkToJudge"
           class="flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-mono"
         >
           <label
