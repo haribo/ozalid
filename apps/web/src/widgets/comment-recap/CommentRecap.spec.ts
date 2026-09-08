@@ -47,13 +47,80 @@ describe('CommentRecap', () => {
     expect(w.find('input').exists()).toBe(false)
   })
 
-  it('ticks one column per variant the comment applies to', () => {
-    // One defect over two variants is one row with two ticks, never two rows.
+  it('marks one column per variant the comment applies to', () => {
+    // One defect over two variants is one row with two waiting marks, never
+    // two rows.
     const w = mount(CommentRecap, {
       props: { grid, comments: [comment({ variantIds: ['v1', 'v2'] })] },
     })
     expect(w.findAll('tbody tr')).toHaveLength(1)
-    expect(w.findAll('tbody td svg[role="img"]').length).toBeGreaterThanOrEqual(2)
+    expect(w.findAll('tbody [role="img"]')).toHaveLength(2)
+  })
+
+  it('says one mark per variant and per block', () => {
+    // ADR 0022: the acceptance landed on v1 and released it from the
+    // coverage; v2 still waits. One mark each, read from the history.
+    const w = mount(CommentRecap, {
+      props: {
+        grid,
+        comments: [
+          comment({
+            state: 'to-review',
+            variantIds: ['v2'],
+            issues: [
+              { id: 'ref1', issueId: '173', title: 'let the label sit', state: 'to-review' },
+            ],
+            judgments: [
+              { verdict: 'accepted', variantId: 'v1', actorId: 'nina', at: '2026-09-08T09:00:00Z' },
+            ],
+          }),
+        ],
+      },
+    })
+    const marks = w.findAll('tbody [role="img"]')
+    expect(marks.map((m) => m.attributes('aria-label'))).toEqual([
+      'accepted on desktop·light',
+      'waiting on desktop·dark',
+    ])
+  })
+
+  it('two standing refusals are two anchored lines', () => {
+    // Each remark is a line, its ✗ in the refused variant's column — the
+    // alignment says which is which, and the claim line carries no ✗.
+    const w = mount(CommentRecap, {
+      props: {
+        grid,
+        comments: [
+          comment({
+            state: 'refused',
+            variantIds: ['v1', 'v2'],
+            issues: [
+              {
+                id: 'ref1',
+                issueId: '130',
+                title: 'calm the sent state down',
+                state: 'refused',
+                refusals: [
+                  { variantId: 'v1', remark: 'the frame is still green' },
+                  { variantId: 'v2', remark: 'three green things remain' },
+                ],
+              },
+            ],
+          }),
+        ],
+      },
+    })
+    const rows = w.findAll('tbody tr')
+    expect(rows).toHaveLength(3)
+    expect(rows[0].findAll('[role="img"]')).toHaveLength(0)
+    expect(rows[1].text()).toContain('the frame is still green')
+    expect(rows[1].findAll('[role="img"]').map((m) => m.attributes('aria-label'))).toEqual([
+      'refused on desktop·light',
+    ])
+    expect(rows[2].text()).toContain('three green things remain')
+    expect(rows[2].findAll('[role="img"]').map((m) => m.attributes('aria-label'))).toEqual([
+      'refused on desktop·dark',
+    ])
   })
 
   it("shows a refusal's remark, because that is what the dev must read", () => {
@@ -69,15 +136,7 @@ describe('CommentRecap', () => {
                 issueId: '139',
                 title: 'the button is clipped',
                 state: 'refused',
-                lastRefusal: 'still clipped on iPhone SE',
-              },
-            ],
-            judgments: [
-              {
-                verdict: 'refused',
-                remark: 'still clipped on iPhone SE',
-                actorId: 'nina',
-                at: '2026-08-24T10:00:00Z',
+                refusals: [{ variantId: 'v2', remark: 'still clipped on iPhone SE' }],
               },
             ],
           }),
@@ -139,7 +198,7 @@ describe('CommentRecap', () => {
     expect(rows[2].classes()).toContain('opacity-50')
   })
 
-  it('counts what is still open, not what exists', () => {
+  it('carries no counter: the rows already say it (#213)', () => {
     const w = mount(CommentRecap, {
       props: {
         grid,
@@ -150,6 +209,6 @@ describe('CommentRecap', () => {
         ],
       },
     })
-    expect(w.text()).toContain('1 open of 3')
+    expect(w.text()).not.toContain('open of')
   })
 })
