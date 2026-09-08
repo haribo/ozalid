@@ -220,7 +220,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
               <template v-else>
                 <!-- eslint-disable vue/no-restricted-class -- the missing mark's own dashes (ADR 0016), not an empty state -->
                 <span
-                  class="inline-grid place-items-center border-2 border-dashed border-red-600 bg-red-50 text-red-700 dark:border-red-500 dark:bg-red-950/50 dark:text-red-400"
+                  class="inline-grid place-items-center border-2 border-dashed border-slate-400 bg-slate-50 text-slate-500 dark:border-slate-500 dark:bg-slate-900/50 dark:text-slate-400"
                   :class="isPortrait(v.values) ? SIZE.tall : SIZE.wide"
                 >
                   <MissingIcon :size="18" />
@@ -250,7 +250,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
       <span class="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-300">
         <MovedIcon :size="12" label="moved" />moved
       </span>
-      <span class="flex items-center gap-1.5 text-red-700 dark:text-red-400">
+      <span class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
         <MissingIcon :size="12" />missing
       </span>
     </div>

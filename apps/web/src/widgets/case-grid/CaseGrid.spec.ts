@@ -225,9 +225,10 @@ describe('CaseGrid', () => {
     const capture = captures(w)[0]
     const mark = capture.find('[role="img"]')
     expect(mark.attributes('aria-label')).toBe('moved')
-    // Two arrows on the disc, not a check: a capture can be validated and moved
-    // at once, and one mark must not be mistakable for the other.
-    expect(mark.findAll('path')).toHaveLength(2)
+    // Two offset frames on the disc, not a check (#209): a capture can be
+    // validated and moved at once, and one mark must not be mistakable for
+    // the other.
+    expect(mark.findAll('rect')).toHaveLength(2)
     expect(mark.classes()).toContain('rounded-full')
   })
 
