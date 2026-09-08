@@ -244,7 +244,7 @@ async function refreshCase() {
         </span>
         <span
           v-if="tally.missing > 0"
-          class="inline-flex items-center gap-1.5 rounded border border-red-600 bg-red-50 px-1.5 py-0.5 text-red-700 dark:border-red-500 dark:bg-red-950/60 dark:text-red-400"
+          class="inline-flex items-center gap-1.5 rounded border border-slate-400 bg-slate-50 px-1.5 py-0.5 text-slate-500 dark:border-slate-500 dark:bg-slate-900/60 dark:text-slate-400"
         >
           <MissingIcon :size="10" />
           {{ tally.missing }} missing capture{{ tally.missing > 1 ? 's' : '' }}
