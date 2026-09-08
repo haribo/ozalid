@@ -331,12 +331,22 @@ func toAPIComment(c comment.Record) openapi.Comment {
 	if len(c.Issues) > 0 {
 		refs := make([]openapi.IssueTracking, 0, len(c.Issues))
 		for _, ref := range c.Issues {
-			refs = append(refs, openapi.IssueTracking{
+			tracked := openapi.IssueTracking{
 				Id: ref.RefID, IssueId: ref.ID,
 				Url: nonEmptyPtr(ref.URL), Title: nonEmptyPtr(ref.Title),
 				State:       openapi.IssueTrackingState(ref.State),
 				LastRefusal: nonEmptyPtr(ref.LastRefusal),
-			})
+			}
+			if len(ref.Refusals) > 0 {
+				standing := make([]openapi.Refusal, 0, len(ref.Refusals))
+				for _, refusal := range ref.Refusals {
+					standing = append(standing, openapi.Refusal{
+						VariantId: nonEmptyPtr(refusal.VariantID), Remark: refusal.Remark,
+					})
+				}
+				tracked.Refusals = &standing
+			}
+			refs = append(refs, tracked)
 		}
 		out.Issues = &refs
 	}

@@ -161,19 +161,44 @@ LIMIT 2;
 -- name: SetCommentIssueState :exec
 UPDATE comment_issues SET state = $2 WHERE id = $1;
 
--- The refs of every comment of one case, with each ref's last refusal remark:
--- what the dev has to read is the remark, and the table shows it under the
--- title (#138).
+-- The refs of every comment of one case, with each ref's last standing
+-- refusal remark: what the dev has to read is the remark (#138). A refusal
+-- speaks only while it stands (#212) — taken back or answered by a
+-- redelivery, it leaves the read model.
 -- name: CaseCommentIssues :many
 SELECT ci.*, (
     SELECT j.remark FROM comment_judgments j
     WHERE j.comment_issue_id = ci.id AND j.verdict = 'refused'
+      AND ci.state = 'refused'
+      AND (ci.delivered_at IS NULL OR j.created_at > ci.delivered_at)
+      AND NOT EXISTS (SELECT 1 FROM comment_judgments t
+                      WHERE t.comment_issue_id = ci.id
+                        AND t.verdict = 'taken-back'
+                        AND t.created_at > j.created_at)
     ORDER BY j.created_at DESC LIMIT 1
 ) AS last_refusal
 FROM comment_issues ci
 JOIN comments c ON c.id = ci.comment_id
 WHERE c.case_id = $1
 ORDER BY ci.comment_id, ci.created_at;
+
+-- Every standing refusal of one case's refs, each naming the capture it was
+-- given on (#212): the recap anchors the remark in its variant's column.
+-- name: CaseStandingRefusals :many
+SELECT ci.id AS ref_id, j.variant_id, j.remark
+FROM comment_issues ci
+JOIN comments c ON c.id = ci.comment_id
+JOIN comment_judgments j ON j.comment_issue_id = ci.id
+WHERE c.case_id = $1 AND ci.state = 'refused' AND j.verdict = 'refused'
+  AND (ci.delivered_at IS NULL OR j.created_at > ci.delivered_at)
+  AND NOT EXISTS (SELECT 1 FROM comment_judgments t
+                  WHERE t.comment_issue_id = ci.id
+                    AND t.verdict = 'taken-back'
+                    AND t.created_at > j.created_at)
+ORDER BY ci.id, j.created_at;
+
+-- name: StampCommentIssueDelivery :exec
+UPDATE comment_issues SET delivered_at = now() WHERE id = $1;
 
 -- name: DiscardComment :exec
 UPDATE comments SET state = $2, discard_reason = $3, updated_at = now() WHERE id = $1;

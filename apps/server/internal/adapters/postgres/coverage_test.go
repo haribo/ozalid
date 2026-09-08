@@ -180,3 +180,74 @@ func TestUnjudgingOneVariantRestoresItsCoverage(t *testing.T) {
 		t.Errorf("last judgment = %+v, want taken-back naming the variant", last)
 	}
 }
+
+// A withdrawn refusal is not a standing one: taking it back removes its
+// remark from the read model (#212). Observed on production rc.20: a refusal
+// taken back five seconds after being given still showed its remark under an
+// accepted ref.
+func TestATakenBackRefusalSaysNothing(t *testing.T) {
+	ctx, repo, project, kase, captures, id := coverageFixture(t)
+	nina := actor.Actor{ID: "nina", Kind: actor.Human}
+
+	if _, err := repo.Judge(ctx, project.Slug, id, "", captures[0].VariantID, nina, false, "gdfgdfg"); err != nil {
+		t.Fatalf("refusing: %v", err)
+	}
+	if _, err := repo.Unjudge(ctx, project.Slug, id, "", "", nina); err != nil {
+		t.Fatalf("taking the refusal back: %v", err)
+	}
+
+	comments, err := repo.OfCase(ctx, project.Slug, kase.ID)
+	if err != nil || len(comments) != 1 {
+		t.Fatalf("comments = %v, %v", comments, err)
+	}
+	ref := comments[0].Issues[0]
+	if ref.LastRefusal != "" {
+		t.Errorf("lastRefusal = %q after the take-back, want nothing", ref.LastRefusal)
+	}
+	if len(ref.Refusals) != 0 {
+		t.Errorf("refusals = %v after the take-back, want none", ref.Refusals)
+	}
+}
+
+// A standing refusal names the capture it was given on, and a redelivery
+// answers it: the next round starts with no refusal speaking (#212).
+func TestStandingRefusalsNameTheirVariants(t *testing.T) {
+	ctx, repo, project, kase, captures, id := coverageFixture(t)
+	nina := actor.Actor{ID: "nina", Kind: actor.Human}
+
+	if _, err := repo.Judge(ctx, project.Slug, id, "", captures[1].VariantID, nina, false, "still overflows here"); err != nil {
+		t.Fatalf("refusing: %v", err)
+	}
+	read := func() appcomment.IssueTracking {
+		comments, err := repo.OfCase(ctx, project.Slug, kase.ID)
+		if err != nil || len(comments) != 1 {
+			t.Fatalf("comments = %v, %v", comments, err)
+		}
+		return comments[0].Issues[0]
+	}
+
+	ref := read()
+	if len(ref.Refusals) != 1 || ref.Refusals[0].VariantID != captures[1].VariantID ||
+		ref.Refusals[0].Remark != "still overflows here" {
+		t.Errorf("refusals = %v, want the one refusal naming its variant", ref.Refusals)
+	}
+	if ref.LastRefusal != "still overflows here" {
+		t.Errorf("lastRefusal = %q, want the standing remark", ref.LastRefusal)
+	}
+
+	// The dev answers: the redelivered round opens with nothing standing.
+	if _, err := repo.Deliver(ctx, project.Slug, id, "", nina); err != nil {
+		t.Fatalf("redelivering: %v", err)
+	}
+	if ref = read(); len(ref.Refusals) != 0 || ref.LastRefusal != "" {
+		t.Errorf("refusals = %v, lastRefusal = %q after the redelivery, want none", ref.Refusals, ref.LastRefusal)
+	}
+
+	// A new refusal on the other capture speaks for itself alone.
+	if _, err := repo.Judge(ctx, project.Slug, id, "", captures[0].VariantID, nina, false, "the frame is still green"); err != nil {
+		t.Fatalf("refusing the next round: %v", err)
+	}
+	if ref = read(); len(ref.Refusals) != 1 || ref.Refusals[0].VariantID != captures[0].VariantID {
+		t.Errorf("refusals = %v, want only the new round's refusal", ref.Refusals)
+	}
+}

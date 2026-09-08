@@ -421,6 +421,13 @@ func (r *Repository) moveRef(
 	}); err != nil {
 		return "", translate("moving the ref", err)
 	}
+	// The delivery is dated so a refusal can be told standing from answered
+	// (#212): only what came after the last delivery still speaks.
+	if m == review.MoveDeliver {
+		if err := q.StampCommentIssueDelivery(ctx, ref.ID); err != nil {
+			return "", translate("dating the delivery", err)
+		}
+	}
 	return ref.ID, nil
 }
 
@@ -589,6 +596,21 @@ func (r *Repository) OfCase(ctx context.Context, slug, caseID string) ([]appcomm
 	for _, ref := range caseRefs {
 		refsByComment[ref.CommentID] = append(refsByComment[ref.CommentID], ref)
 	}
+	standing, err := r.q.CaseStandingRefusals(ctx, caseID)
+	if err != nil {
+		return nil, translate("reading the standing refusals", err)
+	}
+	refusalsByRef := map[string][]appcomment.Refusal{}
+	for _, row := range standing {
+		var refusal appcomment.Refusal
+		if row.Remark != nil {
+			refusal.Remark = *row.Remark
+		}
+		if row.VariantID != nil {
+			refusal.VariantID = *row.VariantID
+		}
+		refusalsByRef[row.RefID] = append(refusalsByRef[row.RefID], refusal)
+	}
 
 	out := make([]appcomment.Record, 0, len(rows))
 	for _, row := range rows {
@@ -612,6 +634,7 @@ func (r *Repository) OfCase(ctx context.Context, slug, caseID string) ([]appcomm
 			if ref.LastRefusal != nil {
 				tracking.LastRefusal = *ref.LastRefusal
 			}
+			tracking.Refusals = refusalsByRef[ref.ID]
 			record.Issues = append(record.Issues, tracking)
 		}
 		// The first ref doubles as the old single `issue`, for old readers.

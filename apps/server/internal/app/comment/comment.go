@@ -130,6 +130,14 @@ type IssueTracking struct {
 	Title       string
 	State       review.RefState
 	LastRefusal string
+	Refusals    []Refusal
+}
+
+// Refusal is one standing refusal: given on a capture, it speaks until it is
+// taken back or answered by a redelivery (#212). The journal keeps the rest.
+type Refusal struct {
+	VariantID string
+	Remark    string
 }
 
 // Record is a comment as the layers above read it: what was said, where it

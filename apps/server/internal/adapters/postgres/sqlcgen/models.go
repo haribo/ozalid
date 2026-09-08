@@ -84,13 +84,14 @@ type Comment struct {
 }
 
 type CommentIssue struct {
-	ID        string
-	CommentID string
-	IssueID   string
-	Url       *string
-	Title     *string
-	State     string
-	CreatedAt pgtype.Timestamptz
+	ID          string
+	CommentID   string
+	IssueID     string
+	Url         *string
+	Title       *string
+	State       string
+	CreatedAt   pgtype.Timestamptz
+	DeliveredAt pgtype.Timestamptz
 }
 
 type CommentJudgment struct {
