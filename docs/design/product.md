@@ -195,9 +195,13 @@ Facts that trigger a recomputation:
 | A delivery is accepted or refused | comment → `accepted` or `refused` |
 | An edition is accepted | capture movement only — never the cycle state |
 
-**The verdict pair** (ADR 0020, #170, #171). Reviewing is giving one of two
-verdicts — **accept** or **refuse** — on a bare capture exactly as on a
-delivered fix. The pair is one segmented control, always visible; the filled
+**The verdict pair** (ADR 0020, ADR 0022, #170, #171, #208). Reviewing is
+giving one of two verdicts — **accept** or **refuse** — and the pair always
+judges **the capture on screen**, bare or under a delivered fix: a fix can
+work on one variant and not the other, so no act ever spans variants. A
+mixed state — one variant accepted, its sibling still delivered — is
+legitimate and the zone shows the scope plainly. Verified by the carousel
+spec "the pair judges this variant only" and the partial-round e2e. The pair is one segmented control, always visible; the filled
 half is the state; a capture reads `to-review`, `accepted` or `refused` —
 `validated` left the product. Space plays accept. Clicking the filled half
 takes the verdict back — a misclick, or a second look — and switching
@@ -301,7 +305,19 @@ A comment is a durable entity, not a scratch note
   settled — a non-blocking remark does not exist.
 - A comment carries **one or more issue refs**, each with its own
   delivered-and-judged cycle (`tracked → to-review → accepted | refused`, a
-  refusal redelivered as many rounds as it takes). The comment's own state
+  refusal redelivered as many rounds as it takes).
+- **Resolution is per variant — coverage shrinks**
+  ([ADR 0022](../adr/0022-a-judgment-lands-on-the-capture-on-screen.md),
+  #208). Accepting a delivered fix on a variant releases that variant from
+  the remark's coverage, records an explicit acceptance and stamps its
+  reference; the ref and the comment settle when the coverage empties — the
+  last accepted variant closes the round. Refusing on a variant opens a
+  **partial round**: the ref returns to the dev for the remaining coverage,
+  released variants stay released. Take-backs restore coverage variant by
+  variant. Verified by `TestAcceptingAFixReleasesOneVariant`,
+  `TestRefusingAFixKeepsTheRemainingCoverage`,
+  `TestTheLastAcceptedVariantSettlesTheRemark`,
+  `TestUnjudgingOneVariantRestoresItsCoverage`. The comment's own state
   derives from its refs — the finest open ref decides — and the comment closes
   when its last ref does.
 - The recap under the grid is a **summary and carries no action**: judging

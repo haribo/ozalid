@@ -1,7 +1,7 @@
 # 0020 — A remark is a verdict
 
 Date: 2026-09-06
-Status: Accepted
+Status: Accepted — settling clause superseded by [ADR 0022](0022-a-judgment-lands-on-the-capture-on-screen.md)
 
 ## Context
 
