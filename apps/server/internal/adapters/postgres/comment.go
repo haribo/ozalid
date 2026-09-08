@@ -92,7 +92,7 @@ func (r *Repository) moveComment(
 }
 
 func (r *Repository) Judge(
-	ctx context.Context, slug, commentID, issueRefID string, by actor.Actor, accept bool, remark string,
+	ctx context.Context, slug, commentID, issueRefID, variantID string, by actor.Actor, accept bool, remark string,
 ) (appcomment.Outcome, error) {
 	move := review.MoveRefuse
 	verdict := "refused"
@@ -101,71 +101,207 @@ func (r *Repository) Judge(
 	}
 
 	return r.move(ctx, slug, commentID, by, move, remark, func(ctx context.Context, q *sqlcgen.Queries, c sqlcgen.Comment) (review.CommentState, error) {
-		// A ref-less remark is judged as itself (#175); the judgment row
-		// simply carries no ref.
+		// A judgment lands on the capture on screen (ADR 0022): accepting
+		// releases this variant from the remark's coverage; the ref — or a
+		// ref-less remark itself — settles when the coverage empties, and a
+		// refusal opens a partial round for what remains.
+		kase, err := q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: c.CaseID, Slug: slug})
+		if err != nil {
+			return "", translate("reading the case", err)
+		}
 		bare, err := r.refless(ctx, q, c)
 		if err != nil {
 			return "", err
 		}
-		if bare {
-			to, err := r.moveComment(ctx, q, c, move, remark)
+
+		if accept {
+			released, err := q.ReleaseCommentVariant(ctx, sqlcgen.ReleaseCommentVariantParams{
+				CommentID: commentID, VariantID: variantID,
+			})
 			if err != nil {
-				return "", err
+				return "", translate("releasing the variant", err)
 			}
-			if err := q.RecordJudgment(ctx, sqlcgen.RecordJudgmentParams{
-				CommentID: commentID,
-				Verdict:   verdict, Remark: nonEmpty(remark), ActorID: by.ID,
+			if released == 0 {
+				// Judging a variant the remark does not cover is a move the
+				// facts do not allow.
+				return "", review.ErrMoveNotAllowed
+			}
+			// The judge approved these bytes: the acceptance and its
+			// reference are this variant's own (#206, ADR 0022).
+			if err := q.RecordCaptureAcceptance(ctx, sqlcgen.RecordCaptureAcceptanceParams{
+				CaseID: c.CaseID, StepID: c.StepID, VariantID: variantID, AcceptedBy: &by.ID,
 			}); err != nil {
-				return "", translate("recording the judgment", err)
+				return "", translate("recording the acceptance", err)
 			}
-			return to, nil
+			if kase.CurrentEditionID != nil {
+				if err := q.StampCaptureReference(ctx, sqlcgen.StampCaptureReferenceParams{
+					CaseID: c.CaseID, StepID: c.StepID, VariantID: variantID,
+					EditionID: *kase.CurrentEditionID, ApprovedBy: by.ID,
+				}); err != nil {
+					return "", translate("stamping the reference", err)
+				}
+			}
+		} else {
+			// The refusal's anchor follows the refused variant: the judge
+			// refused these bytes.
+			if kase.CurrentEditionID != nil {
+				if err := q.ReanchorCommentVariant(ctx, sqlcgen.ReanchorCommentVariantParams{
+					CommentID: commentID, VariantID: variantID, EditionID: *kase.CurrentEditionID,
+				}); err != nil {
+					return "", translate("re-anchoring the refusal", err)
+				}
+			}
 		}
-		refID, err := r.moveRef(ctx, q, slug, commentID, issueRefID, move, remark)
+
+		covered, err := q.CommentCoveredVariants(ctx, commentID)
 		if err != nil {
-			return "", err
+			return "", translate("reading the coverage", err)
 		}
-		// Every judgment is kept, not just the last: three round trips on one
-		// ref is information (ADR 0012).
+		settled := accept && len(covered) == 0
+
+		var refID *string
+		if !bare {
+			// The ref moves on a refusal, and on the acceptance that empties
+			// the coverage — the last accepted variant closes the round.
+			if !accept || settled {
+				moved, err := r.moveRef(ctx, q, slug, commentID, issueRefID, move, remark)
+				if err != nil {
+					return "", err
+				}
+				refID = &moved
+			} else if id, err := r.namedRef(ctx, q, slug, commentID, issueRefID); err != nil {
+				return "", err
+			} else {
+				refID = &id
+			}
+		}
+
 		if err := q.RecordJudgment(ctx, sqlcgen.RecordJudgmentParams{
-			CommentID: commentID, CommentIssueID: &refID,
+			CommentID: commentID, CommentIssueID: refID,
 			Verdict: verdict, Remark: nonEmpty(remark), ActorID: by.ID,
+			VariantID: &variantID,
 		}); err != nil {
 			return "", translate("recording the judgment", err)
 		}
+
+		if bare {
+			if !accept || settled {
+				return r.moveComment(ctx, q, c, move, remark)
+			}
+			// Variants remain: the remark stays where it was, waiting for
+			// their judgments.
+			return review.CommentState(c.State), nil
+		}
 		return r.derive(ctx, q, c)
 	})
+}
+
+// namedRef resolves which ref the caller means without moving it.
+func (r *Repository) namedRef(
+	ctx context.Context, q *sqlcgen.Queries, slug, commentID, issueRefID string,
+) (string, error) {
+	refs, err := q.GetCommentIssue(ctx, sqlcgen.GetCommentIssueParams{
+		CommentID: commentID, Slug: slug, Column3: issueRefID,
+	})
+	if err != nil {
+		return "", translate("reading the issue refs", err)
+	}
+	switch {
+	case len(refs) == 0:
+		return "", review.ErrMoveNotAllowed
+	case len(refs) > 1:
+		return "", appcomment.ErrAmbiguousIssue
+	}
+	return refs[0].ID, nil
 }
 
 // Unjudge takes a judgment back — an acceptance or a refusal. The take-back
 // joins the judgment history: who reconsidered, and when, is information
 // exactly like the judgment was (#167, #171, ADR 0012).
 func (r *Repository) Unjudge(
-	ctx context.Context, slug, commentID, issueRefID string, by actor.Actor,
+	ctx context.Context, slug, commentID, issueRefID, variantID string, by actor.Actor,
 ) (appcomment.Outcome, error) {
 	return r.move(ctx, slug, commentID, by, review.MoveUnjudge, "", func(ctx context.Context, q *sqlcgen.Queries, c sqlcgen.Comment) (review.CommentState, error) {
 		bare, err := r.refless(ctx, q, c)
 		if err != nil {
 			return "", err
 		}
-		if bare {
-			to, err := r.moveComment(ctx, q, c, review.MoveUnjudge, "")
+
+		// With a variant named, the take-back restores that variant's
+		// coverage and removes its acceptance (ADR 0022) — the reference
+		// stays, it is history. Without one, the take-back is ref-level: a
+		// refusal returning to to-review.
+		var variant *string
+		if variantID != "" {
+			kase, err := q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: c.CaseID, Slug: slug})
 			if err != nil {
-				return "", err
+				return "", translate("reading the case", err)
+			}
+			if kase.CurrentEditionID != nil {
+				if err := q.RestoreCommentVariant(ctx, sqlcgen.RestoreCommentVariantParams{
+					CommentID: commentID, VariantID: variantID, EditionID: *kase.CurrentEditionID,
+				}); err != nil {
+					return "", translate("restoring the coverage", err)
+				}
+			}
+			if err := q.DeleteCaptureAcceptance(ctx, sqlcgen.DeleteCaptureAcceptanceParams{
+				CaseID: c.CaseID, StepID: c.StepID, VariantID: variantID,
+			}); err != nil {
+				return "", translate("taking the acceptance back", err)
+			}
+			variant = &variantID
+		}
+
+		if bare {
+			to := review.CommentState(c.State)
+			// A settled remark reopens; one still waiting for its other
+			// variants has nothing to move.
+			if variantID == "" || !to.Open() {
+				moved, err := r.moveComment(ctx, q, c, review.MoveUnjudge, "")
+				if err != nil {
+					return "", err
+				}
+				to = moved
 			}
 			if err := q.RecordJudgment(ctx, sqlcgen.RecordJudgmentParams{
-				CommentID: commentID, Verdict: "taken-back", ActorID: by.ID,
+				CommentID: commentID, Verdict: "taken-back", ActorID: by.ID, VariantID: variant,
 			}); err != nil {
 				return "", translate("recording the take-back", err)
 			}
 			return to, nil
 		}
-		refID, err := r.moveRef(ctx, q, slug, commentID, issueRefID, review.MoveUnjudge, "")
-		if err != nil {
-			return "", err
+
+		var refID *string
+		if variantID == "" {
+			moved, err := r.moveRef(ctx, q, slug, commentID, issueRefID, review.MoveUnjudge, "")
+			if err != nil {
+				return "", err
+			}
+			refID = &moved
+		} else {
+			id, err := r.namedRef(ctx, q, slug, commentID, issueRefID)
+			if err != nil {
+				return "", err
+			}
+			refID = &id
+			// A settled ref reopens for the restored variant; one still
+			// mid-round has nothing to move.
+			refs, err := q.CommentIssueStates(ctx, commentID)
+			if err != nil {
+				return "", translate("reading the ref states", err)
+			}
+			for _, state := range refs {
+				if review.RefState(state) == review.RefAccepted {
+					if _, err := r.moveRef(ctx, q, slug, commentID, issueRefID, review.MoveUnjudge, ""); err != nil {
+						return "", err
+					}
+					break
+				}
+			}
 		}
 		if err := q.RecordJudgment(ctx, sqlcgen.RecordJudgmentParams{
-			CommentID: commentID, CommentIssueID: &refID,
-			Verdict: "taken-back", ActorID: by.ID,
+			CommentID: commentID, CommentIssueID: refID,
+			Verdict: "taken-back", ActorID: by.ID, VariantID: variant,
 		}); err != nil {
 			return "", translate("recording the take-back", err)
 		}
@@ -497,6 +633,9 @@ func (r *Repository) OfCase(ctx context.Context, slug, caseID string) ([]appcomm
 			}
 			if j.Remark != nil {
 				judgment.Remark = *j.Remark
+			}
+			if j.VariantID != nil {
+				judgment.VariantID = *j.VariantID
 			}
 			record.Judgments = append(record.Judgments, judgment)
 		}

@@ -40,8 +40,8 @@ type Repository interface {
 	Track(ctx context.Context, slug, commentID string, by actor.Actor, issue IssueRef) (Outcome, error)
 	Discard(ctx context.Context, slug, commentID string, by actor.Actor, reason string) (Outcome, error)
 	Deliver(ctx context.Context, slug, commentID, issueRefID string, by actor.Actor) (Outcome, error)
-	Judge(ctx context.Context, slug, commentID, issueRefID string, by actor.Actor, accept bool, remark string) (Outcome, error)
-	Unjudge(ctx context.Context, slug, commentID, issueRefID string, by actor.Actor) (Outcome, error)
+	Judge(ctx context.Context, slug, commentID, issueRefID, variantID string, by actor.Actor, accept bool, remark string) (Outcome, error)
+	Unjudge(ctx context.Context, slug, commentID, issueRefID, variantID string, by actor.Actor) (Outcome, error)
 	Edit(ctx context.Context, slug, commentID string, by actor.Actor, body string, variantIDs []string) (Outcome, error)
 	OfCase(ctx context.Context, slug, caseID string) ([]Record, error)
 }
@@ -78,15 +78,23 @@ func (s *Service) Deliver(ctx context.Context, slug, commentID, issueRefID strin
 	return s.repo.Deliver(ctx, slug, commentID, issueRefID, by)
 }
 
-// Judge accepts a delivery, or refuses it with a remark.
-func (s *Service) Judge(ctx context.Context, slug, commentID, issueRefID string, by actor.Actor, accept bool, remark string) (Outcome, error) {
-	return s.repo.Judge(ctx, slug, commentID, issueRefID, by, accept, strings.TrimSpace(remark))
+// Judge accepts a delivery, or refuses it with a remark — always on one
+// variant: a judgment lands on the capture on screen (ADR 0022).
+func (s *Service) Judge(ctx context.Context, slug, commentID, issueRefID, variantID string, by actor.Actor, accept bool, remark string) (Outcome, error) {
+	if strings.TrimSpace(variantID) == "" {
+		return Outcome{}, ErrVariantRequired
+	}
+	return s.repo.Judge(ctx, slug, commentID, issueRefID, variantID, by, accept, strings.TrimSpace(remark))
 }
+
+// ErrVariantRequired means the judgment named no capture: a verdict always
+// lands on the one on screen (ADR 0022).
+var ErrVariantRequired = errors.New("comment: a judgment names its variant")
 
 // Unjudge takes a judgment back — an acceptance or a refusal: the reviewer
 // reconsiders, and the ref returns to their court (#167, #171).
-func (s *Service) Unjudge(ctx context.Context, slug, commentID, issueRefID string, by actor.Actor) (Outcome, error) {
-	return s.repo.Unjudge(ctx, slug, commentID, issueRefID, by)
+func (s *Service) Unjudge(ctx context.Context, slug, commentID, issueRefID, variantID string, by actor.Actor) (Outcome, error) {
+	return s.repo.Unjudge(ctx, slug, commentID, issueRefID, variantID, by)
 }
 
 // ErrAmbiguousIssue means the comment carries several refs and the caller
@@ -146,7 +154,10 @@ type Judgment struct {
 	Verdict string
 	Remark  string
 	ActorID string
-	At      time.Time
+	// VariantID is the capture the judgment landed on (ADR 0022) — empty on
+	// history from before, and on ref-level moves.
+	VariantID string
+	At        time.Time
 }
 
 // OfCase returns what has been said about a case, settled comments included:

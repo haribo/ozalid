@@ -101,6 +101,7 @@ type CommentJudgment struct {
 	ActorID        string
 	CreatedAt      pgtype.Timestamptz
 	CommentIssueID *string
+	VariantID      *string
 }
 
 type CommentVariant struct {

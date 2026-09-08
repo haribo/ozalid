@@ -107,6 +107,17 @@ func (r *Repository) SaveReview(
 			return session.Result{}, translate("reading the settled refs", err)
 		}
 		for _, ref := range refs {
+			// Accepting had released the variant from the coverage
+			// (ADR 0022); the take-back restores it, anchored to the bytes
+			// on display at the pinned edition.
+			if kase.CurrentEditionID != nil {
+				if err := q.RestoreCommentVariant(ctx, sqlcgen.RestoreCommentVariantParams{
+					CommentID: ref.CommentID, VariantID: capture.VariantID,
+					EditionID: *kase.CurrentEditionID,
+				}); err != nil {
+					return session.Result{}, translate("restoring the coverage", err)
+				}
+			}
 			to, err := review.TransitionRef(review.RefState(ref.State), review.MoveUnjudge, "")
 			if err != nil {
 				return session.Result{}, err
@@ -118,7 +129,7 @@ func (r *Repository) SaveReview(
 			}
 			if err := q.RecordJudgment(ctx, sqlcgen.RecordJudgmentParams{
 				CommentID: ref.CommentID, CommentIssueID: &ref.ID,
-				Verdict: "taken-back", ActorID: by.ID,
+				Verdict: "taken-back", ActorID: by.ID, VariantID: &capture.VariantID,
 			}); err != nil {
 				return session.Result{}, translate("recording the take-back", err)
 			}
@@ -138,6 +149,14 @@ func (r *Repository) SaveReview(
 			return session.Result{}, translate("reading the settled remarks", err)
 		}
 		for _, remark := range remarks {
+			if kase.CurrentEditionID != nil {
+				if err := q.RestoreCommentVariant(ctx, sqlcgen.RestoreCommentVariantParams{
+					CommentID: remark.ID, VariantID: capture.VariantID,
+					EditionID: *kase.CurrentEditionID,
+				}); err != nil {
+					return session.Result{}, translate("restoring the coverage", err)
+				}
+			}
 			to, err := review.Transition(review.CommentState(remark.State), review.MoveUnjudge, "")
 			if err != nil {
 				return session.Result{}, err
@@ -149,6 +168,7 @@ func (r *Repository) SaveReview(
 			}
 			if err := q.RecordJudgment(ctx, sqlcgen.RecordJudgmentParams{
 				CommentID: remark.ID, Verdict: "taken-back", ActorID: by.ID,
+				VariantID: &capture.VariantID,
 			}); err != nil {
 				return session.Result{}, translate("recording the take-back", err)
 			}

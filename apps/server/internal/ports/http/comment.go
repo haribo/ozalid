@@ -144,13 +144,20 @@ func (s *Server) JudgeComment(ctx context.Context, request openapi.JudgeCommentR
 		issueRefID = *request.Body.IssueId
 	}
 
-	out, err := s.comment.Judge(ctx, request.Slug, request.CommentId, issueRefID, actorFrom(ctx), request.Body.Accept, remark)
+	out, err := s.comment.Judge(ctx, request.Slug, request.CommentId, issueRefID, request.Body.VariantId, actorFrom(ctx), request.Body.Accept, remark)
 	switch {
 	case errors.Is(err, comment.ErrAmbiguousIssue):
 		return openapi.JudgeComment400ApplicationProblemPlusJSONResponse{
 			BadRequestApplicationProblemPlusJSONResponse: openapi.BadRequestApplicationProblemPlusJSONResponse(
 				problem("issue-required", "Several issues are attached, name one", http.StatusBadRequest,
 					"Pass issueId: the server will not guess which fix was judged."),
+			),
+		}, nil
+	case errors.Is(err, comment.ErrVariantRequired):
+		return openapi.JudgeComment400ApplicationProblemPlusJSONResponse{
+			BadRequestApplicationProblemPlusJSONResponse: openapi.BadRequestApplicationProblemPlusJSONResponse(
+				problem("variant-required", "A judgment names its variant", http.StatusBadRequest,
+					"A verdict always lands on the capture on screen (ADR 0022)."),
 			),
 		}, nil
 	case errors.Is(err, review.ErrRemarkRequired):
@@ -185,12 +192,17 @@ func (s *Server) UnjudgeComment(ctx context.Context, request openapi.UnjudgeComm
 			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
 		}, nil
 	}
-	issueRefID := ""
-	if request.Body != nil && request.Body.IssueId != nil {
-		issueRefID = *request.Body.IssueId
+	issueRefID, variantID := "", ""
+	if request.Body != nil {
+		if request.Body.IssueId != nil {
+			issueRefID = *request.Body.IssueId
+		}
+		if request.Body.VariantId != nil {
+			variantID = *request.Body.VariantId
+		}
 	}
 
-	out, err := s.comment.Unjudge(ctx, request.Slug, request.CommentId, issueRefID, actorFrom(ctx))
+	out, err := s.comment.Unjudge(ctx, request.Slug, request.CommentId, issueRefID, variantID, actorFrom(ctx))
 	switch {
 	case errors.Is(err, comment.ErrAmbiguousIssue):
 		return openapi.UnjudgeComment400ApplicationProblemPlusJSONResponse{
@@ -331,10 +343,11 @@ func toAPIComment(c comment.Record) openapi.Comment {
 	out.DiscardReason = nonEmptyPtr(c.DiscardReason)
 	for _, j := range c.Judgments {
 		out.Judgments = append(out.Judgments, openapi.Judgment{
-			Verdict: openapi.JudgmentVerdict(j.Verdict),
-			Remark:  nonEmptyPtr(j.Remark),
-			ActorId: j.ActorID,
-			At:      j.At,
+			Verdict:   openapi.JudgmentVerdict(j.Verdict),
+			Remark:    nonEmptyPtr(j.Remark),
+			VariantId: nonEmptyPtr(j.VariantID),
+			ActorId:   j.ActorID,
+			At:        j.At,
 		})
 	}
 	return out

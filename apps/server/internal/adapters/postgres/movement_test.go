@@ -396,7 +396,7 @@ func TestAcceptingAFixApprovesItsBytes(t *testing.T) {
 	}
 
 	// Accepting the fix approves these bytes: accepted, and no moved mark.
-	if _, err := repo.Judge(ctx, project.Slug, id, "", nina, true, ""); err != nil {
+	if _, err := repo.Judge(ctx, project.Slug, id, "", cell.VariantID, nina, true, ""); err != nil {
 		t.Fatalf("accepting the fix: %v", err)
 	}
 	if state, _ := statusOfFirst(t, ctx, repo, project.Slug, kase.ID); state != "accepted" {
