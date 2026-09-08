@@ -13,6 +13,7 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/adapters/blobstore"
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres"
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres/sqlcgen"
+	appcomment "github.com/haribo/ozalid/apps/server/internal/app/comment"
 	"github.com/haribo/ozalid/apps/server/internal/app/intake"
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
 	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
@@ -349,5 +350,56 @@ func TestRaisingTheThresholdReclassifiesAtOnce(t *testing.T) {
 	}
 	if state, _ := statusOfFirst(t, ctx, repo, project.Slug, kase.ID); state != "accepted" {
 		t.Errorf("status = %q after raising the threshold above the measurement, want accepted", state)
+	}
+}
+
+// Accepting a delivered fix is approving the displayed bytes (#206): the
+// judgment stamps the reference for every covered capture, so the capture
+// derives accepted — not moved against the pre-fix pixels. Observed on
+// production rc.18: a judged fix read "moved · 19203 px".
+func TestAcceptingAFixApprovesItsBytes(t *testing.T) {
+	ctx, repo, blobs, project, kase := freshnessFixture(t)
+	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 0)); err != nil {
+		t.Fatalf("first edition: %v", err)
+	}
+	validateOnly(t, ctx, repo, project.Slug, kase.ID)
+	nina := actor.Actor{ID: "nina", Kind: actor.Human}
+
+	// The reviewer refuses; the remark is tracked and the fix delivered on a
+	// second edition whose pixels moved — that is what a fix does.
+	grid, err := repo.CaseGrid(ctx, project.Slug, kase.ID, nil)
+	if err != nil {
+		t.Fatalf("reading the grid: %v", err)
+	}
+	cell := review.Capture{StepID: grid.Steps[0].ID, VariantID: grid.Steps[0].Captures[0].VariantID}
+	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
+		Unaccepted: []review.Capture{cell},
+		Comments: []session.NewComment{{
+			StepID: cell.StepID, Body: "too much green", VariantIDs: []string{cell.VariantID},
+		}},
+	}); err != nil {
+		t.Fatalf("refusing: %v", err)
+	}
+	comments, err := repo.OfCase(ctx, project.Slug, kase.ID)
+	if err != nil || len(comments) != 1 {
+		t.Fatalf("comments = %v, %v", comments, err)
+	}
+	id := comments[0].ID
+	if _, err := repo.Track(ctx, project.Slug, id, nina, appcomment.IssueRef{ID: "206"}); err != nil {
+		t.Fatalf("tracking: %v", err)
+	}
+	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 6)); err != nil {
+		t.Fatalf("the fix's edition: %v", err)
+	}
+	if _, err := repo.Deliver(ctx, project.Slug, id, "", nina); err != nil {
+		t.Fatalf("delivering: %v", err)
+	}
+
+	// Accepting the fix approves these bytes: accepted, and no moved mark.
+	if _, err := repo.Judge(ctx, project.Slug, id, "", nina, true, ""); err != nil {
+		t.Fatalf("accepting the fix: %v", err)
+	}
+	if state, _ := statusOfFirst(t, ctx, repo, project.Slug, kase.ID); state != "accepted" {
+		t.Errorf("status = %q after accepting the fix, want accepted", state)
 	}
 }

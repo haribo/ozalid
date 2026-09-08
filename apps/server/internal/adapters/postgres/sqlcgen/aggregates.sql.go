@@ -525,6 +525,30 @@ func (q *Queries) CategoryTreeWithCounts(ctx context.Context, projectID string) 
 	return items, nil
 }
 
+const commentCoveredVariants = `-- name: CommentCoveredVariants :many
+SELECT variant_id FROM comment_variants WHERE comment_id = $1
+`
+
+func (q *Queries) CommentCoveredVariants(ctx context.Context, commentID string) ([]string, error) {
+	rows, err := q.db.Query(ctx, commentCoveredVariants, commentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var variant_id string
+		if err := rows.Scan(&variant_id); err != nil {
+			return nil, err
+		}
+		items = append(items, variant_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const commentIssueStates = `-- name: CommentIssueStates :many
 SELECT state FROM comment_issues WHERE comment_id = $1
 `
