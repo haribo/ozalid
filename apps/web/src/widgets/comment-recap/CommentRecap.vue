@@ -134,8 +134,6 @@ function dimmed(line: Line) {
 
 <template>
   <div v-if="comments.length" class="mt-5">
-    <p class="mb-2 font-mono text-label tracking-widest text-slate-500 uppercase">comments</p>
-
     <div class="overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700">
       <table class="w-full border-collapse text-body">
         <thead>
@@ -143,11 +141,11 @@ function dimmed(line: Line) {
             class="bg-slate-50 font-mono text-label tracking-widest text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400"
           >
             <th class="px-3 py-2 text-left font-medium">step</th>
-            <th class="px-3 py-2 text-left font-medium">issue / remark</th>
+            <th class="px-3 py-2 text-left font-medium">issue / comment</th>
             <th
               v-for="v in grid.variants"
               :key="v.id"
-              class="w-9 px-1 py-2 text-center font-medium"
+              class="w-9 border-l border-slate-100 px-1 py-2 text-center font-medium dark:border-slate-800"
             >
               <VariantHead :label="v.label" :values="v.values" compact class="justify-center" />
             </th>
@@ -161,8 +159,8 @@ function dimmed(line: Line) {
               :class="[
                 line.kind === 'refusal'
                   ? 'refusal-line'
-                  : 'border-t border-slate-200 dark:border-slate-700',
-                { 'opacity-50': dimmed(line) },
+                  : 'border-t border-slate-100 dark:border-slate-800',
+                { 'opacity-70': dimmed(line) },
               ]"
             >
               <td
@@ -205,22 +203,21 @@ function dimmed(line: Line) {
                 <td
                   v-for="v in grid.variants"
                   :key="v.id"
-                  class="px-1 py-2.5 text-center align-middle font-mono"
+                  class="border-l border-slate-100 px-1 py-2.5 text-center align-middle font-mono dark:border-slate-800"
                 >
                   <span
                     v-if="markOf(line, v.id) === '✓'"
                     role="img"
                     :aria-label="`accepted on ${v.label}`"
-                    class="font-semibold text-emerald-700 dark:text-emerald-400"
+                    class="inline-flex h-[19px] w-[19px] items-center justify-center rounded-full border-[1.5px] text-label font-bold leading-none border-emerald-700 bg-emerald-50 text-emerald-700 dark:border-emerald-400 dark:bg-emerald-950 dark:text-emerald-400"
                     >✓</span
                   >
                   <span
                     v-else-if="markOf(line, v.id) === '·'"
                     role="img"
                     :aria-label="`waiting on ${v.label}`"
-                    class="text-slate-400 dark:text-slate-500"
-                    >·</span
-                  >
+                    class="inline-flex h-[19px] w-[19px] rounded-full border-[1.5px] border-slate-300 dark:border-slate-600"
+                  ></span>
                 </td>
               </template>
               <template v-else>
@@ -232,13 +229,13 @@ function dimmed(line: Line) {
                 <td
                   v-for="v in grid.variants"
                   :key="v.id"
-                  class="px-1 pb-2.5 text-center align-middle font-mono"
+                  class="border-l border-slate-100 px-1 pb-2.5 text-center align-middle font-mono dark:border-slate-800"
                 >
                   <span
                     v-if="markOf(line, v.id) === '✗'"
                     role="img"
                     :aria-label="`refused on ${v.label}`"
-                    class="font-semibold text-amber-700 dark:text-amber-400"
+                    class="inline-flex h-[19px] w-[19px] items-center justify-center rounded-full border-[1.5px] text-label font-bold leading-none border-amber-700 bg-amber-50 text-amber-700 dark:border-amber-400 dark:bg-amber-950 dark:text-amber-400"
                     >✗</span
                   >
                 </td>
