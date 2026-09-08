@@ -21,9 +21,14 @@ describe('StateIcon', () => {
     expect(TONE_LABELS).toEqual({
       idle: 'not instrumented',
       reviewer: 'to review',
-      dev: 'to fix',
+      dev: 'refused',
       done: 'accepted',
     })
+  })
+
+  it('announces a refused capture as refused, not "to fix" (#210)', () => {
+    const w = mount(StateIcon, { props: { tone: 'dev' } })
+    expect(w.attributes('aria-label')).toBe('refused')
   })
 
   it('lets a caller override the label, for a count', () => {
