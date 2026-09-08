@@ -252,11 +252,10 @@ describe('a delivered fix takes the pair (#170, #171)', () => {
 
   it('judges the fix rather than the capture once a delivery is waiting', async () => {
     const w = mountAt('v1', [delivered])
-    expect(w.text()).toContain('fix delivered · issue #139')
-    expect(w.text()).toContain('unsquash the avatar')
+    expect(w.text()).toContain('issue #139: unsquash the avatar')
 
     await half(w, 'accept').trigger('click')
-    expect(w.emitted('judge')).toEqual([['k1', 'ref1', true, '']])
+    expect(w.emitted('judge')).toEqual([['k1', 'ref1', true, '', 'v1']])
     expect(w.emitted('accept')).toBeUndefined()
   })
 
@@ -268,10 +267,10 @@ describe('a delivered fix takes the pair (#170, #171)', () => {
 
     await w.find('textarea').setValue('still squashed on mobile')
     await w.find('form').findAll('button').at(-1)!.trigger('click')
-    expect(w.emitted('judge')).toEqual([['k1', 'ref1', false, 'still squashed on mobile']])
+    expect(w.emitted('judge')).toEqual([['k1', 'ref1', false, 'still squashed on mobile', 'v1']])
   })
 
-  it('names the act in the issue word and reopens the judgment from the filled half', async () => {
+  it('keeps one context line and reopens the judgment from the filled half', async () => {
     const accepted = mountAt('v2', [
       {
         ...delivered,
@@ -280,9 +279,11 @@ describe('a delivered fix takes the pair (#170, #171)', () => {
         issues: [{ id: 'ref1', issueId: '139', state: 'accepted', title: 'unsquash the avatar' }],
       },
     ])
-    expect(accepted.text()).toContain('issue #139 accepted')
+    // The line never wears the verdict (ADR 0022): the pair says it alone.
+    expect(accepted.text()).toContain('issue #139: unsquash the avatar')
+    expect(accepted.text()).not.toContain('accepted — ')
     await half(accepted, '✓ accepted').trigger('click')
-    expect(accepted.emitted('unjudge')).toEqual([['k1', 'ref1']])
+    expect(accepted.emitted('unjudge')).toEqual([['k1', 'ref1', 'v2']])
 
     const refused = mountAt('v1', [
       {
@@ -291,9 +292,11 @@ describe('a delivered fix takes the pair (#170, #171)', () => {
         issues: [{ id: 'ref1', issueId: '139', state: 'refused', title: 'unsquash the avatar' }],
       },
     ])
-    expect(refused.text()).toContain('issue #139 refused — back to the developer')
+    expect(refused.text()).toContain('issue #139: unsquash the avatar')
+    expect(refused.text()).not.toContain('back to the developer')
     await half(refused, '✗ refused').trigger('click')
-    expect(refused.emitted('unjudge')).toEqual([['k1', 'ref1']])
+    // A refusal's take-back is ref-level: the coverage never moved.
+    expect(refused.emitted('unjudge')).toEqual([['k1', 'ref1', '']])
   })
 
   it('shows one issue at a time — the others live in the recap (#171)', () => {
@@ -376,12 +379,11 @@ describe('the branch loop: a remark without an issue (#175)', () => {
 
   it('judges the delivered remark by its own words — no number', async () => {
     const w = mountAt('v1', [remark])
-    expect(w.text()).toContain('fix delivered')
     expect(w.text()).not.toContain('issue #')
     expect(w.text()).toContain('too much green everywhere')
 
     await half(w, 'accept').trigger('click')
-    expect(w.emitted('judge')).toEqual([['k5', '', true, '']])
+    expect(w.emitted('judge')).toEqual([['k5', '', true, '', 'v1']])
   })
 
   it('refuses it through the sheet, remark mandatory, no variant ticks', async () => {
@@ -392,13 +394,13 @@ describe('the branch loop: a remark without an issue (#175)', () => {
 
     await w.find('textarea').setValue('still three green things')
     await w.find('form').findAll('button').at(-1)!.trigger('click')
-    expect(w.emitted('judge')).toEqual([['k5', '', false, 'still three green things']])
+    expect(w.emitted('judge')).toEqual([['k5', '', false, 'still three green things', 'v1']])
   })
 
   it('reopens a settled remark from the filled half', async () => {
     const accepted = mountAt('v2', [{ ...remark, state: 'accepted', variantIds: ['v2'] }])
     await half(accepted, '✓ accepted').trigger('click')
-    expect(accepted.emitted('unjudge')).toEqual([['k5', '']])
+    expect(accepted.emitted('unjudge')).toEqual([['k5', '', 'v2']])
 
     const refusedGrid: Grid = {
       ...grid,
@@ -422,6 +424,84 @@ describe('the branch loop: a remark without an issue (#175)', () => {
       },
     })
     await half(refused, '✗ refused').trigger('click')
-    expect(refused.emitted('unjudge')).toEqual([['k5', '']])
+    expect(refused.emitted('unjudge')).toEqual([['k5', '', '']])
+  })
+})
+
+describe('a judgment lands on the capture on screen (ADR 0022, #208)', () => {
+  /** One remark over both variants, fix delivered: the state #208 starts from. */
+  const overBoth: Comment = {
+    id: 'k7',
+    stepId: 's1',
+    body: 'the label overflows',
+    state: 'to-review',
+    variantIds: ['v1', 'v2'],
+    authorId: 'nina',
+    createdAt: '2026-09-07T09:00:00Z',
+    judgments: [],
+    issues: [
+      {
+        id: 'ref7',
+        issueId: '173',
+        state: 'to-review',
+        title: 'let the floating label sit on the border',
+        url: 'https://github.com/haribo/ozalid/issues/173',
+      },
+    ],
+  }
+
+  it('the pair judges this variant only', async () => {
+    const w = mountAt('v1', [overBoth])
+    await half(w, 'accept').trigger('click')
+    expect(w.emitted('judge')).toEqual([['k7', 'ref7', true, '', 'v1']])
+
+    const other = mountAt('v2', [overBoth])
+    await half(other, 'accept').trigger('click')
+    expect(other.emitted('judge')).toEqual([['k7', 'ref7', true, '', 'v2']])
+  })
+
+  it('links the issue number to its tracker', () => {
+    const w = mountAt('v1', [overBoth])
+    const link = w.findAll('a').find((a) => a.text() === 'issue #173')!
+    expect(link.attributes('href')).toBe('https://github.com/haribo/ozalid/issues/173')
+    expect(w.text()).toContain('issue #173: let the floating label sit on the border')
+  })
+
+  it('reads an accepted variant off the judgment history once released', async () => {
+    // v1 accepted and released: the coverage names v2 only, the history
+    // names v1 — the context line and the filled half must survive that.
+    const released: Comment = {
+      ...overBoth,
+      variantIds: ['v2'],
+      judgments: [
+        { verdict: 'accepted', variantId: 'v1', actorId: 'nina', at: '2026-09-07T10:00:00Z' },
+      ],
+    }
+    const acceptedGrid: Grid = {
+      ...grid,
+      steps: [
+        {
+          ...grid.steps[0],
+          captures: [
+            { id: 'cap1', variantId: 'v1', hash: 'sha256:a', status: 'accepted' },
+            grid.steps[0].captures[1],
+          ],
+        },
+      ],
+    }
+    const w = mount(CaptureCarousel, {
+      props: {
+        slug: 'atlas',
+        grid: acceptedGrid,
+        comments: [released],
+        stepId: 's1',
+        variantId: 'v1',
+      },
+    })
+    expect(w.text()).toContain('issue #173: let the floating label sit on the border')
+
+    // Taking it back names the variant, so the server restores its coverage.
+    await half(w, '✓ accepted').trigger('click')
+    expect(w.emitted('unjudge')).toEqual([['k7', 'ref7', 'v1']])
   })
 })

@@ -152,13 +152,19 @@ async function onEdit(commentId: string, body: string, variantIds: string[]) {
   await refreshCase()
 }
 
-async function onJudge(commentId: string, issueRefId: string, accept: boolean, remark: string) {
-  await review.judge(commentId, issueRefId, accept, remark)
+async function onJudge(
+  commentId: string,
+  issueRefId: string,
+  accept: boolean,
+  remark: string,
+  variantId: string,
+) {
+  await review.judge(commentId, issueRefId, accept, remark, variantId)
   await refreshCase()
 }
 
-async function onUnjudge(commentId: string, issueRefId: string) {
-  await review.unjudge(commentId, issueRefId)
+async function onUnjudge(commentId: string, issueRefId: string, variantId: string) {
+  await review.unjudge(commentId, issueRefId, variantId)
   await refreshCase()
 }
 

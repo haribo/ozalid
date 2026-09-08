@@ -1530,6 +1530,12 @@ paths:
                   description: |
                     The ref unjudged — its `id` in the comment's `issues` list.
                     Mandatory once the comment carries more than one (#138).
+                variantId:
+                  type: string
+                  description: |
+                    The capture on screen. Taking an acceptance back restores
+                    this variant's coverage (ADR 0022); absent, the take-back
+                    is ref-level — a refusal returning to to-review.
       responses:
         '200':
           $ref: '#/components/responses/MoveApplied'
@@ -1563,9 +1569,16 @@ paths:
               type: object
               required:
                 - accept
+                - variantId
               properties:
                 accept:
                   type: boolean
+                variantId:
+                  type: string
+                  description: |
+                    The capture on screen: a judgment always lands on one
+                    variant (ADR 0022). Accepting releases it from the remark's
+                    coverage; refusing opens a partial round for what remains.
                 remark:
                   type: string
                   description: Mandatory when refusing. It is what the dev has to read.
@@ -2541,6 +2554,11 @@ components:
         - actorId
         - at
       properties:
+        variantId:
+          type: string
+          description: |
+            The capture the judgment landed on (ADR 0022). Absent on history from
+            before, and on ref-level moves.
         verdict:
           type: string
           description: 'taken-back is a reviewer reconsidering an acceptance: unvalidating a capture whose validation derived from the settled reference (#167).'

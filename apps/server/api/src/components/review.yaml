@@ -157,6 +157,11 @@ Judgment:
   type: object
   required: [verdict, actorId, at]
   properties:
+    variantId:
+      type: string
+      description: |
+        The capture the judgment landed on (ADR 0022). Absent on history from
+        before, and on ref-level moves.
     verdict:
       type: string
       description: >-

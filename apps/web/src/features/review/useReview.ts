@@ -100,16 +100,22 @@ export function useReview(slug: () => string, caseId: () => string) {
    *
    * Per ref: a comment may carry several issues, each judged on its own
    * round (#138). */
-  async function judge(commentId: string, issueId: string, accept: boolean, remark?: string) {
+  async function judge(
+    commentId: string,
+    issueId: string,
+    accept: boolean,
+    remark: string,
+    variantId: string,
+  ) {
     saving.value = true
     const result = await api.POST('/projects/{slug}/comments/{commentId}/judgment', {
       params: { path: { slug: slug(), commentId } },
-      body: { accept, remark, issueId },
+      body: { accept, remark, issueId, variantId },
     })
     saving.value = false
     if (result.error) {
       if (expired(result.response)) {
-        held.value = () => judge(commentId, issueId, accept, remark)
+        held.value = () => judge(commentId, issueId, accept, remark, variantId)
         return
       }
       error.value = result.error.title
@@ -121,16 +127,16 @@ export function useReview(slug: () => string, caseId: () => string) {
 
   /** Take a judgment back — the reviewer reconsiders an acceptance or a
    * refusal, and the ref returns to their court (#167, #171). */
-  async function unjudge(commentId: string, issueId: string) {
+  async function unjudge(commentId: string, issueId: string, variantId: string) {
     saving.value = true
     const result = await api.DELETE('/projects/{slug}/comments/{commentId}/judgment', {
       params: { path: { slug: slug(), commentId } },
-      body: { issueId },
+      body: { issueId, variantId: variantId || undefined },
     })
     saving.value = false
     if (result.error) {
       if (expired(result.response)) {
-        held.value = () => unjudge(commentId, issueId)
+        held.value = () => unjudge(commentId, issueId, variantId)
         return
       }
       error.value = result.error.title

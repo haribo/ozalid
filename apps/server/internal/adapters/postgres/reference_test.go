@@ -317,7 +317,7 @@ func TestUnacceptTakesASettledJudgmentBack(t *testing.T) {
 	if _, err := repo.Deliver(ctx, project.Slug, created.ID, "", nina); err != nil {
 		t.Fatalf("delivering: %v", err)
 	}
-	if _, err := repo.Judge(ctx, project.Slug, created.ID, "", nina, true, ""); err != nil {
+	if _, err := repo.Judge(ctx, project.Slug, created.ID, "", capture.VariantID, nina, true, ""); err != nil {
 		t.Fatalf("accepting: %v", err)
 	}
 
@@ -416,11 +416,11 @@ func TestARefusalCanBeTakenBack(t *testing.T) {
 	if _, err := repo.Deliver(ctx, project.Slug, created.ID, "", nina); err != nil {
 		t.Fatalf("delivering: %v", err)
 	}
-	if _, err := repo.Judge(ctx, project.Slug, created.ID, "", nina, false, "still three green things"); err != nil {
+	if _, err := repo.Judge(ctx, project.Slug, created.ID, "", capture.VariantID, nina, false, "still three green things"); err != nil {
 		t.Fatalf("refusing: %v", err)
 	}
 
-	out, err := repo.Unjudge(ctx, project.Slug, created.ID, "", nina)
+	out, err := repo.Unjudge(ctx, project.Slug, created.ID, "", "", nina)
 	if err != nil {
 		t.Fatalf("taking the refusal back: %v", err)
 	}
@@ -623,7 +623,7 @@ func TestADraftRemarkLoopsWithoutAnIssue(t *testing.T) {
 	}
 
 	// Accepting settles the remark; the history keeps a ref-less judgment.
-	out, err = repo.Judge(ctx, project.Slug, id, "", nina, true, "")
+	out, err = repo.Judge(ctx, project.Slug, id, "", capture.VariantID, nina, true, "")
 	if err != nil {
 		t.Fatalf("accepting: %v", err)
 	}
@@ -639,7 +639,7 @@ func TestADraftRemarkLoopsWithoutAnIssue(t *testing.T) {
 	}
 
 	// And the acceptance is reconsiderable, like any judgment.
-	out, err = repo.Unjudge(ctx, project.Slug, id, "", nina)
+	out, err = repo.Unjudge(ctx, project.Slug, id, "", capture.VariantID, nina)
 	if err != nil {
 		t.Fatalf("taking it back: %v", err)
 	}

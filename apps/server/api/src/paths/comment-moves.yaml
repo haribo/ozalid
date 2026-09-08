@@ -190,6 +190,12 @@ Judgment:
                 description: |
                   The ref unjudged — its `id` in the comment's `issues` list.
                   Mandatory once the comment carries more than one (#138).
+              variantId:
+                type: string
+                description: |
+                  The capture on screen. Taking an acceptance back restores
+                  this variant's coverage (ADR 0022); absent, the take-back
+                  is ref-level — a refusal returning to to-review.
     responses:
       '401':
         $ref: "../components/responses.yaml#/Unauthenticated"
@@ -220,9 +226,15 @@ Judgment:
         application/json:
           schema:
             type: object
-            required: [accept]
+            required: [accept, variantId]
             properties:
               accept: { type: boolean }
+              variantId:
+                type: string
+                description: |
+                  The capture on screen: a judgment always lands on one
+                  variant (ADR 0022). Accepting releases it from the remark's
+                  coverage; refusing opens a partial round for what remains.
               remark:
                 type: string
                 description: Mandatory when refusing. It is what the dev has to read.

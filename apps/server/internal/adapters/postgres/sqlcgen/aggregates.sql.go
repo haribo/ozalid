@@ -574,7 +574,7 @@ func (q *Queries) CommentIssueStates(ctx context.Context, commentID string) ([]s
 }
 
 const commentJudgments = `-- name: CommentJudgments :many
-SELECT id, comment_id, verdict, remark, actor_id, created_at, comment_issue_id FROM comment_judgments WHERE comment_id = $1 ORDER BY created_at
+SELECT id, comment_id, verdict, remark, actor_id, created_at, comment_issue_id, variant_id FROM comment_judgments WHERE comment_id = $1 ORDER BY created_at
 `
 
 func (q *Queries) CommentJudgments(ctx context.Context, commentID string) ([]CommentJudgment, error) {
@@ -594,6 +594,7 @@ func (q *Queries) CommentJudgments(ctx context.Context, commentID string) ([]Com
 			&i.ActorID,
 			&i.CreatedAt,
 			&i.CommentIssueID,
+			&i.VariantID,
 		); err != nil {
 			return nil, err
 		}
@@ -847,6 +848,31 @@ func (q *Queries) GetCommentIssue(ctx context.Context, arg GetCommentIssueParams
 	return items, nil
 }
 
+const reanchorCommentVariant = `-- name: ReanchorCommentVariant :exec
+UPDATE comment_variants cv
+SET capture_id = (
+    SELECT c.id FROM captures c
+    JOIN comments k ON k.id = cv.comment_id
+    WHERE c.step_id = k.step_id AND c.variant_id = cv.variant_id
+      AND c.edition_id = $1
+    LIMIT 1
+)
+WHERE cv.comment_id = $2 AND cv.variant_id = $3
+`
+
+type ReanchorCommentVariantParams struct {
+	EditionID string
+	CommentID string
+	VariantID string
+}
+
+// The refusal's anchor follows the refused variant: the judge refused these
+// bytes (ADR 0022).
+func (q *Queries) ReanchorCommentVariant(ctx context.Context, arg ReanchorCommentVariantParams) error {
+	_, err := q.db.Exec(ctx, reanchorCommentVariant, arg.EditionID, arg.CommentID, arg.VariantID)
+	return err
+}
+
 const recordCaptureAcceptance = `-- name: RecordCaptureAcceptance :exec
 INSERT INTO capture_acceptances (case_id, step_id, variant_id, accepted_by)
 VALUES ($1, $2, $3, $4)
@@ -875,8 +901,8 @@ func (q *Queries) RecordCaptureAcceptance(ctx context.Context, arg RecordCapture
 }
 
 const recordJudgment = `-- name: RecordJudgment :exec
-INSERT INTO comment_judgments (comment_id, comment_issue_id, verdict, remark, actor_id)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO comment_judgments (comment_id, comment_issue_id, verdict, remark, actor_id, variant_id)
+VALUES ($1, $2, $3, $4, $5, $6)
 `
 
 type RecordJudgmentParams struct {
@@ -885,6 +911,7 @@ type RecordJudgmentParams struct {
 	Verdict        string
 	Remark         *string
 	ActorID        string
+	VariantID      *string
 }
 
 // Every judgment is kept: three round trips on one comment is information
@@ -896,8 +923,28 @@ func (q *Queries) RecordJudgment(ctx context.Context, arg RecordJudgmentParams) 
 		arg.Verdict,
 		arg.Remark,
 		arg.ActorID,
+		arg.VariantID,
 	)
 	return err
+}
+
+const releaseCommentVariant = `-- name: ReleaseCommentVariant :execrows
+DELETE FROM comment_variants WHERE comment_id = $1 AND variant_id = $2
+`
+
+type ReleaseCommentVariantParams struct {
+	CommentID string
+	VariantID string
+}
+
+// Releasing a variant from a remark's coverage (ADR 0022): the acceptance of
+// a fix on one capture takes that variant out of the claim.
+func (q *Queries) ReleaseCommentVariant(ctx context.Context, arg ReleaseCommentVariantParams) (int64, error) {
+	result, err := q.db.Exec(ctx, releaseCommentVariant, arg.CommentID, arg.VariantID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const releaseToLatestEdition = `-- name: ReleaseToLatestEdition :exec
@@ -916,6 +963,31 @@ WHERE k.id = $1
 // it was only held back so the reviewer judged one fixed set of bytes.
 func (q *Queries) ReleaseToLatestEdition(ctx context.Context, caseID string) error {
 	_, err := q.db.Exec(ctx, releaseToLatestEdition, caseID)
+	return err
+}
+
+const restoreCommentVariant = `-- name: RestoreCommentVariant :exec
+INSERT INTO comment_variants (comment_id, variant_id, capture_id)
+SELECT $1, $2, (
+    SELECT c.id FROM captures c
+    JOIN comments k ON k.id = $1
+    WHERE c.step_id = k.step_id AND c.variant_id = $2::text
+      AND c.edition_id = $3
+    LIMIT 1
+)
+ON CONFLICT DO NOTHING
+`
+
+type RestoreCommentVariantParams struct {
+	CommentID string
+	VariantID string
+	EditionID string
+}
+
+// Restoring it on a take-back, anchored to the capture on display at the
+// case's pinned edition — the bytes the judgment was about.
+func (q *Queries) RestoreCommentVariant(ctx context.Context, arg RestoreCommentVariantParams) error {
+	_, err := q.db.Exec(ctx, restoreCommentVariant, arg.CommentID, arg.VariantID, arg.EditionID)
 	return err
 }
 
@@ -967,9 +1039,11 @@ const settledRefsOnCapture = `-- name: SettledRefsOnCapture :many
 SELECT ci.id, ci.comment_id, ci.state, c.state AS comment_state
 FROM comment_issues ci
 JOIN comments c ON c.id = ci.comment_id
-JOIN comment_variants cv ON cv.comment_id = c.id
-WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
+WHERE c.case_id = $1 AND c.step_id = $2
   AND c.state = 'accepted' AND ci.state = 'accepted'
+  AND EXISTS (SELECT 1 FROM comment_judgments cj
+              WHERE cj.comment_id = c.id AND cj.variant_id = $3::text
+                AND cj.verdict = 'accepted')
 `
 
 type SettledRefsOnCaptureParams struct {
@@ -988,6 +1062,8 @@ type SettledRefsOnCaptureRow struct {
 // The accepted refs whose settling made one capture read accepted: the ones
 // an unvalidate on that capture must take back (#167). A discarded comment
 // keeps its refs untouched — discarding was said with a reason and it stands.
+// Accepting released the variant from the coverage (ADR 0022), so the comment
+// is found through the acceptance that names the variant, not the coverage.
 func (q *Queries) SettledRefsOnCapture(ctx context.Context, arg SettledRefsOnCaptureParams) ([]SettledRefsOnCaptureRow, error) {
 	rows, err := q.db.Query(ctx, settledRefsOnCapture, arg.CaseID, arg.StepID, arg.VariantID)
 	if err != nil {
@@ -1015,10 +1091,12 @@ func (q *Queries) SettledRefsOnCapture(ctx context.Context, arg SettledRefsOnCap
 
 const settledRemarksOnCapture = `-- name: SettledRemarksOnCapture :many
 SELECT c.id, c.state FROM comments c
-JOIN comment_variants cv ON cv.comment_id = c.id
-WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
+WHERE c.case_id = $1 AND c.step_id = $2
   AND c.state = 'accepted'
   AND NOT EXISTS (SELECT 1 FROM comment_issues ci WHERE ci.comment_id = c.id)
+  AND EXISTS (SELECT 1 FROM comment_judgments cj
+              WHERE cj.comment_id = c.id AND cj.variant_id = $3::text
+                AND cj.verdict = 'accepted')
 `
 
 type SettledRemarksOnCaptureParams struct {

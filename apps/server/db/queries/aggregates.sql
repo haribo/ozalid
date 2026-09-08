@@ -181,8 +181,8 @@ UPDATE comments SET state = $2, discard_reason = $3, updated_at = now() WHERE id
 -- Every judgment is kept: three round trips on one comment is information
 -- (ADR 0012).
 -- name: RecordJudgment :exec
-INSERT INTO comment_judgments (comment_id, comment_issue_id, verdict, remark, actor_id)
-VALUES ($1, $2, $3, $4, $5);
+INSERT INTO comment_judgments (comment_id, comment_issue_id, verdict, remark, actor_id, variant_id)
+VALUES ($1, $2, $3, $4, $5, $6);
 
 -- name: CommentJudgments :many
 SELECT * FROM comment_judgments WHERE comment_id = $1 ORDER BY created_at;
@@ -230,13 +230,17 @@ ORDER BY step_id, variant_id, environment_id;
 -- The accepted refs whose settling made one capture read accepted: the ones
 -- an unvalidate on that capture must take back (#167). A discarded comment
 -- keeps its refs untouched — discarding was said with a reason and it stands.
+-- Accepting released the variant from the coverage (ADR 0022), so the comment
+-- is found through the acceptance that names the variant, not the coverage.
 -- name: SettledRefsOnCapture :many
 SELECT ci.id, ci.comment_id, ci.state, c.state AS comment_state
 FROM comment_issues ci
 JOIN comments c ON c.id = ci.comment_id
-JOIN comment_variants cv ON cv.comment_id = c.id
-WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
-  AND c.state = 'accepted' AND ci.state = 'accepted';
+WHERE c.case_id = @case_id AND c.step_id = @step_id
+  AND c.state = 'accepted' AND ci.state = 'accepted'
+  AND EXISTS (SELECT 1 FROM comment_judgments cj
+              WHERE cj.comment_id = c.id AND cj.variant_id = @variant_id::text
+                AND cj.verdict = 'accepted');
 
 -- The reviewer's own drafts on one capture: remarks with no issue attached yet.
 -- Withdrawing a draft refusal takes them with it — ADR 0020's explicit
@@ -264,10 +268,12 @@ DELETE FROM comment_variants WHERE comment_id = $1;
 -- #175) — the rule is "whatever made it accepted", refs and remarks alike.
 -- name: SettledRemarksOnCapture :many
 SELECT c.id, c.state FROM comments c
-JOIN comment_variants cv ON cv.comment_id = c.id
-WHERE c.case_id = $1 AND c.step_id = $2 AND cv.variant_id = $3
+WHERE c.case_id = @case_id AND c.step_id = @step_id
   AND c.state = 'accepted'
-  AND NOT EXISTS (SELECT 1 FROM comment_issues ci WHERE ci.comment_id = c.id);
+  AND NOT EXISTS (SELECT 1 FROM comment_issues ci WHERE ci.comment_id = c.id)
+  AND EXISTS (SELECT 1 FROM comment_judgments cj
+              WHERE cj.comment_id = c.id AND cj.variant_id = @variant_id::text
+                AND cj.verdict = 'accepted');
 
 -- Everything the derivation reads about one case's captures (ADR 0021): the
 -- bytes on display, the reference approved in this capture's own environment
@@ -296,3 +302,34 @@ WHERE c.case_id = $1;
 
 -- name: CommentCoveredVariants :many
 SELECT variant_id FROM comment_variants WHERE comment_id = $1;
+
+-- Releasing a variant from a remark's coverage (ADR 0022): the acceptance of
+-- a fix on one capture takes that variant out of the claim.
+-- name: ReleaseCommentVariant :execrows
+DELETE FROM comment_variants WHERE comment_id = $1 AND variant_id = $2;
+
+-- Restoring it on a take-back, anchored to the capture on display at the
+-- case's pinned edition — the bytes the judgment was about.
+-- name: RestoreCommentVariant :exec
+INSERT INTO comment_variants (comment_id, variant_id, capture_id)
+SELECT @comment_id, @variant_id, (
+    SELECT c.id FROM captures c
+    JOIN comments k ON k.id = @comment_id
+    WHERE c.step_id = k.step_id AND c.variant_id = @variant_id::text
+      AND c.edition_id = @edition_id
+    LIMIT 1
+)
+ON CONFLICT DO NOTHING;
+
+-- The refusal's anchor follows the refused variant: the judge refused these
+-- bytes (ADR 0022).
+-- name: ReanchorCommentVariant :exec
+UPDATE comment_variants cv
+SET capture_id = (
+    SELECT c.id FROM captures c
+    JOIN comments k ON k.id = cv.comment_id
+    WHERE c.step_id = k.step_id AND c.variant_id = cv.variant_id
+      AND c.edition_id = @edition_id
+    LIMIT 1
+)
+WHERE cv.comment_id = @comment_id AND cv.variant_id = @variant_id;

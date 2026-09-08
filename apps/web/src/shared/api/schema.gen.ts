@@ -1365,6 +1365,11 @@ export interface components {
         };
         Judgment: {
             /**
+             * @description The capture the judgment landed on (ADR 0022). Absent on history from
+             *     before, and on ref-level moves.
+             */
+            variantId?: string;
+            /**
              * @description taken-back is a reviewer reconsidering an acceptance: unvalidating a capture whose validation derived from the settled reference (#167).
              * @enum {string}
              */
@@ -2701,6 +2706,12 @@ export interface operations {
             content: {
                 "application/json": {
                     accept: boolean;
+                    /**
+                     * @description The capture on screen: a judgment always lands on one
+                     *     variant (ADR 0022). Accepting releases it from the remark's
+                     *     coverage; refusing opens a partial round for what remains.
+                     */
+                    variantId: string;
                     /** @description Mandatory when refusing. It is what the dev has to read. */
                     remark?: string;
                     /**
@@ -2738,6 +2749,12 @@ export interface operations {
                      *     Mandatory once the comment carries more than one (#138).
                      */
                     issueId?: string;
+                    /**
+                     * @description The capture on screen. Taking an acceptance back restores
+                     *     this variant's coverage (ADR 0022); absent, the take-back
+                     *     is ref-level — a refusal returning to to-review.
+                     */
+                    variantId?: string;
                 };
             };
         };

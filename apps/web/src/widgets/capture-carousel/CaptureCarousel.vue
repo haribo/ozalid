@@ -34,8 +34,11 @@ const emit = defineEmits<{
   refuse: [input: { stepId: string; body: string; variantIds: string[]; unaccept: boolean }]
   unrefuse: [stepId: string, variantId: string]
   edit: [commentId: string, body: string, variantIds: string[]]
-  judge: [commentId: string, issueRefId: string, accept: boolean, remark: string]
-  unjudge: [commentId: string, issueRefId: string]
+  /** A judgment lands on the capture on screen (ADR 0022): the variant rides
+   * along so the server releases or restores exactly this coverage. */
+  judge: [commentId: string, issueRefId: string, accept: boolean, remark: string, variantId: string]
+  /** Empty variantId keeps the take-back ref-level (a refusal reopening). */
+  unjudge: [commentId: string, issueRefId: string, variantId: string]
 }>()
 
 /** Where the open step sits in the flow. The counter counts steps: the
@@ -63,9 +66,23 @@ const toJudge = computed(() =>
   refsOnSquare.value.find(({ ref: tracked }) => tracked.state === 'to-review'),
 )
 
-/** A judgment already given on this capture, still reconsiderable. */
-const acceptedRef = computed(() =>
-  refsOnSquare.value.find(({ ref: tracked }) => tracked.state === 'accepted'),
+/** Accepting released this variant from the coverage (ADR 0022), so an
+ * acceptance is read off the judgment history — the last judgment naming this
+ * variant — never off the coverage. History from before the rule kept its
+ * coverage, so the coverage-based reading stays as the fallback. */
+const acceptedHere = computed(() =>
+  props.comments.filter(
+    (c) =>
+      c.stepId === props.stepId &&
+      (c.judgments ?? []).filter((j) => j.variantId === props.variantId).at(-1)?.verdict ===
+        'accepted',
+  ),
+)
+const acceptedRef = computed(
+  () =>
+    acceptedHere.value
+      .flatMap((c) => (c.issues ?? []).map((tracked) => ({ comment: c, ref: tracked })))
+      .at(0) ?? refsOnSquare.value.find(({ ref: tracked }) => tracked.state === 'accepted'),
 )
 const refusedRef = computed(() =>
   refsOnSquare.value.find(({ ref: tracked }) => tracked.state === 'refused'),
@@ -76,8 +93,10 @@ const refusedRef = computed(() =>
 const remarkToJudge = computed(() =>
   onSquare.value.find((c) => (c.issues ?? []).length === 0 && c.state === 'to-review'),
 )
-const acceptedRemark = computed(() =>
-  onSquare.value.find((c) => (c.issues ?? []).length === 0 && c.state === 'accepted'),
+const acceptedRemark = computed(
+  () =>
+    acceptedHere.value.find((c) => (c.issues ?? []).length === 0) ??
+    onSquare.value.find((c) => (c.issues ?? []).length === 0 && c.state === 'accepted'),
 )
 const refusedRemark = computed(() =>
   onSquare.value.find((c) => (c.issues ?? []).length === 0 && c.state === 'refused'),
@@ -95,6 +114,13 @@ const trackedTitles = computed(() =>
   onSquare.value
     .filter((c) => c.state === 'tracked')
     .flatMap((c) => (c.issues ?? []).map((r) => `#${r.issueId} ${r.title ?? ''}`.trim())),
+)
+
+/** The context line: one grammar for every state (ADR 0022) — the issue and
+ * its title, or the bare remark's own words. The verdict reads on the pair. */
+const contextRef = computed(() => toJudge.value ?? acceptedRef.value ?? refusedRef.value)
+const contextRemark = computed(
+  () => remarkToJudge.value ?? acceptedRemark.value ?? refusedRemark.value,
 )
 
 /** What the pair shows. The fix's judgment outranks the capture's own status:
@@ -201,9 +227,9 @@ function send() {
   if (sheet.value.editing) {
     emit('edit', sheet.value.editing, body, [...chosen.value])
   } else if (toJudge.value) {
-    emit('judge', toJudge.value.comment.id, toJudge.value.ref.id, false, body)
+    emit('judge', toJudge.value.comment.id, toJudge.value.ref.id, false, body, props.variantId)
   } else if (remarkToJudge.value) {
-    emit('judge', remarkToJudge.value.id, '', false, body)
+    emit('judge', remarkToJudge.value.id, '', false, body, props.variantId)
   } else {
     emit('refuse', {
       stepId: props.stepId,
@@ -220,20 +246,20 @@ function send() {
 function onAccept() {
   if (props.busy || sheet.value) return
   if (toJudge.value) {
-    emit('judge', toJudge.value.comment.id, toJudge.value.ref.id, true, '')
+    emit('judge', toJudge.value.comment.id, toJudge.value.ref.id, true, '', props.variantId)
     return
   }
   if (remarkToJudge.value) {
-    emit('judge', remarkToJudge.value.id, '', true, '')
+    emit('judge', remarkToJudge.value.id, '', true, '', props.variantId)
     return
   }
   if (acceptedRemark.value) {
-    emit('unjudge', acceptedRemark.value.id, '')
+    emit('unjudge', acceptedRemark.value.id, '', props.variantId)
     return
   }
   if (acceptedRef.value) {
     // The filled half un-presses: the judgment is taken back (#167).
-    emit('unjudge', acceptedRef.value.comment.id, acceptedRef.value.ref.id)
+    emit('unjudge', acceptedRef.value.comment.id, acceptedRef.value.ref.id, props.variantId)
     return
   }
   if (verdict.value === 'accepted') {
@@ -247,11 +273,11 @@ function onAccept() {
 function onRefuse() {
   if (props.busy || sheet.value) return
   if (refusedRef.value) {
-    emit('unjudge', refusedRef.value.comment.id, refusedRef.value.ref.id)
+    emit('unjudge', refusedRef.value.comment.id, refusedRef.value.ref.id, '')
     return
   }
   if (refusedRemark.value) {
-    emit('unjudge', refusedRemark.value.id, '')
+    emit('unjudge', refusedRemark.value.id, '', '')
     return
   }
   if (verdict.value === 'refused') {
@@ -379,34 +405,25 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           verdict === 'refused' && !sheet,
       }"
     >
-      <!-- The context line: the fix being judged, or the judgment given. The
-           verdict is about the issue there — the capture derives from it. -->
-      <template v-if="toJudge">
-        <p class="font-mono text-label tracking-widest text-slate-500 uppercase">
-          fix delivered · issue #{{ toJudge.ref.issueId }}
-        </p>
-        <p class="max-w-[52ch] text-body text-slate-600 dark:text-slate-300">
-          {{ toJudge.ref.title || toJudge.comment.body }}
-        </p>
-      </template>
-      <!-- The branch loop (#175): no number — the remark's own words talk. -->
-      <template v-else-if="remarkToJudge">
-        <p class="font-mono text-label tracking-widest text-slate-500 uppercase">fix delivered</p>
-        <p class="max-w-[52ch] text-body text-slate-600 dark:text-slate-300">
-          {{ remarkToJudge.body }}
-        </p>
-      </template>
-      <p
-        v-else-if="acceptedRef"
-        class="font-mono text-label tracking-widest text-emerald-700 uppercase dark:text-emerald-400"
-      >
-        issue #{{ acceptedRef.ref.issueId }} accepted
+      <!-- The context line, identical whatever the round's state (ADR 0022):
+           the issue and its title. The verdict reads on the pair alone. -->
+      <p v-if="contextRef" class="max-w-[56ch] text-body text-slate-600 dark:text-slate-300">
+        <a
+          v-if="contextRef.ref.url"
+          :href="contextRef.ref.url"
+          target="_blank"
+          rel="noopener"
+          class="text-indigo-700 hover:underline dark:text-indigo-300"
+          >issue #{{ contextRef.ref.issueId }}</a
+        ><span v-else>issue #{{ contextRef.ref.issueId }}</span
+        >: {{ contextRef.ref.title || contextRef.comment.body }}
       </p>
+      <!-- The branch loop (#175): no number — the remark's own words talk. -->
       <p
-        v-else-if="refusedRef"
-        class="font-mono text-label tracking-widest text-amber-700 uppercase dark:text-amber-400"
+        v-else-if="contextRemark"
+        class="max-w-[56ch] text-body text-slate-600 dark:text-slate-300"
       >
-        issue #{{ refusedRef.ref.issueId }} refused — back to the developer
+        {{ contextRemark.body }}
       </p>
 
       <VerdictPair
