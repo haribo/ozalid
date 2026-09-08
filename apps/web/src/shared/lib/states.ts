@@ -42,6 +42,6 @@ export function ballHolder(state: CaseState): 'reviewer' | 'dev' | 'nobody' {
 export const TONE_LABELS: Record<Tone, string> = {
   idle: 'not instrumented',
   reviewer: 'to review',
-  dev: 'to fix',
+  dev: 'refused',
   done: 'accepted',
 }
