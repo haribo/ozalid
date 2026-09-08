@@ -193,9 +193,9 @@ describe('CommentRecap', () => {
       },
     })
     const rows = w.findAll('tbody tr')
-    expect(rows[0].classes()).not.toContain('opacity-50')
-    expect(rows[1].classes()).toContain('opacity-50')
-    expect(rows[2].classes()).toContain('opacity-50')
+    expect(rows[0].classes()).not.toContain('opacity-70')
+    expect(rows[1].classes()).toContain('opacity-70')
+    expect(rows[2].classes()).toContain('opacity-70')
   })
 
   it('carries no counter: the rows already say it (#213)', () => {
