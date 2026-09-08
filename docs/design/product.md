@@ -325,6 +325,22 @@ A comment is a durable entity, not a scratch note
   undelivered ref stays visible there, dimmed. The step and variant a
   comment displays under are read from its anchoring capture, never stored
   beside it.
+- The recap says each verdict **once, in its variant's column** (#213). A
+  block — an issue or a bare remark, with its standing refusals — puts at
+  most one mark per variant column: `✓` where the acceptance landed (read
+  from the judgment history, so rounds judged before ADR 0022 read the
+  same), `·` where the claim waits, nothing where the variant is not
+  covered. A standing refusal **is** its remark (ADR 0020): it renders as
+  its own line, the text beside the `✗` in the refused variant's column,
+  and the issue line never carries a `✗` — no information appears twice. No
+  state column, no counter — an aggregate state cannot say "three accepted,
+  one refused". Verified by the CommentRecap specs "one mark per variant
+  and per block" and "two standing refusals are two anchored lines".
+- A refusal's remark is exposed **only while the refusal stands** (#212):
+  taken back, or answered by a redelivery, it leaves the read model — the
+  journal keeps everything. A standing refusal names its variant. Verified
+  by `TestATakenBackRefusalSaysNothing` and
+  `TestStandingRefusalsNameTheirVariants`.
 - A step is matched **by name** at intake and never renamed: a new name at an
   old position is a new step, and the old one keeps its identity — its
   captures, its verdicts, its comments. Position is layout. Decided when one
