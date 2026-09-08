@@ -1347,6 +1347,12 @@ export interface components {
              */
             title?: string;
         };
+        Refusal: {
+            /** @description The capture the refusal landed on. Absent on ref-level history from before ADR 0022. */
+            variantId?: string;
+            /** @description What the dev has to read. */
+            remark: string;
+        };
         IssueTracking: {
             /** @description The ref's own id — what `delivery` and `judgment` name. */
             id: string;
@@ -1360,8 +1366,17 @@ export interface components {
              * @enum {string}
              */
             state: "tracked" | "to-review" | "refused" | "accepted";
-            /** @description The remark of the latest refusal on this ref, if any. */
+            /**
+             * @description The remark of the latest standing refusal on this ref, if any. A
+             *     refusal speaks only while it stands (#212): taken back, or answered
+             *     by a redelivery, it leaves this field — the journal keeps it.
+             */
             lastRefusal?: string;
+            /**
+             * @description Every standing refusal of the current round, each naming the capture
+             *     it was given on (ADR 0022, #212). Empty when nothing stands.
+             */
+            refusals?: components["schemas"]["Refusal"][];
         };
         Judgment: {
             /**

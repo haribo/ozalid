@@ -109,7 +109,28 @@ IssueTracking:
       enum: [tracked, to-review, refused, accepted]
     lastRefusal:
       type: string
-      description: The remark of the latest refusal on this ref, if any.
+      description: |
+        The remark of the latest standing refusal on this ref, if any. A
+        refusal speaks only while it stands (#212): taken back, or answered
+        by a redelivery, it leaves this field — the journal keeps it.
+    refusals:
+      type: array
+      description: |
+        Every standing refusal of the current round, each naming the capture
+        it was given on (ADR 0022, #212). Empty when nothing stands.
+      items:
+        $ref: '#/Refusal'
+
+Refusal:
+  type: object
+  required: [remark]
+  properties:
+    variantId:
+      type: string
+      description: The capture the refusal landed on. Absent on ref-level history from before ADR 0022.
+    remark:
+      type: string
+      description: What the dev has to read.
 
 CommentState:
   type: string

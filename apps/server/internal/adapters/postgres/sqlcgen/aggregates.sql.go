@@ -209,9 +209,15 @@ func (q *Queries) CaseCommentAnchors(ctx context.Context, caseID string) ([]Case
 }
 
 const caseCommentIssues = `-- name: CaseCommentIssues :many
-SELECT ci.id, ci.comment_id, ci.issue_id, ci.url, ci.title, ci.state, ci.created_at, (
+SELECT ci.id, ci.comment_id, ci.issue_id, ci.url, ci.title, ci.state, ci.created_at, ci.delivered_at, (
     SELECT j.remark FROM comment_judgments j
     WHERE j.comment_issue_id = ci.id AND j.verdict = 'refused'
+      AND ci.state = 'refused'
+      AND (ci.delivered_at IS NULL OR j.created_at > ci.delivered_at)
+      AND NOT EXISTS (SELECT 1 FROM comment_judgments t
+                      WHERE t.comment_issue_id = ci.id
+                        AND t.verdict = 'taken-back'
+                        AND t.created_at > j.created_at)
     ORDER BY j.created_at DESC LIMIT 1
 ) AS last_refusal
 FROM comment_issues ci
@@ -228,12 +234,14 @@ type CaseCommentIssuesRow struct {
 	Title       *string
 	State       string
 	CreatedAt   pgtype.Timestamptz
+	DeliveredAt pgtype.Timestamptz
 	LastRefusal *string
 }
 
-// The refs of every comment of one case, with each ref's last refusal remark:
-// what the dev has to read is the remark, and the table shows it under the
-// title (#138).
+// The refs of every comment of one case, with each ref's last standing
+// refusal remark: what the dev has to read is the remark (#138). A refusal
+// speaks only while it stands (#212) — taken back or answered by a
+// redelivery, it leaves the read model.
 func (q *Queries) CaseCommentIssues(ctx context.Context, caseID string) ([]CaseCommentIssuesRow, error) {
 	rows, err := q.db.Query(ctx, caseCommentIssues, caseID)
 	if err != nil {
@@ -251,6 +259,7 @@ func (q *Queries) CaseCommentIssues(ctx context.Context, caseID string) ([]CaseC
 			&i.Title,
 			&i.State,
 			&i.CreatedAt,
+			&i.DeliveredAt,
 			&i.LastRefusal,
 		); err != nil {
 			return nil, err
@@ -358,6 +367,48 @@ func (q *Queries) CaseReferences(ctx context.Context, caseID string) ([]CaseRefe
 			&i.ApprovedBy,
 			&i.ApprovedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const caseStandingRefusals = `-- name: CaseStandingRefusals :many
+SELECT ci.id AS ref_id, j.variant_id, j.remark
+FROM comment_issues ci
+JOIN comments c ON c.id = ci.comment_id
+JOIN comment_judgments j ON j.comment_issue_id = ci.id
+WHERE c.case_id = $1 AND ci.state = 'refused' AND j.verdict = 'refused'
+  AND (ci.delivered_at IS NULL OR j.created_at > ci.delivered_at)
+  AND NOT EXISTS (SELECT 1 FROM comment_judgments t
+                  WHERE t.comment_issue_id = ci.id
+                    AND t.verdict = 'taken-back'
+                    AND t.created_at > j.created_at)
+ORDER BY ci.id, j.created_at
+`
+
+type CaseStandingRefusalsRow struct {
+	RefID     string
+	VariantID *string
+	Remark    *string
+}
+
+// Every standing refusal of one case's refs, each naming the capture it was
+// given on (#212): the recap anchors the remark in its variant's column.
+func (q *Queries) CaseStandingRefusals(ctx context.Context, caseID string) ([]CaseStandingRefusalsRow, error) {
+	rows, err := q.db.Query(ctx, caseStandingRefusals, caseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CaseStandingRefusalsRow{}
+	for rows.Next() {
+		var i CaseStandingRefusalsRow
+		if err := rows.Scan(&i.RefID, &i.VariantID, &i.Remark); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -644,7 +695,7 @@ func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (C
 const createCommentIssue = `-- name: CreateCommentIssue :one
 INSERT INTO comment_issues (comment_id, issue_id, url, title)
 VALUES ($1, $2, $3, $4)
-RETURNING id, comment_id, issue_id, url, title, state, created_at
+RETURNING id, comment_id, issue_id, url, title, state, created_at, delivered_at
 `
 
 type CreateCommentIssueParams struct {
@@ -671,6 +722,7 @@ func (q *Queries) CreateCommentIssue(ctx context.Context, arg CreateCommentIssue
 		&i.Title,
 		&i.State,
 		&i.CreatedAt,
+		&i.DeliveredAt,
 	)
 	return i, err
 }
@@ -803,7 +855,7 @@ func (q *Queries) GetComment(ctx context.Context, arg GetCommentParams) (Comment
 }
 
 const getCommentIssue = `-- name: GetCommentIssue :many
-SELECT ci.id, ci.comment_id, ci.issue_id, ci.url, ci.title, ci.state, ci.created_at FROM comment_issues ci
+SELECT ci.id, ci.comment_id, ci.issue_id, ci.url, ci.title, ci.state, ci.created_at, ci.delivered_at FROM comment_issues ci
 JOIN comments c ON c.id = ci.comment_id
 JOIN cases k ON k.id = c.case_id
 JOIN projects p ON p.id = k.project_id
@@ -837,6 +889,7 @@ func (q *Queries) GetCommentIssue(ctx context.Context, arg GetCommentIssueParams
 			&i.Title,
 			&i.State,
 			&i.CreatedAt,
+			&i.DeliveredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1170,6 +1223,15 @@ func (q *Queries) StampCaptureReference(ctx context.Context, arg StampCaptureRef
 		arg.StepID,
 		arg.VariantID,
 	)
+	return err
+}
+
+const stampCommentIssueDelivery = `-- name: StampCommentIssueDelivery :exec
+UPDATE comment_issues SET delivered_at = now() WHERE id = $1
+`
+
+func (q *Queries) StampCommentIssueDelivery(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, stampCommentIssueDelivery, id)
 	return err
 }
 
