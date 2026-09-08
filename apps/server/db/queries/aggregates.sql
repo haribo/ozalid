@@ -293,3 +293,6 @@ FROM comment_variants cv
 JOIN comments c ON c.id = cv.comment_id
 LEFT JOIN captures a ON a.id = cv.capture_id
 WHERE c.case_id = $1;
+
+-- name: CommentCoveredVariants :many
+SELECT variant_id FROM comment_variants WHERE comment_id = $1;

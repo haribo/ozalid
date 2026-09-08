@@ -353,6 +353,26 @@ func (r *Repository) move(
 	}
 	before := review.CaseState(kase.State)
 
+	// Accepting the last delivery settles the comment, and settling is the
+	// judgment (compute pass 3): the judge approved the bytes on display, so
+	// the reference is stamped for every covered capture — otherwise the
+	// derivation would read the fix's own pixels as "moved" against the
+	// pre-fix reference (#206, seen on production as "moved · 19203 px").
+	if m == review.MoveAccept && to == review.CommentAccepted && kase.CurrentEditionID != nil {
+		covered, err := q.CommentCoveredVariants(ctx, comment.ID)
+		if err != nil {
+			return appcomment.Outcome{}, translate("reading the covered variants", err)
+		}
+		for _, variantID := range covered {
+			if err := q.StampCaptureReference(ctx, sqlcgen.StampCaptureReferenceParams{
+				CaseID: kase.ID, StepID: comment.StepID, VariantID: variantID,
+				EditionID: *kase.CurrentEditionID, ApprovedBy: by.ID,
+			}); err != nil {
+				return appcomment.Outcome{}, translate("stamping the reference", err)
+			}
+		}
+	}
+
 	// A delivery advances the case at once: judging a fix means reading the
 	// bytes that claim to fix it, and the pin was showing the reviewer the
 	// screen from before the fix (product.md §7, #142).
