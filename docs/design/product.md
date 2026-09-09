@@ -39,7 +39,7 @@ Two things follow, and they define the product:
 | **Axis** | A rendering dimension the project declares — `theme`, `viewport`, `locale`, or anything else. ozalid ships no built-in list. |
 | **Variant** | A combination of axis values. An axis the client does not supply is simply absent from the combination. |
 | **Capture** | One image: a given step, in a given variant, at a given edition. Comparable, hashed, referenced. **PNG**: a lossy format re-encodes the same screen into different pixels, which makes "has it changed?" unanswerable ([§3.3](#33-movement-is-the-evidence-still-the-evidence-that-was-judged)). Intake refuses anything else. |
-| **Recording** | The flow video. Optional, viewable, **never** compared byte-wise and never a source of state ([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md)). |
+| **Recording** | The flow video. Optional, viewable, **judged per edition** — and **never** compared byte-wise ([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md), [ADR 0023](../adr/0023-a-recording-is-judged.md)). |
 | **Edition** | One accepted intake of a run. Immutable once accepted. |
 | **Comment** | A reviewer's report against **a capture and the sibling captures of the variants it covers**. The capture, not the step, is the anchor: steps have no identity of their own, and their names are labels. A comment shows the image it was written about for as long as it lives. Its text is the reviewer's **draft**: it is what the issues are written from, and once a ref is attached the book reads the issue's title. A durable entity with its own lifecycle ([§6](#6-comments)). Formerly called a *problem*. |
 | **Verdict** | The status of one capture: `to-review`, `refused`, `accepted`, `moved`. **Derived at read time** from the stored facts — never stored, never received (ADR 0021). |
@@ -143,7 +143,16 @@ pixel-to-pixel reading of two images that are not the same shape.
 
 Recordings are never compared: encoding is not deterministic, so a video can
 never prove anything about its own movement
-([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md)).
+([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md)). They are judged
+instead ([ADR 0023](../adr/0023-a-recording-is-judged.md)): the verdict lands
+on the recording on screen — one edition, one variant — with `to-review`,
+`accepted` and `refused` derived from stored judgment facts, a mandatory
+remark on refusal, and symmetric take-backs. A new edition brings new bytes
+and a new `to-review` recording: what was accepted is exactly what was
+watched. The recording counts in the case derivation like a capture — an
+unjudged one keeps the case `to-review`, a refused one hands it to the dev.
+Verified by `TestARecordingIsJudgedAndTheCaseFollows` and
+`TestANewEditionResetsTheRecordingToReview`.
 
 Movement stays at the capture: an `accepted` case whose captures move is
 still `accepted` until the reviewer says otherwise — the `moved` captures
@@ -170,9 +179,10 @@ reviewer approved every capture that exists is `accepted` *and* incomplete: two
 true facts, neither hiding the other. Forcing the hole into the cycle state
 would hand the ball to a reviewer who can do nothing about it.
 
-Recordings are outside this: they are optional by construction
+Recordings are outside completeness: they are optional by construction
 ([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md)), so a case without
-one is complete.
+one is complete — but a case **with** one is judged with it
+([ADR 0023](../adr/0023-a-recording-is-judged.md)).
 
 ### 3.5 Transitions
 
