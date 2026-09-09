@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"slices"
 	"strings"
 	"testing"
 
@@ -401,5 +402,42 @@ func TestAcceptingAFixApprovesItsBytes(t *testing.T) {
 	}
 	if state, _ := statusOfFirst(t, ctx, repo, project.Slug, kase.ID); state != "accepted" {
 		t.Errorf("status = %q after accepting the fix, want accepted", state)
+	}
+}
+
+// The frugal contract: one refusal names every missing address (#223). When
+// a capture and a recording are both absent, the first answer names both —
+// before the fix it named the captures alone, the recording surfaced only on
+// the second push, and the one-refusal promise broke for any client sending
+// videos.
+func TestAMissingRecordingIsNamedInTheFirstRefusal(t *testing.T) {
+	ctx, repo, blobs, project, kase := freshnessFixture(t)
+	absentCapture := "sha256:" + strings.Repeat("ab", 32)
+	absentRecording := "sha256:" + strings.Repeat("cd", 32)
+
+	svc := intake.New(repo, blobs)
+	_, err := svc.Take(ctx, project.Slug, contract.Manifest{
+		Cases: []contract.ManifestCase{{
+			ID: kase.ID,
+			Steps: []contract.ManifestStep{{
+				Name: "opens",
+				Captures: []contract.ManifestCapture{{
+					Variant: map[string]string{"theme": "light"}, Hash: absentCapture,
+				}},
+			}},
+			Recordings: []contract.ManifestRecording{{
+				Variant: map[string]string{"theme": "light"}, Hash: absentRecording,
+			}},
+		}},
+	})
+
+	var missing *intake.MissingContent
+	if !errors.As(err, &missing) {
+		t.Fatalf("err = %v, want MissingContent naming both addresses", err)
+	}
+	got := slices.Sorted(slices.Values(missing.Hashes))
+	want := slices.Sorted(slices.Values([]string{absentCapture, absentRecording}))
+	if !slices.Equal(got, want) {
+		t.Errorf("hashes = %v, want the capture and the recording together", missing.Hashes)
 	}
 }

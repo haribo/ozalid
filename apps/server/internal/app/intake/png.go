@@ -47,8 +47,9 @@ func (n *NotPNG) Unwrap() error { return ErrNotAPNG }
 // answer cannot change under it. This is the early, useful answer; that one is
 // the guard.
 //
-// Recordings are not checked: they are never compared, so their format is
-// nobody's business (ADR 0013).
+// Recordings are format-checked never — they are never compared, so their
+// format is nobody's business (ADR 0013) — but their absence is reported
+// here with everything else: one refusal names every missing address (#223).
 func (s *Service) checkCaptures(ctx context.Context, m contract.Manifest) error {
 	seen := map[string]struct{}{}
 	var absent, notPNG []string
@@ -70,6 +71,19 @@ func (s *Service) checkCaptures(ctx context.Context, m contract.Manifest) error 
 				case !ok:
 					notPNG = append(notPNG, capture.Hash)
 				}
+			}
+		}
+		for _, r := range c.Recordings {
+			if _, done := seen[r.Hash]; done {
+				continue
+			}
+			seen[r.Hash] = struct{}{}
+			held, err := s.blobs.Exists(ctx, r.Hash)
+			if err != nil {
+				return err
+			}
+			if !held {
+				absent = append(absent, r.Hash)
 			}
 		}
 	}
