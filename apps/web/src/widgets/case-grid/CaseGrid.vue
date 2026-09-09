@@ -25,7 +25,10 @@ const props = defineProps<{
   grid: Grid
   openCapture?: { stepId: string; variantId: string } | null
 }>()
-const emit = defineEmits<{ open: [stepId: string, variantId: string] }>()
+const emit = defineEmits<{
+  open: [stepId: string, variantId: string]
+  openRecording: [variantId: string]
+}>()
 
 const variants = computed(() => props.grid.variants)
 
@@ -146,14 +149,16 @@ const tally = computed(() => {
               :key="v.id"
               class="border-r border-b border-slate-200 p-2.5 text-center align-middle last:border-r-0 dark:border-slate-700"
             >
-              <!-- No verdict ring, ever: a recording is not comparable, so
-                   nothing about it can be judged (ADR 0013). Giving it a colour
-                   would invent a state the server does not compute. -->
-              <a
+              <!-- Opens the player in the carousel (ADR 0023): the video is
+                   judged there, in front of its own pixels — never downloaded
+                   by a click. -->
+              <AppButton
                 v-if="recordingOf(v.id)"
-                :href="`/api/projects/${slug}/recordings/${recordingOf(v.id)!.id}`"
-                class="inline-grid place-items-center border-2 border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+                class="inline-grid place-items-center border-2 border-slate-200 bg-slate-100 p-0 text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
                 :class="isPortrait(v.values) ? SIZE.tall : SIZE.wide"
+                :aria-label="`watch the recording — ${v.label} in the carousel`"
+                variant="secondary"
+                @click="emit('openRecording', v.id)"
               >
                 <!-- A plain triangle, not the emoji: a coloured glyph next to a
                      capture is exactly the decoration this interface must not
@@ -161,7 +166,7 @@ const tally = computed(() => {
                 <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
                   <path d="M5 3.5v9l7-4.5z" fill="currentColor" />
                 </svg>
-              </a>
+              </AppButton>
             </td>
           </tr>
 

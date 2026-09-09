@@ -140,6 +140,36 @@ export async function seed(page: Page): Promise<Seeded> {
   return { slug: PROJECT, caseId: kase.id }
 }
 
+/** An edition identical to the seed, plus one flow video per variant. The
+ * video bytes carry the clock: a recording is never byte-stable (ADR 0013),
+ * and two pushes must bring two recordings. */
+export async function pushRecordings(page: Page, seeded: Seeded): Promise<void> {
+  const still = await upload(await screen(page, 0))
+  const videoLight = await upload(Buffer.from(`webm light ${seeded.caseId} ${Date.now()}`))
+  const videoDark = await upload(Buffer.from(`webm dark ${seeded.caseId} ${Date.now()}`))
+  await call(
+    `/projects/${seeded.slug}/editions`,
+    post({
+      cases: [
+        {
+          id: seeded.caseId,
+          steps: STEPS.map((name) => ({
+            name,
+            captures: [
+              { variant: LIGHT, hash: still, provenance: { environmentId: 'ci' } },
+              { variant: DARK, hash: still, provenance: { environmentId: 'ci' } },
+            ],
+          })),
+          recordings: [
+            { variant: LIGHT, hash: videoLight },
+            { variant: DARK, hash: videoDark },
+          ],
+        },
+      ],
+    }),
+  )
+}
+
 /** A second edition where the call to action slid on the dark variant only. */
 export async function moveTheDarkVariant(page: Page, seeded: Seeded): Promise<void> {
   const still = await upload(await screen(page, 0))

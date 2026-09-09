@@ -7,7 +7,13 @@
  * written that way.
  */
 import { expect, test, type Page } from '@playwright/test'
-import { commentOnStep, moveTheDarkVariant, seed, acceptEverything } from './fixture'
+import {
+  commentOnStep,
+  moveTheDarkVariant,
+  seed,
+  acceptEverything,
+  pushRecordings,
+} from './fixture'
 import { emptyMailbox, linkSentTo } from './mailbox'
 
 /** The grid's own captures. The recap is another table, and its ticks are actions
@@ -353,4 +359,39 @@ test('the case page finds its way back to its category (#190)', async ({ page })
   await expect(
     page.locator(`a[href="/projects/${seeded.slug}/cases/${seeded.caseId}"]`),
   ).toBeVisible()
+})
+
+test('the recording is judged in the carousel, and a new push resets it (#226)', async ({
+  page,
+  request,
+}) => {
+  const seeded = await seed(page)
+  await pushRecordings(page, seeded)
+  await acceptEverything(seeded)
+
+  // Every capture accepted, yet the case waits: nobody judged the videos.
+  let detail = await request.get(`${API}/api/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  expect(((await detail.json()) as { state: string }).state).toBe('to-review')
+
+  await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  // Clicking the video opens the player — no download, an address.
+  await page.locator('[aria-label^="watch the recording"]').first().click()
+  const carousel = page.getByRole('dialog', { name: 'capture' })
+  await expect(carousel.locator('video')).toBeVisible()
+  expect(page.url()).toContain('/recordings/')
+
+  // Judge both videos: accept on each variant of the walk.
+  await carousel.getByRole('button', { name: 'accept', exact: true }).click()
+  await expect(carousel.getByRole('button', { name: '✓ accepted' })).toBeVisible()
+  await page.keyboard.press('ArrowDown')
+  await carousel.getByRole('button', { name: 'accept', exact: true }).click()
+  await expect(carousel.getByRole('button', { name: '✓ accepted' })).toBeVisible()
+
+  detail = await request.get(`${API}/api/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  expect(((await detail.json()) as { state: string }).state).toBe('accepted')
+
+  // New push, new bytes: the videos are to judge again.
+  await pushRecordings(page, seeded)
+  detail = await request.get(`${API}/api/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  expect(((await detail.json()) as { state: string }).state).toBe('to-review')
 })

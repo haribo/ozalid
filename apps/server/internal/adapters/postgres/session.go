@@ -200,12 +200,6 @@ func (r *Repository) SaveReview(
 	outcome := review.Compute(facts)
 
 	if outcome.State != before {
-		if err := q.SetCaseState(ctx, sqlcgen.SetCaseStateParams{
-			ID: caseID, State: string(outcome.State),
-		}); err != nil {
-			return session.Result{}, translate("moving the case", err)
-		}
-
 		// The reviewer has let go, so the case catches up with whatever landed
 		// while they were looking. It was only held back to keep one fixed set
 		// of bytes under them (product.md §7).
@@ -213,6 +207,27 @@ func (r *Repository) SaveReview(
 			if err := q.ReleaseToLatestEdition(ctx, caseID); err != nil {
 				return session.Result{}, translate("releasing the case onto the latest edition", err)
 			}
+			// The caught-up edition can carry unjudged videos (ADR 0023):
+			// the state is derived against what the case now shows, not
+			// against the edition the reviewer just left.
+			released, err := q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: caseID, Slug: slug})
+			if err != nil {
+				return session.Result{}, translate("re-reading the case", err)
+			}
+			released.State = string(before)
+			facts, err = factsOf(ctx, q, released)
+			if err != nil {
+				return session.Result{}, err
+			}
+			outcome = review.Compute(facts)
+		}
+	}
+
+	if outcome.State != before {
+		if err := q.SetCaseState(ctx, sqlcgen.SetCaseStateParams{
+			ID: caseID, State: string(outcome.State),
+		}); err != nil {
+			return session.Result{}, translate("moving the case", err)
 		}
 		// The fingerprint of what the computation consumed. Without it a
 		// stored state is no regression oracle (ADR 0002).

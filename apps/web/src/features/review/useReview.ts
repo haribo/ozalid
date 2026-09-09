@@ -125,6 +125,46 @@ export function useReview(slug: () => string, caseId: () => string) {
     await load()
   }
 
+  /** Judge the flow video on screen (ADR 0023): the verdict lands on
+   * exactly these bytes, and a new edition resets it. */
+  async function judgeRecording(recordingId: string, accept: boolean, remark: string) {
+    saving.value = true
+    const result = await api.POST('/projects/{slug}/recordings/{recordingId}/judgment', {
+      params: { path: { slug: slug(), recordingId } },
+      body: { accept, remark: remark || undefined },
+    })
+    saving.value = false
+    if (result.error) {
+      if (expired(result.response)) {
+        held.value = () => judgeRecording(recordingId, accept, remark)
+        return
+      }
+      error.value = result.error.title
+      return
+    }
+    held.value = null
+    await load()
+  }
+
+  /** Take the video's verdict back, symmetrically. */
+  async function unjudgeRecording(recordingId: string) {
+    saving.value = true
+    const result = await api.DELETE('/projects/{slug}/recordings/{recordingId}/judgment', {
+      params: { path: { slug: slug(), recordingId } },
+    })
+    saving.value = false
+    if (result.error) {
+      if (expired(result.response)) {
+        held.value = () => unjudgeRecording(recordingId)
+        return
+      }
+      error.value = result.error.title
+      return
+    }
+    held.value = null
+    await load()
+  }
+
   /** Take a judgment back — the reviewer reconsiders an acceptance or a
    * refusal, and the ref returns to their court (#167, #171). */
   async function unjudge(commentId: string, issueId: string, variantId: string) {
@@ -195,6 +235,8 @@ export function useReview(slug: () => string, caseId: () => string) {
     edit,
     judge,
     unjudge,
+    judgeRecording,
+    unjudgeRecording,
     resume,
   }
 }
