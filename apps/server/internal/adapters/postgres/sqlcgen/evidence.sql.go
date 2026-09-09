@@ -175,6 +175,72 @@ func (q *Queries) EditionByID(ctx context.Context, arg EditionByIDParams) (Editi
 	return i, err
 }
 
+const insertRecordingJudgment = `-- name: InsertRecordingJudgment :exec
+INSERT INTO recording_judgments (recording_id, verdict, remark, actor_id)
+VALUES ($1, $2, $3, $4)
+`
+
+type InsertRecordingJudgmentParams struct {
+	RecordingID string
+	Verdict     string
+	Remark      *string
+	ActorID     string
+}
+
+// A recording's standing comes from its last judgment (ADR 0023): none or a
+// take-back reads to-review, and a refusal keeps its remark for the dev.
+func (q *Queries) InsertRecordingJudgment(ctx context.Context, arg InsertRecordingJudgmentParams) error {
+	_, err := q.db.Exec(ctx, insertRecordingJudgment,
+		arg.RecordingID,
+		arg.Verdict,
+		arg.Remark,
+		arg.ActorID,
+	)
+	return err
+}
+
+const lastRecordingJudgments = `-- name: LastRecordingJudgments :many
+SELECT r.id AS recording_id, j.verdict, j.remark
+FROM recordings r
+JOIN LATERAL (
+    SELECT verdict, remark FROM recording_judgments
+    WHERE recording_id = r.id
+    ORDER BY created_at DESC LIMIT 1
+) j ON true
+WHERE r.case_id = $1 AND r.edition_id = $2
+`
+
+type LastRecordingJudgmentsParams struct {
+	CaseID    string
+	EditionID string
+}
+
+type LastRecordingJudgmentsRow struct {
+	RecordingID string
+	Verdict     string
+	Remark      *string
+}
+
+func (q *Queries) LastRecordingJudgments(ctx context.Context, arg LastRecordingJudgmentsParams) ([]LastRecordingJudgmentsRow, error) {
+	rows, err := q.db.Query(ctx, lastRecordingJudgments, arg.CaseID, arg.EditionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LastRecordingJudgmentsRow{}
+	for rows.Next() {
+		var i LastRecordingJudgmentsRow
+		if err := rows.Scan(&i.RecordingID, &i.Verdict, &i.Remark); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const latestEdition = `-- name: LatestEdition :one
 SELECT id, project_id, revision, created_at FROM editions
 WHERE project_id = $1
@@ -212,4 +278,30 @@ func (q *Queries) RecordingBlobInProject(ctx context.Context, arg RecordingBlobI
 	var blob_hash string
 	err := row.Scan(&blob_hash)
 	return blob_hash, err
+}
+
+const recordingInProject = `-- name: RecordingInProject :one
+SELECT r.id, r.case_id FROM recordings r
+JOIN cases k ON k.id = r.case_id
+JOIN projects p ON p.id = k.project_id
+WHERE r.id = $1 AND p.slug = $2
+`
+
+type RecordingInProjectParams struct {
+	ID   string
+	Slug string
+}
+
+type RecordingInProjectRow struct {
+	ID     string
+	CaseID string
+}
+
+// The recording inside the project the caller named, with its case: what a
+// judgment needs to authorise and to recompute.
+func (q *Queries) RecordingInProject(ctx context.Context, arg RecordingInProjectParams) (RecordingInProjectRow, error) {
+	row := q.db.QueryRow(ctx, recordingInProject, arg.ID, arg.Slug)
+	var i RecordingInProjectRow
+	err := row.Scan(&i.ID, &i.CaseID)
+	return i, err
 }

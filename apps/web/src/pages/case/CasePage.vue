@@ -51,10 +51,25 @@ const open = computed(() =>
     : null,
 )
 
+/** The recording view: same carousel, addressed by variant (ADR 0023). */
+const openRecording = computed(() =>
+  route.path.includes('/recordings/') && route.params.variantId
+    ? String(route.params.variantId)
+    : null,
+)
+
 const caseUrl = computed(() => `/projects/${slug.value}/cases/${caseId.value}`)
 
 function openCapture(stepId: string, variantId: string) {
   void router.push(`${caseUrl.value}/steps/${stepId}/variants/${variantId}`)
+}
+
+function openRecordingView(variantId: string) {
+  void router.push(`${caseUrl.value}/recordings/${variantId}`)
+}
+
+function moveToRecording(variantId: string) {
+  void router.replace(`${caseUrl.value}/recordings/${variantId}`)
 }
 
 /** Arrow keys walk, they do not stack: replace, so back means the grid. */
@@ -146,6 +161,16 @@ async function onUnjudge(commentId: string, issueRefId: string, variantId: strin
   await refreshCase()
 }
 
+async function onJudgeRecording(recordingId: string, accept: boolean, remark: string) {
+  await review.judgeRecording(recordingId, accept, remark)
+  await refreshCase()
+}
+
+async function onUnjudgeRecording(recordingId: string) {
+  await review.unjudgeRecording(recordingId)
+  await refreshCase()
+}
+
 /** The case's own state is recomputed by the server on every move, so it is
  * read back rather than guessed here (ADR 0012). */
 async function refreshCase() {
@@ -202,16 +227,20 @@ async function refreshCase() {
       <!-- Over the page, not in it: the page stays mounted underneath with
            everything it holds, and the capture gets the window (#125). -->
       <CaptureCarousel
-        v-if="open && review.grid.value"
+        v-if="(open || openRecording) && review.grid.value"
         :slug="slug"
         :grid="review.grid.value"
         :comments="review.comments.value"
-        :step-id="open.stepId"
-        :variant-id="open.variantId"
+        :step-id="open?.stepId ?? ''"
+        :variant-id="open?.variantId ?? openRecording ?? ''"
+        :recording="openRecording !== null"
         :busy="review.saving.value"
         class="fixed inset-0 z-40"
         @close="closeCarousel"
         @move="moveTo"
+        @move-recording="moveToRecording"
+        @judge-recording="onJudgeRecording"
+        @unjudge-recording="onUnjudgeRecording"
         @accept="onAccept"
         @unaccept="onUnaccept"
         @refuse="onRefuse"
@@ -227,6 +256,7 @@ async function refreshCase() {
         :grid="review.grid.value"
         :open-capture="open"
         @open="openCapture"
+        @open-recording="openRecordingView"
       />
 
       <CommentRecap

@@ -157,6 +157,15 @@ type Recording struct {
 	BlobHash  string
 }
 
+type RecordingJudgment struct {
+	ID          string
+	RecordingID string
+	Verdict     string
+	Remark      *string
+	ActorID     string
+	CreatedAt   pgtype.Timestamptz
+}
+
 type ServiceAccount struct {
 	ID            string
 	Name          string

@@ -1,0 +1,82 @@
+parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
+  - name: recordingId
+    in: path
+    required: true
+    schema: { type: string }
+
+post:
+  operationId: judgeRecording
+  security:
+    - serviceToken: []
+    - session: []
+  summary: Render a verdict on the recording on screen
+  description: |
+    A recording is judged (ADR 0023): the verdict lands on exactly these
+    bytes — one edition, one variant. A refusal carries its mandatory remark
+    (ADR 0020). A new edition brings new bytes and a new `to-review`
+    recording.
+  tags: [reviews]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required: [accept]
+          properties:
+            accept:
+              type: boolean
+            remark:
+              type: string
+              description: Mandatory on a refusal. It is what the dev has to read.
+  responses:
+    "200":
+      description: The judgment is recorded; the case state follows.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [caseState]
+            properties:
+              caseState:
+                $ref: "../components/schemas.yaml#/CaseState"
+    '400':
+      $ref: "../components/responses.yaml#/BadRequest"
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
+
+delete:
+  operationId: unjudgeRecording
+  security:
+    - serviceToken: []
+    - session: []
+  summary: Take the recording's verdict back
+  description: |
+    Symmetric with giving it (ADR 0023): the recording returns to the
+    reviewer, the history keeps the move.
+  tags: [reviews]
+  responses:
+    "200":
+      description: The take-back is recorded; the case state follows.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [caseState]
+            properties:
+              caseState:
+                $ref: "../components/schemas.yaml#/CaseState"
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"

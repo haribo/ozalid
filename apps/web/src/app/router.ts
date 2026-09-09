@@ -33,6 +33,12 @@ export const router = createRouter({
       path: '/projects/:slug/cases/:caseId/steps/:stepId/variants/:variantId',
       component: CasePage,
     },
+    // The recording view, addressed by variant: the address survives a push —
+    // it always shows the current edition's video (ADR 0023).
+    {
+      path: '/projects/:slug/cases/:caseId/recordings/:variantId',
+      component: CasePage,
+    },
     // The gallery exists only in a dev build: no end user ever sees it, and
     // the production bundle does not carry it (#155).
     ...(import.meta.env.DEV

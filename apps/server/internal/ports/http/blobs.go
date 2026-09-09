@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -103,7 +104,24 @@ func (s *Server) GetRecordingVideo(ctx context.Context, request openapi.GetRecor
 	if err != nil {
 		return nil, err
 	}
-	return openapi.GetRecordingVideo200ApplicationoctetStreamResponse{Body: rc}, nil
+
+	// Served as what its first bytes say it is (#226): a browser streams a
+	// video/* answer inline instead of downloading it. The store never knew
+	// the format — a recording's format is nobody's business (ADR 0013) —
+	// so the answer sniffs rather than trusts.
+	head := make([]byte, 12)
+	n, _ := io.ReadFull(rc, head)
+	body := struct {
+		io.Reader
+		io.Closer
+	}{io.MultiReader(bytes.NewReader(head[:n]), rc), rc}
+	switch {
+	case n >= 4 && bytes.Equal(head[:4], []byte{0x1a, 0x45, 0xdf, 0xa3}):
+		return openapi.GetRecordingVideo200VideowebmResponse{Body: body}, nil
+	case n >= 12 && bytes.Equal(head[4:8], []byte("ftyp")):
+		return openapi.GetRecordingVideo200Videomp4Response{Body: body}, nil
+	}
+	return openapi.GetRecordingVideo200ApplicationoctetStreamResponse{Body: body}, nil
 }
 
 // errNoBytes covers both ways bytes fail to arrive: the row is not in this

@@ -7,6 +7,8 @@ package evidence
 import (
 	"context"
 	"errors"
+	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
+	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"time"
 
 	"github.com/haribo/ozalid/internal/contract"
@@ -48,11 +50,16 @@ type Step struct {
 }
 
 // Recording is the flow video for one variant. Optional, never compared
-// (ADR 0013).
+// (ADR 0013) — judged instead (ADR 0023).
 type Recording struct {
 	ID        string
 	VariantID string
 	Hash      string
+	// Status is to-review, accepted or refused, derived from the last
+	// judgment on exactly these bytes.
+	Status string
+	// Refusal is the standing refusal's remark, empty otherwise.
+	Refusal string
 }
 
 // Grid is what a case is judged from.
@@ -71,6 +78,8 @@ type Repository interface {
 	CaseGrid(ctx context.Context, slug, caseID string, editionID *string) (Grid, error)
 	CaptureBlob(ctx context.Context, slug, captureID string) (string, error)
 	RecordingBlob(ctx context.Context, slug, recordingID string) (string, error)
+	JudgeRecording(ctx context.Context, slug, recordingID string, by actor.Actor, accept bool, remark string) (review.CaseState, error)
+	UnjudgeRecording(ctx context.Context, slug, recordingID string, by actor.Actor) (review.CaseState, error)
 }
 
 // Service reads evidence.
@@ -101,4 +110,14 @@ func (s *Service) CaptureBlob(ctx context.Context, slug, captureID string) (stri
 // RecordingBlob does the same for a recording's video.
 func (s *Service) RecordingBlob(ctx context.Context, slug, recordingID string) (string, error) {
 	return s.repo.RecordingBlob(ctx, slug, recordingID)
+}
+
+// JudgeRecording renders a verdict on the recording on screen (ADR 0023).
+func (s *Service) JudgeRecording(ctx context.Context, slug, recordingID string, by actor.Actor, accept bool, remark string) (review.CaseState, error) {
+	return s.repo.JudgeRecording(ctx, slug, recordingID, by, accept, remark)
+}
+
+// UnjudgeRecording takes it back, symmetrically.
+func (s *Service) UnjudgeRecording(ctx context.Context, slug, recordingID string, by actor.Actor) (review.CaseState, error) {
+	return s.repo.UnjudgeRecording(ctx, slug, recordingID, by)
 }

@@ -19,6 +19,9 @@ const props = defineProps<{
   comments: Comment[]
   stepId: string
   variantId: string
+  /** The recording view (ADR 0023): the player instead of a capture, the
+   * pair judging the video of this variant at the current edition. */
+  recording?: boolean
   busy?: boolean
 }>()
 
@@ -39,11 +42,19 @@ const emit = defineEmits<{
   judge: [commentId: string, issueRefId: string, accept: boolean, remark: string, variantId: string]
   /** Empty variantId keeps the take-back ref-level (a refusal reopening). */
   unjudge: [commentId: string, issueRefId: string, variantId: string]
+  moveRecording: [variantId: string]
+  judgeRecording: [recordingId: string, accept: boolean, remark: string]
+  unjudgeRecording: [recordingId: string]
 }>()
 
 /** Where the open step sits in the flow. The counter counts steps: the
  * horizontal walk is the flow, and the variant is a lens on it (#149). */
 const stepIndex = computed(() => props.grid.steps.findIndex((s) => s.id === props.stepId))
+
+/** The video of this variant at the current edition (ADR 0023). */
+const rec = computed(() =>
+  props.recording ? props.grid.recordings.find((r) => r.variantId === props.variantId) : undefined,
+)
 
 const step = computed(() => props.grid.steps.find((s) => s.id === props.stepId))
 const variant = computed(() => props.grid.variants.find((v) => v.id === props.variantId))
@@ -126,6 +137,11 @@ const contextRemark = computed(
 /** What the pair shows. The fix's judgment outranks the capture's own status:
  * when an issue is on this capture, the verdict is about the fix. */
 const verdict = computed<'none' | 'accepted' | 'refused'>(() => {
+  if (props.recording) {
+    if (rec.value?.status === 'accepted') return 'accepted'
+    if (rec.value?.status === 'refused') return 'refused'
+    return 'none'
+  }
   if (toJudge.value || remarkToJudge.value) return 'none'
   if (acceptedRef.value) return 'accepted'
   if (refusedRef.value) return 'refused'
@@ -142,6 +158,16 @@ const moved = computed(() => capture.value?.status === 'moved')
 /** Left and right walk the steps, keeping the variant; a step that lacks it
  * is skipped rather than switching the lens under the reviewer (#149). */
 function go(delta: number) {
+  if (props.recording) {
+    // The video is the walk's first position: right enters the steps.
+    if (delta > 0) {
+      const first = props.grid.steps.find((s) =>
+        s.captures.some((c) => c.variantId === props.variantId),
+      )
+      if (first) emit('move', first.id, props.variantId)
+    }
+    return
+  }
   for (let i = stepIndex.value + delta; i >= 0 && i < props.grid.steps.length; i += delta) {
     const candidate = props.grid.steps[i]
     if (candidate.captures.some((c) => c.variantId === props.variantId)) {
@@ -149,13 +175,24 @@ function go(delta: number) {
       return
     }
   }
+  // Left past the first step lands on the video, when there is one.
+  if (delta < 0 && props.grid.recordings.some((r) => r.variantId === props.variantId)) {
+    emit('moveRecording', props.variantId)
+  }
 }
 
 /** Up and down move to the same step's next variant. */
 function goVariant(delta: number) {
   const here = props.grid.variants.findIndex((v) => v.id === props.variantId)
   const next = props.grid.variants[here + delta]
-  if (next && step.value?.captures.some((c) => c.variantId === next.id)) {
+  if (!next) return
+  if (props.recording) {
+    if (props.grid.recordings.some((r) => r.variantId === next.id)) {
+      emit('moveRecording', next.id)
+    }
+    return
+  }
+  if (step.value?.captures.some((c) => c.variantId === next.id)) {
     emit('move', props.stepId, next.id)
   }
 }
@@ -197,9 +234,9 @@ function pickAll() {
 
 const canSend = computed(() => {
   if (remark.value.trim() === '') return false
-  // A fix's refusal needs no variants: the issue — or the delivered remark —
-  // already owns its own.
-  return toJudge.value || remarkToJudge.value ? true : chosen.value.length > 0
+  // A fix's or a recording's refusal needs no variants: the thing being
+  // judged already owns its own.
+  return props.recording || toJudge.value || remarkToJudge.value ? true : chosen.value.length > 0
 })
 
 function openSheet() {
@@ -224,6 +261,11 @@ function closeSheet() {
 function send() {
   if (!sheet.value || !canSend.value) return
   const body = remark.value.trim()
+  if (props.recording) {
+    if (rec.value) emit('judgeRecording', rec.value.id, false, body)
+    closeSheet()
+    return
+  }
   if (sheet.value.editing) {
     emit('edit', sheet.value.editing, body, [...chosen.value])
   } else if (toJudge.value) {
@@ -245,6 +287,14 @@ function send() {
 
 function onAccept() {
   if (props.busy || sheet.value) return
+  if (props.recording) {
+    if (!rec.value) return
+    // Accepted un-presses; refused or unjudged accepts — one gesture, the
+    // judgment lands on these bytes (ADR 0023).
+    if (rec.value.status === 'accepted') emit('unjudgeRecording', rec.value.id)
+    else emit('judgeRecording', rec.value.id, true, '')
+    return
+  }
   if (toJudge.value) {
     emit('judge', toJudge.value.comment.id, toJudge.value.ref.id, true, '', props.variantId)
     return
@@ -272,6 +322,12 @@ function onAccept() {
 
 function onRefuse() {
   if (props.busy || sheet.value) return
+  if (props.recording) {
+    if (!rec.value) return
+    if (rec.value.status === 'refused') emit('unjudgeRecording', rec.value.id)
+    else openSheet()
+    return
+  }
   if (refusedRef.value) {
     emit('unjudge', refusedRef.value.comment.id, refusedRef.value.ref.id, '')
     return
@@ -317,7 +373,9 @@ function onKey(event: KeyboardEvent) {
       goVariant(-1)
       break
     case ' ':
-      // Space plays accept — give or take back (ADR 0020).
+      // Space plays accept — give or take back (ADR 0020). On the video it
+      // belongs to the player: play and pause, the pair is clicked.
+      if (props.recording) return
       event.preventDefault()
       if (sheet.value) break
       onAccept()
@@ -343,18 +401,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 font-mono text-mono text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
     >
       <span>
-        <b class="font-medium text-slate-900 dark:text-slate-100">{{ step?.name }}</b>
+        <b class="font-medium text-slate-900 dark:text-slate-100">{{
+          recording ? 'recording' : step?.name
+        }}</b>
         · {{ variant?.label }}
       </span>
       <span>
-        {{ stepIndex + 1 }} / {{ grid.steps.length }} ·
+        <template v-if="!recording">{{ stepIndex + 1 }} / {{ grid.steps.length }} · </template>
         <!-- Arrow glyphs are missing from most monospace faces and render as
              empty boxes; the system font has them. -->
         <kbd class="rounded border border-current px-1 font-sans">←</kbd>
         <kbd class="rounded border border-current px-1 font-sans">→</kbd> step ·
         <kbd class="rounded border border-current px-1 font-sans">↑</kbd>
         <kbd class="rounded border border-current px-1 font-sans">↓</kbd> variant ·
-        <kbd class="rounded border border-current px-1">space</kbd> accept ·
+        <kbd class="rounded border border-current px-1">space</kbd>
+        {{ recording ? 'play' : 'accept' }} ·
         <kbd class="rounded border border-current px-1">Esc</kbd> close
       </span>
     </div>
@@ -391,6 +452,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           class="max-h-full max-w-full border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900"
         />
       </span>
+      <!-- The player: the browser's own controls, streaming the sniffed
+           content type. The pair below judges these exact bytes (ADR 0023). -->
+      <span v-if="rec" class="flex h-full w-full min-h-0 items-center justify-center">
+        <video
+          :src="`/api/projects/${slug}/recordings/${rec.id}`"
+          controls
+          :aria-label="`recording — ${variant?.label}`"
+          class="max-h-full max-w-full border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900"
+        ></video>
+      </span>
     </div>
 
     <!-- The judgment zone: one centred grammar for every state (#171). The
@@ -405,9 +476,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           verdict === 'refused' && !sheet,
       }"
     >
+      <!-- The video's standing refusal speaks; nothing else has a line
+           here — a recording carries no issues (ADR 0023). -->
+      <p
+        v-if="recording && rec?.refusal"
+        class="max-w-[56ch] font-mono text-mono text-amber-700 dark:text-amber-400"
+      >
+        {{ rec.refusal }}
+      </p>
       <!-- The context line, identical whatever the round's state (ADR 0022):
            the issue and its title. The verdict reads on the pair alone. -->
-      <p v-if="contextRef" class="max-w-[56ch] text-body text-slate-600 dark:text-slate-300">
+      <p
+        v-if="!recording && contextRef"
+        class="max-w-[56ch] text-body text-slate-600 dark:text-slate-300"
+      >
         <a
           v-if="contextRef.ref.url"
           :href="contextRef.ref.url"
@@ -435,7 +517,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
       <!-- Tracked remarks speak through their issue titles; the drafts are
            the reviewer's own — the whole card is the way into editing. -->
-      <template v-if="!sheet">
+      <template v-if="!sheet && !recording">
         <p
           v-for="title in trackedTitles"
           :key="title"
@@ -469,11 +551,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           {{
             sheet.editing
               ? 'Edit the remark'
-              : toJudge
-                ? `Refuse the fix — issue #${toJudge.ref.issueId}`
-                : remarkToJudge
-                  ? 'Refuse the fix'
-                  : 'Refuse the capture'
+              : recording
+                ? 'Refuse the recording'
+                : toJudge
+                  ? `Refuse the fix — issue #${toJudge.ref.issueId}`
+                  : remarkToJudge
+                    ? 'Refuse the fix'
+                    : 'Refuse the capture'
           }}
         </h3>
         <label class="flex flex-col gap-1">
@@ -487,7 +571,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           ></textarea>
         </label>
         <div
-          v-if="!toJudge && !remarkToJudge"
+          v-if="!recording && !toJudge && !remarkToJudge"
           class="flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-mono"
         >
           <label

@@ -63,6 +63,32 @@ func factsOf(ctx context.Context, q *sqlcgen.Queries, kase sqlcgen.Case) (review
 		}
 	}
 
+	if editionID != nil {
+		recordings, err := q.CaseRecordings(ctx, sqlcgen.CaseRecordingsParams{
+			CaseID: kase.ID, EditionID: *editionID,
+		})
+		if err != nil {
+			return facts, translate("reading the recordings", err)
+		}
+		judged, err := q.LastRecordingJudgments(ctx, sqlcgen.LastRecordingJudgmentsParams{
+			CaseID: kase.ID, EditionID: *editionID,
+		})
+		if err != nil {
+			return facts, translate("reading the recording judgments", err)
+		}
+		verdictByRecording := map[string]string{}
+		for _, row := range judged {
+			if row.Verdict != "taken-back" {
+				verdictByRecording[row.RecordingID] = row.Verdict
+			}
+		}
+		for _, r := range recordings {
+			facts.Recordings = append(facts.Recordings, review.RecordingFact{
+				ID: r.RecordingID, Verdict: verdictByRecording[r.RecordingID],
+			})
+		}
+	}
+
 	accepted, err := q.CaseAcceptedCaptures(ctx, kase.ID)
 	if err != nil {
 		return facts, translate("reading the acceptances", err)

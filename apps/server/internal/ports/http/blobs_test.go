@@ -3,6 +3,7 @@ package http_test
 import (
 	"bytes"
 	"context"
+	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -68,6 +69,14 @@ func (c oneCapture) CaptureBlob(_ context.Context, slug, captureID string) (stri
 		return "", catalogue.ErrNotFound
 	}
 	return c.hash, nil
+}
+
+func (c oneCapture) JudgeRecording(context.Context, string, string, actor.Actor, bool, string) (review.CaseState, error) {
+	return "", review.ErrMoveNotAllowed
+}
+
+func (c oneCapture) UnjudgeRecording(context.Context, string, string, actor.Actor) (review.CaseState, error) {
+	return "", review.ErrMoveNotAllowed
 }
 
 func (c oneCapture) RecordingBlob(context.Context, string, string) (string, error) {

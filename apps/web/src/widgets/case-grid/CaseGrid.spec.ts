@@ -176,16 +176,22 @@ describe('CaseGrid', () => {
     expect(images[2].classes()).not.toContain('opacity-40') // still to judge
   })
 
-  it('leaves the recording without a verdict ring, since nothing judges it', () => {
-    // A recording is not comparable, so it carries no state (ADR 0013).
+  it('opens the recording in the carousel instead of downloading it (#226)', () => {
+    // The video is judged in front of its own pixels (ADR 0023); the cell
+    // itself keeps no verdict ring — the walk carries the pair.
     const w = mount(CaseGrid, {
       props: {
         slug: 'atlas',
-        grid: grid({ recordings: [{ id: 'rec1', variantId: 'v1', hash: 'sha256:vid' }] }),
+        grid: grid({
+          recordings: [{ id: 'rec1', variantId: 'v1', hash: 'sha256:vid', status: 'to-review' }],
+        }),
       },
     })
-    const link = w.find('a[href="/api/projects/atlas/recordings/rec1"]')
-    const classes = link.classes().join(' ')
+    expect(w.find('a[href^="/api/"]').exists()).toBe(false)
+    const cell = w.find('[aria-label^="watch the recording"]')
+    cell.trigger('click')
+    expect(w.emitted('openRecording')?.[0]).toEqual(['v1'])
+    const classes = cell.classes().join(' ')
     expect(classes).not.toContain('emerald')
     expect(classes).not.toContain('amber')
   })
@@ -252,7 +258,9 @@ describe('CaseGrid', () => {
     const withOne = mount(CaseGrid, {
       props: {
         slug: 'atlas',
-        grid: grid({ recordings: [{ id: 'cap7', variantId: 'v1', hash: 'sha256:vid' }] }),
+        grid: grid({
+          recordings: [{ id: 'cap7', variantId: 'v1', hash: 'sha256:vid', status: 'to-review' }],
+        }),
       },
     })
     expect(withOne.text()).toContain('recording')

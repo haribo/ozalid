@@ -505,3 +505,73 @@ describe('a judgment lands on the capture on screen (ADR 0022, #208)', () => {
     expect(w.emitted('unjudge')).toEqual([['k7', 'ref7', 'v1']])
   })
 })
+
+describe('the recording is judged in the carousel (ADR 0023, #226)', () => {
+  const withVideo: Grid = {
+    ...grid,
+    recordings: [
+      { id: 'rec1', variantId: 'v1', hash: 'sha256:vid', status: 'to-review' },
+      { id: 'rec2', variantId: 'v2', hash: 'sha256:vid2', status: 'to-review' },
+    ],
+  }
+  const mountRecording = (over: Partial<Grid> = {}) =>
+    mount(CaptureCarousel, {
+      props: {
+        slug: 'atlas',
+        grid: { ...withVideo, ...over },
+        comments: [],
+        stepId: '',
+        variantId: 'v1',
+        recording: true,
+      },
+    })
+
+  it('shows the player and judges these exact bytes', async () => {
+    const w = mountRecording()
+    const video = w.find('video')
+    expect(video.attributes('src')).toBe('/api/projects/atlas/recordings/rec1')
+    expect(w.text()).toContain('recording')
+
+    await half(w, 'accept').trigger('click')
+    expect(w.emitted('judgeRecording')).toEqual([['rec1', true, '']])
+  })
+
+  it('refuses through the sheet — remark mandatory, no variant ticks', async () => {
+    const w = mountRecording()
+    await half(w, 'refuse').trigger('click')
+    expect(w.text()).toContain('Refuse the recording')
+    expect(w.find('input[type="checkbox"]').exists()).toBe(false)
+
+    await w.find('textarea').setValue('the flow stutters at the door')
+    await w.find('form').findAll('button').at(-1)!.trigger('click')
+    expect(w.emitted('judgeRecording')).toEqual([['rec1', false, 'the flow stutters at the door']])
+  })
+
+  it('takes a verdict back from the filled half and shows the standing refusal', async () => {
+    const w = mountRecording({
+      recordings: [
+        {
+          id: 'rec1',
+          variantId: 'v1',
+          hash: 'sha256:vid',
+          status: 'refused',
+          refusal: 'the flow stutters at the door',
+        },
+      ],
+    })
+    expect(w.text()).toContain('the flow stutters at the door')
+    await half(w, '✗ refused').trigger('click')
+    expect(w.emitted('unjudgeRecording')).toEqual([['rec1']])
+  })
+
+  it('walks: right enters the steps, down reaches the other variant', async () => {
+    const w = mountRecording()
+    press('ArrowRight')
+    await w.vm.$nextTick()
+    expect(w.emitted('move')?.[0]).toEqual(['s1', 'v1'])
+    press('ArrowDown')
+    await w.vm.$nextTick()
+    expect(w.emitted('moveRecording')?.[0]).toEqual(['v2'])
+    w.unmount()
+  })
+})

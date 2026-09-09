@@ -59,8 +59,19 @@ type Facts struct {
 	// Every comment on the case, settled ones included: a discarded comment
 	// stops counting, but it still exists (ADR 0006).
 	Comments []Comment
+	// Recordings present at the edition, each with the verdict of its last
+	// judgment — empty when nobody judged these bytes (ADR 0023).
+	Recordings []RecordingFact
 	// PixelThreshold is how many differing pixels this project calls noise.
 	PixelThreshold int
+}
+
+// RecordingFact is one flow video and where its judgment stands.
+type RecordingFact struct {
+	ID string
+	// Verdict is "accepted", "refused", or "" while nobody has judged —
+	// a taken-back judgment reads as nobody having judged.
+	Verdict string
 }
 
 // Outcome is what the facts amount to.
@@ -119,12 +130,26 @@ func Compute(f Facts) Outcome {
 			return out
 		}
 	}
+	// A recording is evidence too (ADR 0023): unjudged bytes await the
+	// reviewer exactly like an unjudged capture.
+	for _, r := range f.Recordings {
+		if r.Verdict == "" {
+			out.State = CaseToReview
+			return out
+		}
+	}
 
 	// Nothing awaits the reviewer. Anything still open awaits the dev — and
 	// which of the two it is does not belong on the case: the comment carries
 	// that (ADR 0012).
 	for _, c := range f.Comments {
 		if c.State.Open() {
+			out.State = CaseRefused
+			return out
+		}
+	}
+	for _, r := range f.Recordings {
+		if r.Verdict == "refused" {
 			out.State = CaseRefused
 			return out
 		}
