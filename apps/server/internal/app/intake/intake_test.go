@@ -48,6 +48,11 @@ func (b refusingBlobs) Get(context.Context, string) (io.ReadCloser, error) {
 	return nil, nil
 }
 
+func (b refusingBlobs) Exists(context.Context, string) (bool, error) {
+	b.t.Error("intake checked a blob, want the manifest refused first")
+	return false, nil
+}
+
 func validHash(b byte) string {
 	h := "sha256:"
 	for i := 0; i < 64; i++ {

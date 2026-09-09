@@ -41,9 +41,11 @@ type Repository interface {
 }
 
 // Blobs reads capture bytes back. Intake needs them for two things: proving a
-// capture is a PNG, and comparing it against what was approved.
+// capture is a PNG, and comparing it against what was approved. Existence
+// alone answers for a recording (#223): its bytes are never read here.
 type Blobs interface {
 	Get(ctx context.Context, hash string) (io.ReadCloser, error)
+	Exists(ctx context.Context, hash string) (bool, error)
 }
 
 // Verdict is what the comparison found for one step and variant, ready to be stored.
