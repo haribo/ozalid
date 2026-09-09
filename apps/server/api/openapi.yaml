@@ -1162,17 +1162,116 @@ paths:
       description: |
         Read through the recording, for the same reason a capture's image is
         (`product.md` §8.1). A recording is a supporting exhibit: never
-        byte-compared, never a source of state (ADR 0013).
+        byte-compared, judged, never byte-compared (ADR 0013, ADR 0023).
       tags:
         - blobs
       responses:
         '200':
-          description: The video.
+          description: |
+            The video, served as what its first bytes say it is (#226): a browser
+            streams a `video/*` answer inline instead of downloading it. Unknown
+            bytes fall back to `application/octet-stream`.
           content:
+            video/webm:
+              schema:
+                type: string
+                format: binary
+            video/mp4:
+              schema:
+                type: string
+                format: binary
             application/octet-stream:
               schema:
                 type: string
                 format: binary
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /projects/{slug}/recordings/{recordingId}/judgment:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: recordingId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: judgeRecording
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Render a verdict on the recording on screen
+      description: |
+        A recording is judged (ADR 0023): the verdict lands on exactly these
+        bytes — one edition, one variant. A refusal carries its mandatory remark
+        (ADR 0020). A new edition brings new bytes and a new `to-review`
+        recording.
+      tags:
+        - reviews
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - accept
+              properties:
+                accept:
+                  type: boolean
+                remark:
+                  type: string
+                  description: Mandatory on a refusal. It is what the dev has to read.
+      responses:
+        '200':
+          description: The judgment is recorded; the case state follows.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - caseState
+                properties:
+                  caseState:
+                    $ref: '#/components/schemas/CaseState'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: unjudgeRecording
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Take the recording's verdict back
+      description: |
+        Symmetric with giving it (ADR 0023): the recording returns to the
+        reviewer, the history keeps the move.
+      tags:
+        - reviews
+      responses:
+        '200':
+          description: The take-back is recorded; the case state follows.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - caseState
+                properties:
+                  caseState:
+                    $ref: '#/components/schemas/CaseState'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -2445,6 +2544,7 @@ components:
         - id
         - variantId
         - hash
+        - status
       properties:
         id:
           type: string
@@ -2453,6 +2553,18 @@ components:
           type: string
         hash:
           type: string
+        status:
+          type: string
+          enum:
+            - to-review
+            - accepted
+            - refused
+          description: |
+            Where the judgment on exactly these bytes stands (ADR 0023). A new
+            edition brings new bytes and a new `to-review` recording.
+        refusal:
+          type: string
+          description: The standing refusal's remark, absent otherwise.
     Grid:
       type: object
       required:

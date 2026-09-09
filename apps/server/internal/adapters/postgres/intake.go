@@ -167,6 +167,37 @@ func (r *Repository) WriteEdition(
 		return appintake.Result{}, translate("pointing the cases at the edition", err)
 	}
 
+	// A new edition brings new video bytes, and nobody has judged them: the
+	// cases it carries recordings for return to the reviewer (ADR 0023).
+	// Deliberately narrow — a full recompute here would also raise `moved`
+	// to the case, which stays with the capture (ADR 0021).
+	for _, c := range m.Cases {
+		if len(c.Recordings) == 0 {
+			continue
+		}
+		from := review.CaseState(known[c.ID].State)
+		if from != review.CaseAccepted && from != review.CaseRefused {
+			continue
+		}
+		if err := q.SetCaseState(ctx, sqlcgen.SetCaseStateParams{
+			ID: c.ID, State: string(review.CaseToReview),
+		}); err != nil {
+			return appintake.Result{}, translate("reopening the case for its video", err)
+		}
+		inputs, err := json.Marshal(map[string]any{"edition": edition.ID, "recordings": len(c.Recordings)})
+		if err != nil {
+			return appintake.Result{}, fmt.Errorf("encoding the transition inputs: %w", err)
+		}
+		if err := q.RecordTransition(ctx, sqlcgen.RecordTransitionParams{
+			ProjectID: project.ID, CaseID: &c.ID,
+			FromState: ptr(string(from)), ToState: ptr(string(review.CaseToReview)),
+			Cause: "recording-arrived", ActorID: "intake", ActorKind: "machine",
+			Inputs: inputs, RuleVersion: 1,
+		}); err != nil {
+			return appintake.Result{}, translate("journalling the transition", err)
+		}
+	}
+
 	// The evidence has arrived, so the cases that had none leave the edge of
 	// the funnel. This is the only transition intake drives: every other one
 	// comes from a comment (ADR 0012).

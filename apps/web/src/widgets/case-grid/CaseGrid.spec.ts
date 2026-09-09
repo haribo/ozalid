@@ -181,7 +181,9 @@ describe('CaseGrid', () => {
     const w = mount(CaseGrid, {
       props: {
         slug: 'atlas',
-        grid: grid({ recordings: [{ id: 'rec1', variantId: 'v1', hash: 'sha256:vid' }] }),
+        grid: grid({
+          recordings: [{ id: 'rec1', variantId: 'v1', hash: 'sha256:vid', status: 'to-review' }],
+        }),
       },
     })
     const link = w.find('a[href="/api/projects/atlas/recordings/rec1"]')
@@ -252,7 +254,9 @@ describe('CaseGrid', () => {
     const withOne = mount(CaseGrid, {
       props: {
         slug: 'atlas',
-        grid: grid({ recordings: [{ id: 'cap7', variantId: 'v1', hash: 'sha256:vid' }] }),
+        grid: grid({
+          recordings: [{ id: 'cap7', variantId: 'v1', hash: 'sha256:vid', status: 'to-review' }],
+        }),
       },
     })
     expect(withOne.text()).toContain('recording')

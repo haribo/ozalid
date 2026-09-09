@@ -115,10 +115,28 @@ func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionI
 	if err != nil {
 		return evidence.Grid{}, translate("reading the recordings", err)
 	}
+	judged, err := r.q.LastRecordingJudgments(ctx, sqlcgen.LastRecordingJudgmentsParams{
+		CaseID: caseID, EditionID: edition.ID,
+	})
+	if err != nil {
+		return evidence.Grid{}, translate("reading the recording judgments", err)
+	}
+	lastByRecording := map[string]sqlcgen.LastRecordingJudgmentsRow{}
+	for _, row := range judged {
+		lastByRecording[row.RecordingID] = row
+	}
 	for _, rec := range recordings {
-		grid.Recordings = append(grid.Recordings, evidence.Recording{
+		out := evidence.Recording{
 			ID: rec.RecordingID, VariantID: rec.VariantID, Hash: rec.BlobHash,
-		})
+			Status: "to-review",
+		}
+		if last, ok := lastByRecording[rec.RecordingID]; ok && last.Verdict != "taken-back" {
+			out.Status = last.Verdict
+			if last.Verdict == "refused" && last.Remark != nil {
+				out.Refusal = *last.Remark
+			}
+		}
+		grid.Recordings = append(grid.Recordings, out)
 	}
 
 	return grid, nil

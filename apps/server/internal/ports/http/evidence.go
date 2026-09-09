@@ -79,6 +79,8 @@ func toAPIGrid(g evidence.Grid) openapi.Grid {
 	for _, r := range g.Recordings {
 		out.Recordings = append(out.Recordings, openapi.GridRecording{
 			Id: r.ID, VariantId: r.VariantID, Hash: r.Hash,
+			Status:  openapi.GridRecordingStatus(r.Status),
+			Refusal: nonEmptyPtr(r.Refusal),
 		})
 	}
 	return out

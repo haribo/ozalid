@@ -92,10 +92,19 @@ GridCapture:
 
 GridRecording:
   type: object
-  required: [id, variantId, hash]
+  required: [id, variantId, hash, status]
   properties:
     id:
       type: string
       description: Fetch the video at `/projects/{slug}/recordings/{recordingId}`.
     variantId: { type: string }
     hash: { type: string }
+    status:
+      type: string
+      enum: [to-review, accepted, refused]
+      description: |
+        Where the judgment on exactly these bytes stands (ADR 0023). A new
+        edition brings new bytes and a new `to-review` recording.
+    refusal:
+      type: string
+      description: The standing refusal's remark, absent otherwise.

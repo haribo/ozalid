@@ -61,6 +61,8 @@ paths:
     $ref: "./paths/capture-image.yaml"
   /projects/{slug}/recordings/{recordingId}:
     $ref: "./paths/recording-video.yaml"
+  /projects/{slug}/recordings/{recordingId}/judgment:
+    $ref: "./paths/recording-judgment.yaml"
   /projects/{slug}/cases/{caseId}:
     $ref: "./paths/case.yaml"
   /projects/{slug}/cases/{caseId}/captures:

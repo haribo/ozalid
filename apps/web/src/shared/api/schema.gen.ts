@@ -630,12 +630,43 @@ export interface paths {
          * The video a recording holds
          * @description Read through the recording, for the same reason a capture's image is
          *     (`product.md` §8.1). A recording is a supporting exhibit: never
-         *     byte-compared, never a source of state (ADR 0013).
+         *     byte-compared, judged, never byte-compared (ADR 0013, ADR 0023).
          */
         get: operations["getRecordingVideo"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{slug}/recordings/{recordingId}/judgment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                recordingId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Render a verdict on the recording on screen
+         * @description A recording is judged (ADR 0023): the verdict lands on exactly these
+         *     bytes — one edition, one variant. A refusal carries its mandatory remark
+         *     (ADR 0020). A new edition brings new bytes and a new `to-review`
+         *     recording.
+         */
+        post: operations["judgeRecording"];
+        /**
+         * Take the recording's verdict back
+         * @description Symmetric with giving it (ADR 0023): the recording returns to the
+         *     reviewer, the history keeps the move.
+         */
+        delete: operations["unjudgeRecording"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1310,6 +1341,14 @@ export interface components {
             id: string;
             variantId: string;
             hash: string;
+            /**
+             * @description Where the judgment on exactly these bytes stands (ADR 0023). A new
+             *     edition brings new bytes and a new `to-review` recording.
+             * @enum {string}
+             */
+            status: "to-review" | "accepted" | "refused";
+            /** @description The standing refusal's remark, absent otherwise. */
+            refusal?: string;
         };
         Grid: {
             caseId: string;
@@ -2475,13 +2514,84 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The video. */
+            /**
+             * @description The video, served as what its first bytes say it is (#226): a browser
+             *     streams a `video/*` answer inline instead of downloading it. Unknown
+             *     bytes fall back to `application/octet-stream`.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
+                    "video/webm": string;
+                    "video/mp4": string;
                     "application/octet-stream": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    judgeRecording: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                recordingId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    accept: boolean;
+                    /** @description Mandatory on a refusal. It is what the dev has to read. */
+                    remark?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The judgment is recorded; the case state follows. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        caseState: components["schemas"]["CaseState"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    unjudgeRecording: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                recordingId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The take-back is recorded; the case state follows. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        caseState: components["schemas"]["CaseState"];
+                    };
                 };
             };
             401: components["responses"]["Unauthenticated"];

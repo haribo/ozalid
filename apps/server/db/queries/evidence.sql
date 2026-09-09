@@ -55,3 +55,27 @@ SELECT r.blob_hash FROM recordings r
 JOIN cases k ON k.id = r.case_id
 JOIN projects p ON p.id = k.project_id
 WHERE r.id = $1 AND p.slug = $2;
+
+-- A recording's standing comes from its last judgment (ADR 0023): none or a
+-- take-back reads to-review, and a refusal keeps its remark for the dev.
+-- name: InsertRecordingJudgment :exec
+INSERT INTO recording_judgments (recording_id, verdict, remark, actor_id)
+VALUES ($1, $2, $3, $4);
+
+-- name: LastRecordingJudgments :many
+SELECT r.id AS recording_id, j.verdict, j.remark
+FROM recordings r
+JOIN LATERAL (
+    SELECT verdict, remark FROM recording_judgments
+    WHERE recording_id = r.id
+    ORDER BY created_at DESC LIMIT 1
+) j ON true
+WHERE r.case_id = $1 AND r.edition_id = $2;
+
+-- The recording inside the project the caller named, with its case: what a
+-- judgment needs to authorise and to recompute.
+-- name: RecordingInProject :one
+SELECT r.id, r.case_id FROM recordings r
+JOIN cases k ON k.id = r.case_id
+JOIN projects p ON p.id = k.project_id
+WHERE r.id = $1 AND p.slug = $2;
