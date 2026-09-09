@@ -114,6 +114,12 @@ never compared: encoding is not deterministic, so a video can prove nothing
 about its own freshness ([ADR 0013](adr/0013-a-recording-is-not-a-capture.md)).
 A case without one is a normal case.
 
+A recording rides the same flow as a capture: hash the bytes, name them in the
+manifest under the case's `recordings` — one entry per variant, `{variant,
+hash}` — and upload what the missing-content refusal lists. Because the bytes
+differ on every run, a pushing run always uploads its videos; that is the
+expected cost of having them.
+
 ## What the token reaches
 
 One project. A token naming project A cannot push to project B, and the attempt
