@@ -11,8 +11,9 @@
  * forever, which is a signal nobody reads. The two screens below carry none of
  * that (#107).
  */
+import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
-import { hashOf, push, pushes, type Shot } from './push'
+import { hashOf, push, pushes, type Recording, type Shot } from './push'
 
 // Signed out, deliberately: these screens exist before anybody is.
 test.use({ storageState: { cookies: [], origins: [] } })
@@ -100,7 +101,7 @@ async function walk(page: Page, theme: 'light' | 'dark'): Promise<Shot[]> {
   return asked
 }
 
-test('signing in, kept as evidence', async ({ page }) => {
+test('signing in, kept as evidence', async ({ page, browser }) => {
   const shots = [...(await walk(page, 'light')), ...(await walk(page, 'dark'))]
 
   // Three screens, two themes: the axis a change most often breaks on one
@@ -120,5 +121,30 @@ test('signing in, kept as evidence', async ({ page }) => {
     shots.map((s) => `${s.step}·${s.variant.theme}·${hashOf(s.bytes)}`),
   )
 
-  await push('signing in', shots)
+  // The same walk once more per theme, filmed. The video is never compared
+  // and never byte-stable (ADR 0013) — it is there to be watched, not judged.
+  const recordings: Recording[] = []
+  for (const theme of ['light', 'dark'] as const) {
+    const filming = await browser.newContext({
+      recordVideo: { dir: test.info().outputPath('videos') },
+      storageState: { cookies: [], origins: [] },
+      colorScheme: theme,
+      baseURL: test.info().project.use.baseURL,
+    })
+    const filmed = await filming.newPage()
+    await walk(filmed, theme)
+    const video = filmed.video()
+    await filming.close()
+    if (video) {
+      // saveAs is the finished file; path() can still be being muxed, and
+      // hashing a file that is still growing pushed one set of bytes under
+      // another set's address.
+      const saved = test.info().outputPath(`videos/${theme}.webm`)
+      await video.saveAs(saved)
+      recordings.push({ variant: { theme }, bytes: await readFile(saved) })
+    }
+  }
+  expect(recordings).toHaveLength(2)
+
+  await push('signing in', shots, recordings)
 })
