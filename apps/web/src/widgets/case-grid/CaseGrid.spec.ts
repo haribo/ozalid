@@ -63,6 +63,19 @@ const oneAt = (status: 'accepted' | 'refused' | 'moved') => ({
 })
 
 describe('CaseGrid', () => {
+  it('counts each status beside its glyph in the legend (#220)', () => {
+    // The default grid: one accepted, one refused, one to-review, and the
+    // hole at s2/v2 counts as missing. A zero shows no number.
+    const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
+    const legend = w.findAll('div').at(-1)!
+    expect(legend.text()).toContain('to review1')
+    expect(legend.text()).toContain('accepted1')
+    expect(legend.text()).toContain('refused1')
+    expect(legend.text()).toContain('missing1')
+    expect(legend.text()).toContain('moved')
+    expect(legend.text()).not.toContain('moved1')
+  })
+
   it('says so plainly when a case has never been captured', () => {
     // Not being instrumented is a legitimate state, not an error (ADR 0012).
     const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid({ steps: [], variants: [] }) } })
