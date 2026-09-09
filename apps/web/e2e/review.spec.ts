@@ -109,7 +109,8 @@ test('a capture that moved comes back asking to be looked at', async ({ page, re
   // is gone from the grid: for the question it asks, they are to judge again.
   await expect(page.locator('table').first().locator('[aria-label="moved"]')).toHaveCount(3)
   await expect(page.locator('table').first().locator('[aria-label="accepted"]')).toHaveCount(3)
-  await expect(page.getByText('3 captures have moved')).toBeVisible()
+  // The count lives in the legend, beside the glyph it counts (#220).
+  await expect(page.getByText(/moved\s*3/)).toBeVisible()
 
   // Movement stays at the capture, never the case (ADR 0021) — asserted on
   // the server's own answer: with one vocabulary, "accepted" legitimately

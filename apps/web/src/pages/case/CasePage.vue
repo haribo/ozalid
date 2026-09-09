@@ -6,7 +6,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, type components } from '@/shared/api'
-import { MissingIcon, MovedIcon, StateIcon, StatePill } from '@/shared/ui'
+import { StatePill } from '@/shared/ui'
 import { formatMoment, type CaseState } from '@/shared/lib'
 import { useReview } from '@/features/review'
 import { useSession } from '@/features/session'
@@ -105,28 +105,6 @@ watch(
   { immediate: true },
 )
 
-/** How the review stands, in one line — an information, not a gate.
- *
- * `missing` counts the holes: a case is meant to carry a capture for every
- * variant its own run declared, and a gap is a failed run rather than a
- * deliberate absence (ADR 0016). Counting it here is what keeps it from being
- * discovered months later by whoever trusted the gauge. */
-const tally = computed(() => {
-  const grid = review.grid.value
-  const captures = grid?.steps.flatMap((s) => s.captures) ?? []
-  const count = (status: string) => captures.filter((c) => c.status === status).length
-  const expected = (grid?.steps.length ?? 0) * (grid?.variants.length ?? 0)
-  return {
-    accepted: count('accepted'),
-    refused: count('refused'),
-    toJudge: count('to-review'),
-    missing: Math.max(0, expected - captures.length),
-    // Counted like the holes, and for the same reason: a reviewer should not
-    // have to scan the grid to learn there is work waiting.
-    moved: count('moved'),
-  }
-})
-
 async function onAccept(stepId: string, variantId: string, withdraw: boolean) {
   await review.accept(stepId, variantId, withdraw)
   await refreshCase()
@@ -219,36 +197,6 @@ async function refreshCase() {
             <span>rev {{ review.grid.value.revision }}</span>
           </template>
         </template>
-        <template v-if="tally.accepted + tally.refused + tally.toJudge > 0">
-          <span>·</span>
-          <span>
-            {{ tally.accepted }} accepted
-            <template v-if="tally.refused"> · {{ tally.refused }} refused</template>
-          </span>
-          <span
-            v-if="tally.toJudge"
-            class="inline-flex items-center gap-1.5 rounded border border-indigo-400 bg-indigo-50 px-1.5 py-0.5 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-950/60 dark:text-indigo-300"
-          >
-            <StateIcon tone="reviewer" :size="10" label="to review" />
-            {{ tally.toJudge }} to review
-          </span>
-        </template>
-        <span
-          v-if="tally.moved > 0"
-          class="inline-flex items-center gap-1.5 rounded border border-indigo-500 bg-indigo-50 px-1.5 py-0.5 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-950/60 dark:text-indigo-300"
-        >
-          <MovedIcon :size="10" />
-          {{ tally.moved }} capture{{ tally.moved > 1 ? 's' : '' }}
-          {{ tally.moved > 1 ? 'have' : 'has' }}
-          moved
-        </span>
-        <span
-          v-if="tally.missing > 0"
-          class="inline-flex items-center gap-1.5 rounded border border-slate-400 bg-slate-50 px-1.5 py-0.5 text-slate-500 dark:border-slate-500 dark:bg-slate-900/60 dark:text-slate-400"
-        >
-          <MissingIcon :size="10" />
-          {{ tally.missing }} missing capture{{ tally.missing > 1 ? 's' : '' }}
-        </span>
       </div>
 
       <!-- Over the page, not in it: the page stays mounted underneath with

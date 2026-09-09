@@ -87,6 +87,22 @@ function isOpen(step: Grid['steps'][number], capture: Capture) {
 }
 
 const hasRecordings = computed(() => props.grid.recordings.length > 0)
+
+/** Each status counted where its glyph is taught (#220): one place for every
+ * number. `missing` counts the holes — a run failed, not a deliberate absence
+ * (ADR 0016). A zero keeps its legend entry but shows no number. */
+const tally = computed(() => {
+  const all = props.grid.steps.flatMap((s) => s.captures)
+  const count = (status: string) => all.filter((c) => c.status === status).length
+  const expected = props.grid.steps.length * props.grid.variants.length
+  return {
+    'to review': count('to-review'),
+    accepted: count('accepted'),
+    refused: count('refused'),
+    moved: count('moved'),
+    missing: Math.max(0, expected - all.length),
+  } as Record<string, number>
+})
 </script>
 
 <template>
@@ -109,7 +125,7 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
               :key="v.id"
               class="border-r border-b border-slate-200 px-3 py-2 text-center font-medium whitespace-nowrap last:border-r-0 dark:border-slate-700"
             >
-              <VariantHead :label="v.label" :values="v.values" class="justify-center" />
+              <VariantHead :label="v.label" :values="v.values" compact class="justify-center" />
             </th>
           </tr>
         </thead>
@@ -239,19 +255,35 @@ const hasRecordings = computed(() => props.grid.recordings.length > 0)
       class="mt-2.5 flex flex-wrap justify-center gap-x-5 gap-y-1.5 font-mono text-mono text-slate-500 dark:text-slate-400"
     >
       <span class="flex items-center gap-1.5">
-        <StateIcon tone="reviewer" :size="12" label="to review" />to review
+        <StateIcon tone="reviewer" :size="12" label="to review" />to review<b
+          v-if="tally['to review']"
+          class="font-semibold"
+          >{{ tally['to review'] }}</b
+        >
       </span>
       <span class="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
-        <StateIcon tone="done" :size="12" label="accepted" />accepted
+        <StateIcon tone="done" :size="12" label="accepted" />accepted<b
+          v-if="tally['accepted']"
+          class="font-semibold"
+          >{{ tally['accepted'] }}</b
+        >
       </span>
       <span class="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
-        <StateIcon tone="dev" :size="12" label="refused" />refused
+        <StateIcon tone="dev" :size="12" label="refused" />refused<b
+          v-if="tally['refused']"
+          class="font-semibold"
+          >{{ tally['refused'] }}</b
+        >
       </span>
       <span class="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-300">
-        <MovedIcon :size="12" label="moved" />moved
+        <MovedIcon :size="12" label="moved" />moved<b v-if="tally['moved']" class="font-semibold">{{
+          tally['moved']
+        }}</b>
       </span>
       <span class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
-        <MissingIcon :size="12" />missing
+        <MissingIcon :size="12" />missing<b v-if="tally['missing']" class="font-semibold">{{
+          tally['missing']
+        }}</b>
       </span>
     </div>
   </template>
