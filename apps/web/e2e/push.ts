@@ -52,6 +52,10 @@ export const hashOf = (bytes: Buffer) =>
 /** One screen, in one variant. */
 export type Shot = { step: string; variant: Record<string, string>; bytes: Buffer }
 
+/** The flow video of one variant. Never compared, never byte-stable — new
+ * bytes on every pushing run is by design (ADR 0013). */
+export type Recording = { variant: Record<string, string>; bytes: Buffer }
+
 /**
  * The case these captures belong to, found by its title or made.
  *
@@ -111,7 +115,7 @@ async function categoryFor(name: string): Promise<string> {
 }
 
 /** Upload what the store does not already hold, and push one edition. */
-export async function push(title: string, shots: Shot[]) {
+export async function push(title: string, shots: Shot[], recordings: Recording[] = []) {
   expect(shots.length, 'nothing was captured').toBeGreaterThan(0)
   const caseId = await caseFor(title)
 
@@ -135,32 +139,42 @@ export async function push(title: string, shots: Shot[]) {
   // and the refusal names every missing address in one response — no
   // capture-by-capture HEAD round-trips. On a run where nothing changed, the
   // first push simply succeeds and no bytes move at all.
-  const manifest = JSON.stringify({ cases: [{ id: caseId, steps }] })
-  const first = await fetch(`${PUSH_API}/api/projects/${PROJECT}/editions`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
-    body: manifest,
+  const manifest = JSON.stringify({
+    cases: [
+      {
+        id: caseId,
+        steps,
+        ...(recordings.length
+          ? { recordings: recordings.map((r) => ({ variant: r.variant, hash: hashOf(r.bytes) })) }
+          : {}),
+      },
+    ],
   })
-  if (!first.ok) {
-    const refusalBody = (await first.json()) as { type?: string; missingContent?: string[] }
-    if (!String(refusalBody.type).includes('missing-content')) {
-      throw new Error(`POST /editions — ${first.status} ${JSON.stringify(refusalBody)}`)
+
+  // Until #223 the server names the missing captures and the missing
+  // recordings in two separate refusals, so the loop uploads whatever each
+  // one lists and pushes again. Three rounds cover both worlds; a fourth
+  // refusal is a real error.
+  for (let round = 0; ; round++) {
+    const attempt = await fetch(`${PUSH_API}/api/projects/${PROJECT}/editions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: manifest,
+    })
+    if (attempt.ok) break
+    const refusalBody = (await attempt.json()) as { type?: string; missingContent?: string[] }
+    if (!String(refusalBody.type).includes('missing-content') || round >= 2) {
+      throw new Error(`POST /editions — ${attempt.status} ${JSON.stringify(refusalBody)}`)
     }
 
     const missing = new Set(refusalBody.missingContent ?? [])
-    for (const shot of shots) {
-      if (!missing.has(hashOf(shot.bytes))) continue
-      await call(`/projects/${PROJECT}/blobs/${hashOf(shot.bytes)}`, {
+    for (const { bytes } of [...shots, ...recordings]) {
+      if (!missing.has(hashOf(bytes))) continue
+      await call(`/projects/${PROJECT}/blobs/${hashOf(bytes)}`, {
         method: 'PUT',
-        body: new Uint8Array(shot.bytes),
+        body: new Uint8Array(bytes),
       })
     }
-
-    await call(`/projects/${PROJECT}/editions`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: manifest,
-    })
   }
 
   // The branch loop (#175): pushing with OZALID_PUSH_DELIVER=1 is the claim
