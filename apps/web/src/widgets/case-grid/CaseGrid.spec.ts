@@ -193,7 +193,40 @@ describe('CaseGrid', () => {
     expect(w.emitted('openRecording')?.[0]).toEqual(['v1'])
     const classes = cell.classes().join(' ')
     expect(classes).not.toContain('emerald')
-    expect(classes).not.toContain('amber')
+  })
+
+  it('lets a judged recording wear its verdict disc (#234)', () => {
+    const w = mount(CaseGrid, {
+      props: {
+        slug: 'atlas',
+        grid: grid({
+          recordings: [
+            { id: 'rec1', variantId: 'v1', hash: 'sha256:vid', status: 'accepted' },
+            {
+              id: 'rec2',
+              variantId: 'v2',
+              hash: 'sha256:vid2',
+              status: 'refused',
+              refusal: 'the flow stutters',
+            },
+          ],
+        }),
+      },
+    })
+    const cells = w.findAll('[aria-label^="watch the recording"]')
+    expect(cells[0].classes().join(' ')).toContain('emerald')
+    expect(cells[1].classes().join(' ')).toContain('amber')
+    // The disc sits beside its own cell, not in the legend: read it from
+    // the cell's wrapper.
+    const rows = w.findAll('span.relative')
+    const marksOf = (label: string) =>
+      rows
+        .filter((r) =>
+          r.find(`[aria-label="watch the recording — ${label} in the carousel"]`).exists(),
+        )
+        .map((r) => r.find('[role="img"]').attributes('aria-label'))
+    expect(marksOf('desktop·light')).toEqual(['accepted'])
+    expect(marksOf('mobile·dark')).toEqual(['refused'])
   })
 
   it('renders a capture that moved as one to judge, carrying why it came back', () => {
