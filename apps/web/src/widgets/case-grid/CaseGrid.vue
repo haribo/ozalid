@@ -151,22 +151,50 @@ const tally = computed(() => {
             >
               <!-- Opens the player in the carousel (ADR 0023): the video is
                    judged there, in front of its own pixels — never downloaded
-                   by a click. -->
-              <AppButton
-                v-if="recordingOf(v.id)"
-                class="inline-grid place-items-center border-2 border-slate-200 bg-slate-100 p-0 text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
-                :class="isPortrait(v.values) ? SIZE.tall : SIZE.wide"
-                :aria-label="`watch the recording — ${v.label} in the carousel`"
-                variant="secondary"
-                @click="emit('openRecording', v.id)"
-              >
-                <!-- A plain triangle, not the emoji: a coloured glyph next to a
-                     capture is exactly the decoration this interface must not
-                     put there. -->
-                <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M5 3.5v9l7-4.5z" fill="currentColor" />
-                </svg>
-              </AppButton>
+                   by a click. Judged, the cell wears the capture's own
+                   grammar (#234): the ring on the border, the disc centred,
+                   the triangle stepping back. -->
+              <span v-if="recordingOf(v.id)" class="relative inline-block leading-none">
+                <AppButton
+                  class="inline-grid place-items-center border-2 bg-slate-100 p-0 text-slate-500 dark:bg-slate-900 dark:text-slate-400"
+                  :class="[
+                    isPortrait(v.values) ? SIZE.tall : SIZE.wide,
+                    RING[recordingOf(v.id)!.status] ?? NEUTRAL,
+                  ]"
+                  :aria-label="`watch the recording — ${v.label} in the carousel`"
+                  variant="secondary"
+                  @click="emit('openRecording', v.id)"
+                >
+                  <!-- A plain triangle, not the emoji: a coloured glyph next to a
+                       capture is exactly the decoration this interface must not
+                       put there. -->
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    aria-hidden="true"
+                    :class="recordingOf(v.id)!.status !== 'to-review' ? 'opacity-40' : ''"
+                  >
+                    <path d="M5 3.5v9l7-4.5z" fill="currentColor" />
+                  </svg>
+                </AppButton>
+                <span
+                  v-if="recordingOf(v.id)!.status !== 'to-review'"
+                  class="pointer-events-none absolute inset-0 grid place-items-center"
+                  :class="INK[recordingOf(v.id)!.status]"
+                >
+                  <StateIcon
+                    :tone="TONE[recordingOf(v.id)!.status]"
+                    :size="18"
+                    :label="LABEL[recordingOf(v.id)!.status]"
+                    :class="
+                      recordingOf(v.id)!.status === 'accepted'
+                        ? 'bg-emerald-50 dark:bg-emerald-950'
+                        : 'bg-amber-50 dark:bg-amber-950'
+                    "
+                  />
+                </span>
+              </span>
             </td>
           </tr>
 
