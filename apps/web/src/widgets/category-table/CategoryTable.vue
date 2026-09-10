@@ -5,7 +5,7 @@
  * trouble visible without descending into it.
  */
 import { RouterLink } from 'vue-router'
-import { StateGauge } from '@/shared/ui'
+import { StateGauge, StateKey } from '@/shared/ui'
 import { formatMoment } from '@/shared/lib'
 import type { components } from '@/shared/api'
 
@@ -69,4 +69,5 @@ function total(c: Category) {
       </tbody>
     </table>
   </div>
+  <StateKey />
 </template>
