@@ -126,7 +126,10 @@ test('signing in, kept as evidence', async ({ page, browser }) => {
   const recordings: Recording[] = []
   for (const theme of ['light', 'dark'] as const) {
     const filming = await browser.newContext({
-      recordVideo: { dir: test.info().outputPath('videos') },
+      // Pinned to the viewport: without a size Playwright scales the frame
+      // down to fit 800×800, and the pushed video arrives small (#232).
+      recordVideo: { dir: test.info().outputPath('videos'), size: { width: 1280, height: 720 } },
+      viewport: { width: 1280, height: 720 },
       storageState: { cookies: [], origins: [] },
       colorScheme: theme,
       baseURL: test.info().project.use.baseURL,
