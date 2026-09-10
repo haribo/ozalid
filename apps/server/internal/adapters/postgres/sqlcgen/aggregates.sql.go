@@ -80,7 +80,10 @@ JOIN captures c ON c.step_id = s.id AND c.edition_id = $2
 LEFT JOIN LATERAL (
     SELECT ref.blob_hash FROM capture_references ref
     WHERE ref.case_id = s.case_id AND ref.step_id = s.id AND ref.variant_id = c.variant_id
-      AND ref.environment_id = c.provenance->>'environmentId'
+      -- A push without provenance lives in the empty environment: intake
+      -- keys its comparison on '' and the read must too — a NULL here
+      -- matched nothing and left measured captures blind (#230).
+      AND ref.environment_id = coalesce(c.provenance->>'environmentId', '')
     ORDER BY ref.approved_at DESC LIMIT 1
 ) r ON true
 WHERE s.case_id = $1
