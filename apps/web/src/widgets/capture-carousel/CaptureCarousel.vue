@@ -455,11 +455,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <!-- The player: the browser's own controls, streaming the sniffed
            content type. The pair below judges these exact bytes (ADR 0023). -->
       <span v-if="rec" class="flex h-full w-full min-h-0 items-center justify-center">
+        <!-- Unlike a capture, the video scales up: nothing pixel-accurate is
+             being judged here (ADR 0013), and a small source in a big stage
+             is just hard to watch (#232). object-contain letterboxes. -->
         <video
           :src="`/api/projects/${slug}/recordings/${rec.id}`"
           controls
           :aria-label="`recording — ${variant?.label}`"
-          class="max-h-full max-w-full border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900"
+          class="h-full w-full border border-slate-300 bg-white object-contain dark:border-slate-600 dark:bg-slate-900"
         ></video>
       </span>
     </div>
