@@ -441,3 +441,46 @@ func TestAMissingRecordingIsNamedInTheFirstRefusal(t *testing.T) {
 		t.Errorf("hashes = %v, want the capture and the recording together", missing.Hashes)
 	}
 }
+
+// A pusher that never says where its captures come from still gets the moved
+// mark (#230). Observed on production: repushed captures carried movedPixels
+// in the hundreds of thousands and read accepted — intake compared with the
+// empty environment while the read derivation compared with SQL NULL, which
+// matches nothing.
+func TestAPushWithoutProvenanceStillTurnsMoved(t *testing.T) {
+	ctx, repo, blobs, project, kase := freshnessFixture(t)
+	bare := func(hash string) error {
+		svc := intake.New(repo, blobs)
+		_, err := svc.Take(ctx, project.Slug, contract.Manifest{
+			Cases: []contract.ManifestCase{{
+				ID: kase.ID,
+				Steps: []contract.ManifestStep{{
+					Name: "opens",
+					Captures: []contract.ManifestCapture{{
+						Variant: map[string]string{"theme": "light"},
+						Hash:    hash,
+					}},
+				}},
+			}},
+		})
+		return err
+	}
+
+	if err := bare(screen(t, ctx, repo, blobs, 10, 0)); err != nil {
+		t.Fatalf("first edition: %v", err)
+	}
+	validateOnly(t, ctx, repo, project.Slug, kase.ID)
+
+	// The dev repushes moved pixels, still without provenance.
+	if err := bare(screen(t, ctx, repo, blobs, 10, 40)); err != nil {
+		t.Fatalf("second edition: %v", err)
+	}
+
+	status, pixels := statusOfFirst(t, ctx, repo, project.Slug, kase.ID)
+	if pixels == nil {
+		t.Fatal("movedPixels = nil, want the intake measurement recorded")
+	}
+	if status != "moved" {
+		t.Errorf("status = %q with %d moved pixels, want moved", status, *pixels)
+	}
+}
