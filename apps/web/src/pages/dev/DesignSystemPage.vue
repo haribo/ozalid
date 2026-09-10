@@ -19,6 +19,7 @@ import {
   MovedIcon,
   RightsPill,
   StateGauge,
+  StateKey,
   StateIcon,
   StatePill,
   TextField,
@@ -104,7 +105,7 @@ const GAUGE = [
 
     <section class="mb-10">
       <h2 class="text-body font-semibold">
-        StatePill · StateIcon · StateGauge · MovedIcon · MissingIcon
+        StatePill · StateIcon · StateGauge · StateKey · MovedIcon · MissingIcon
       </h2>
       <p class="mb-3 font-mono text-label text-slate-500 uppercase">
         the states of product.md §3 · frontend ADR 0004, a status is a glyph on a disc
@@ -119,6 +120,7 @@ const GAUGE = [
       </div>
       <div class="flex max-w-md flex-col gap-2">
         <StateGauge v-for="(parts, i) in GAUGE" :key="i" :parts="parts" />
+        <StateKey />
       </div>
     </section>
 

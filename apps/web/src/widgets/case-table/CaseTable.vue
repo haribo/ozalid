@@ -6,13 +6,20 @@
  * Its counted legend is what keeps the two readings apart.
  */
 import { RouterLink } from 'vue-router'
-import { StateGauge, StatePill } from '@/shared/ui'
-import { formatMoment, type CaseState } from '@/shared/lib'
+import { StateGauge, StateIcon, StateKey } from '@/shared/ui'
+import { formatMoment, toneOfCase, type CaseState } from '@/shared/lib'
 import type { components } from '@/shared/api'
 
 type Case = components['schemas']['Case']
 
 const props = defineProps<{ slug: string; cases: Case[] }>()
+
+const INK: Record<string, string> = {
+  reviewer: 'text-indigo-700 dark:text-indigo-300',
+  done: 'text-emerald-700 dark:text-emerald-400',
+  dev: 'text-amber-700 dark:text-amber-400',
+  idle: 'text-slate-500 dark:text-slate-400',
+}
 
 function parts(c: Case) {
   const k = c.captures
@@ -59,7 +66,11 @@ function parts(c: Case) {
             </RouterLink>
           </td>
           <td class="px-3 py-2.5">
-            <StatePill :state="c.state as CaseState" />
+            <!-- The disc alone (#238): the word lives in the legend below
+                 and in the accessible name. -->
+            <span class="inline-flex" :class="INK[toneOfCase(c.state as CaseState)]">
+              <StateIcon :tone="toneOfCase(c.state as CaseState)" :size="13" />
+            </span>
           </td>
           <td class="px-3 py-2.5">
             <StateGauge :parts="parts(c)" />
@@ -73,4 +84,5 @@ function parts(c: Case) {
       </tbody>
     </table>
   </div>
+  <StateKey />
 </template>

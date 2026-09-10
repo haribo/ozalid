@@ -35,7 +35,7 @@ const BAR: Record<string, string> = {
 <template>
   <div
     v-if="total > 0"
-    class="flex h-5 min-w-[130px] overflow-hidden rounded bg-slate-200 font-mono text-mono font-semibold text-white tabular-nums dark:bg-slate-700"
+    class="flex h-5 min-w-[130px] overflow-hidden rounded bg-slate-200 font-mono text-mono leading-none font-semibold text-white tabular-nums dark:bg-slate-700"
   >
     <span
       v-for="p in shown"
