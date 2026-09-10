@@ -151,3 +151,56 @@ test('signing in, kept as evidence', async ({ page, browser }) => {
 
   await push('signing in', shots, recordings)
 })
+
+/**
+ * The dead sign-in link, turned away (#241): a link nobody issued lands on a
+ * fixed amber panel — one step, no id on screen (the token stays in the URL),
+ * chosen like every capture flow for its byte-stability (#107).
+ */
+async function walkDeadLink(page: Page, theme: 'light' | 'dark'): Promise<Shot[]> {
+  await page.emulateMedia({ colorScheme: theme })
+  await page.goto('/sign-in/a-link-nobody-issued')
+  await expect(page.getByText('This link no longer works.')).toBeVisible()
+  return [
+    {
+      step: 'is turned away',
+      variant: { theme },
+      bytes: await freshPaint(page),
+    },
+  ]
+}
+
+test('a dead link, kept as evidence', async ({ page, browser }) => {
+  const shots = [...(await walkDeadLink(page, 'light')), ...(await walkDeadLink(page, 'dark'))]
+  expect(shots).toHaveLength(2)
+
+  // The same stability check the sign-in flow carries: byte comparison is
+  // the mechanism, and an unstable screen would mark itself moved forever.
+  const again = [...(await walkDeadLink(page, 'light')), ...(await walkDeadLink(page, 'dark'))]
+  expect(again.map((s) => `${s.variant.theme}·${hashOf(s.bytes)}`)).toEqual(
+    shots.map((s) => `${s.variant.theme}·${hashOf(s.bytes)}`),
+  )
+
+  const recordings: Recording[] = []
+  for (const theme of ['light', 'dark'] as const) {
+    const filming = await browser.newContext({
+      recordVideo: { dir: test.info().outputPath('videos'), size: { width: 1280, height: 720 } },
+      viewport: { width: 1280, height: 720 },
+      storageState: { cookies: [], origins: [] },
+      colorScheme: theme,
+      baseURL: test.info().project.use.baseURL,
+    })
+    const filmed = await filming.newPage()
+    await walkDeadLink(filmed, theme)
+    const video = filmed.video()
+    await filming.close()
+    if (video) {
+      const saved = test.info().outputPath(`videos/dead-link-${theme}.webm`)
+      await video.saveAs(saved)
+      recordings.push({ variant: { theme }, bytes: await readFile(saved) })
+    }
+  }
+  expect(recordings).toHaveLength(2)
+
+  await push('a dead link is turned away', shots, recordings)
+})
