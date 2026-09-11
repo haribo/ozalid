@@ -281,6 +281,6 @@ test.describe('judging a capture', () => {
     }
     expect(recordings).toHaveLength(2)
 
-    await push('judging a capture', shots, recordings)
+    await push('judging a capture', shots, recordings, 'review')
   })
 })
