@@ -39,6 +39,10 @@ func (r *Repository) SaveReview(
 	if err != nil {
 		return session.Result{}, translate("reading the case", err)
 	}
+	// A held case takes no verdict but its holder's (ADR 0005, #95).
+	if err := r.refuseHeld(ctx, q, caseID, by); err != nil {
+		return session.Result{}, err
+	}
 	before := review.CaseState(kase.State)
 
 	for _, c := range save.Comments {

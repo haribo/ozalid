@@ -22,6 +22,9 @@ const props = defineProps<{
   /** The recording view (ADR 0023): the player instead of a capture, the
    * pair judging the video of this variant at the current edition. */
   recording?: boolean
+  /** Somebody else holds the case (ADR 0005, #95): the pair goes inert and
+   * says who. Navigation and playback stay free. */
+  heldBy?: { name: string; since: string } | null
   busy?: boolean
 }>()
 
@@ -286,7 +289,7 @@ function send() {
 // ---- the pair's reading of a click ----------------------------------------
 
 function onAccept() {
-  if (props.busy || sheet.value) return
+  if (props.busy || props.heldBy || sheet.value) return
   if (props.recording) {
     if (!rec.value) return
     // Accepted un-presses; refused or unjudged accepts — one gesture, the
@@ -321,7 +324,7 @@ function onAccept() {
 }
 
 function onRefuse() {
-  if (props.busy || sheet.value) return
+  if (props.busy || props.heldBy || sheet.value) return
   if (props.recording) {
     if (!rec.value) return
     if (rec.value.status === 'refused') emit('unjudgeRecording', rec.value.id)
@@ -511,9 +514,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         {{ contextRemark.body }}
       </p>
 
+      <!-- A held case takes no verdict but its holder's (ADR 0005): the
+           pair goes inert, the line says who. -->
+      <p v-if="heldBy" class="font-mono text-mono text-slate-500 dark:text-slate-400">
+        {{ heldBy.name }} is reviewing this case — read-only until they let go
+      </p>
       <VerdictPair
         :verdict="verdict"
-        :disabled="busy || sheet !== null"
+        :disabled="busy || !!heldBy || sheet !== null"
         @accept="onAccept"
         @refuse="onRefuse"
       />

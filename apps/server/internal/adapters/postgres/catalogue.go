@@ -115,7 +115,15 @@ func (r *Repository) CaseByID(ctx context.Context, slug, id string) (catalogue.C
 	if err != nil {
 		return catalogue.Case{}, translate("reading the case", err)
 	}
-	return toCase(row), nil
+	out := toCase(row)
+	// The holder rides along (ADR 0005): occupancy shown, never stored in
+	// the state.
+	held, err := r.holderOf(ctx, r.q, row.ID)
+	if err != nil {
+		return catalogue.Case{}, err
+	}
+	out.Held = held
+	return out, nil
 }
 
 func (r *Repository) ListCases(ctx context.Context, projectID string, state, categoryID *string) ([]catalogue.Case, error) {

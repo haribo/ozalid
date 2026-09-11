@@ -6,6 +6,8 @@
 // (ADR 0002, backend ADR 0001).
 package review
 
+import "time"
+
 // CaseState answers one question: who holds the ball (ADR 0012).
 type CaseState string
 
@@ -39,3 +41,20 @@ const (
 func (s CommentState) Open() bool {
 	return s != CommentAccepted && s != CommentDiscarded
 }
+
+// Hold says who holds a case and since when (ADR 0005): occupancy, never a
+// state.
+type Hold struct {
+	By    string
+	Name  string
+	Since time.Time
+}
+
+// Held is the refusal a held case gives every reviewer but its holder.
+type Held struct {
+	By    string
+	Name  string
+	Since time.Time
+}
+
+func (h *Held) Error() string { return "review: held by " + h.By }

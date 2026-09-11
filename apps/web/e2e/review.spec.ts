@@ -230,6 +230,10 @@ test('a verdict held through an expired session survives closing the carousel', 
     data: { rights: 'member' },
   })
 
+  // The reviewer lets the case go before the session dies: resuming will
+  // come from another account, and a held case would refuse it (ADR 0005).
+  await page.request.delete(`/api/projects/${seeded.slug}/cases/${seeded.caseId}/lock`)
+
   // The session dies under the verdict.
   await context.clearCookies()
   await page.keyboard.press(' ')
@@ -394,4 +398,71 @@ test('the recording is judged in the carousel, and a new push resets it (#226)',
   await pushRecordings(page, seeded)
   detail = await request.get(`${API}/api/projects/${seeded.slug}/cases/${seeded.caseId}`)
   expect(((await detail.json()) as { state: string }).state).toBe('to-review')
+})
+
+test('a held case reads the same and refuses the verdict (#95)', async ({ page, context }) => {
+  const seeded = await seed(page)
+
+  // A second reviewer, onboarded by the admin through the interface.
+  const email = `second-${Date.now()}@example.test`
+  await page.goto('/accounts')
+  await page.getByRole('button', { name: 'New account' }).click()
+  await page.getByLabel('name').fill('marc')
+  await page.getByLabel('address').fill(email)
+  await page.getByRole('button', { name: 'Create the account' }).click()
+  await expect(page.getByRole('cell', { name: 'marc', exact: true })).toBeVisible()
+  await page.goto(`/projects/${seeded.slug}/access`)
+  await page.getByRole('button', { name: 'Add' }).first().click()
+  await page.getByLabel('account').selectOption({ label: 'marc' })
+  await page.getByRole('button', { name: 'Add', exact: true }).last().click()
+  await expect(page.getByRole('cell', { name: 'marc', exact: true })).toBeVisible()
+
+  // The first reviewer opens the case: opening is claiming (ADR 0005).
+  await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  await expect(page.locator('table').first()).toBeVisible()
+
+  // Marc, in a browser of his own.
+  const theirs = await context.browser()!.newContext()
+  const their = await theirs.newPage()
+  const { emptyMailbox: empty, linkSentTo: link } = await import('./mailbox')
+  await empty(email)
+  await their.goto('/sign-in')
+  await their.getByLabel('address').fill(email)
+  await their.getByRole('button', { name: 'Send the link' }).click()
+  await expect(their.getByText('The link is on its way.')).toBeVisible()
+  await their.goto(`/sign-in/${await link(email)}`)
+  await expect(their.getByRole('button', { name: 'sign out' })).toBeVisible()
+
+  // The server refuses his verdict, whatever the screen offers — and names
+  // the holder. The state reads the same as before the hold.
+  const grid = await (
+    await theirs.request.get(`${API}/api/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)
+  ).json()
+  const cell = { stepId: grid.steps[0].id, variantId: grid.steps[0].captures[0].variantId }
+  const refused = await theirs.request.post(
+    `${API}/api/projects/${seeded.slug}/cases/${seeded.caseId}/reviews`,
+    { data: { accepted: [cell] } },
+  )
+  expect(refused.status()).toBe(423)
+  expect(await refused.text()).toContain('e2e')
+
+  const detail = await (
+    await theirs.request.get(`${API}/api/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  ).json()
+  expect(detail.state).toBe('to-review')
+  expect(detail.held.name).toBe('e2e')
+
+  // Marc's own screen says who holds it.
+  await their.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  await expect(their.getByText('held by e2e')).toBeVisible()
+
+  // The first reviewer walks away: leaving is letting go, and marc's next
+  // verdict lands.
+  await page.goto(`/projects/${seeded.slug}`)
+  const landed = await theirs.request.post(
+    `${API}/api/projects/${seeded.slug}/cases/${seeded.caseId}/reviews`,
+    { data: { accepted: [cell] } },
+  )
+  expect(landed.status()).toBe(200)
+  await theirs.close()
 })

@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"errors"
+	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"net/http"
 
 	app "github.com/haribo/ozalid/apps/server/internal/app/catalogue"
@@ -450,7 +451,15 @@ func toAPICase(c catalogue.Case) openapi.Case {
 		Archived:    c.Archived(),
 		CreatedAt:   c.CreatedAt,
 		UpdatedAt:   c.UpdatedAt,
+		Held:        toAPIHold(c.Held),
 	}
+}
+
+func toAPIHold(h *review.Held) *openapi.Hold {
+	if h == nil {
+		return nil
+	}
+	return &openapi.Hold{By: h.By, Name: h.Name, Since: h.Since}
 }
 
 func toAPICategory(c catalogue.Category) openapi.Category {

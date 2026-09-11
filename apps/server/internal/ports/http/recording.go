@@ -39,6 +39,10 @@ func (s *Server) JudgeRecording(ctx context.Context, request openapi.JudgeRecord
 		return openapi.JudgeRecording404ApplicationProblemPlusJSONResponse{
 			NotFoundApplicationProblemPlusJSONResponse: notFound("recording"),
 		}, nil
+	case heldOf(err) != nil:
+		return openapi.JudgeRecording423ApplicationProblemPlusJSONResponse{
+			HeldApplicationProblemPlusJSONResponse: openapi.HeldApplicationProblemPlusJSONResponse(heldProblem(heldOf(err))),
+		}, nil
 	case err != nil:
 		return nil, err
 	}
@@ -63,6 +67,10 @@ func (s *Server) UnjudgeRecording(ctx context.Context, request openapi.UnjudgeRe
 	case errors.Is(err, review.ErrMoveNotAllowed):
 		return openapi.UnjudgeRecording404ApplicationProblemPlusJSONResponse{
 			NotFoundApplicationProblemPlusJSONResponse: notFound("recording"),
+		}, nil
+	case heldOf(err) != nil:
+		return openapi.UnjudgeRecording423ApplicationProblemPlusJSONResponse{
+			HeldApplicationProblemPlusJSONResponse: openapi.HeldApplicationProblemPlusJSONResponse(heldProblem(heldOf(err))),
 		}, nil
 	case err != nil:
 		return nil, err

@@ -57,6 +57,10 @@ func (r *Repository) moveRecording(
 	if err != nil {
 		return "", translate("reading the case", err)
 	}
+	// A held case takes no verdict but its holder's (ADR 0005, #95).
+	if err := r.refuseHeld(ctx, q, kase.ID, by); err != nil {
+		return "", err
+	}
 	before := review.CaseState(kase.State)
 
 	var remarkPtr *string

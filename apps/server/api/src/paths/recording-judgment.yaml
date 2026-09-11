@@ -50,6 +50,8 @@ post:
       $ref: "../components/responses.yaml#/Unauthenticated"
     '403':
       $ref: "../components/responses.yaml#/Forbidden"
+    "423":
+      $ref: "../components/responses.yaml#/Held"
     "404":
       $ref: "../components/responses.yaml#/NotFound"
 
@@ -78,5 +80,7 @@ delete:
       $ref: "../components/responses.yaml#/Unauthenticated"
     '403':
       $ref: "../components/responses.yaml#/Forbidden"
+    "423":
+      $ref: "../components/responses.yaml#/Held"
     "404":
       $ref: "../components/responses.yaml#/NotFound"

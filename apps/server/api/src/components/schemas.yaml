@@ -52,6 +52,10 @@ Case:
     categoryId: { type: string, nullable: true }
     title: { type: string }
     description: { type: string, nullable: true }
+    held:
+      description: Present while a reviewer holds the case (ADR 0005, #95).
+      allOf:
+        - $ref: "#/Hold"
     state:
       $ref: "#/CaseState"
     archived:
@@ -77,6 +81,15 @@ NewCase:
     title: { type: string, minLength: 1 }
     description: { type: string }
     categoryId: { type: string, minLength: 1 }
+
+Hold:
+  type: object
+  required: [by, name, since]
+  description: Who holds the case, and since when. Occupancy, never a state (ADR 0005).
+  properties:
+    by: { type: string }
+    name: { type: string }
+    since: { type: string, format: date-time }
 
 CaseUpdate:
   type: object

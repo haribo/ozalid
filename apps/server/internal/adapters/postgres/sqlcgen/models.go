@@ -62,6 +62,13 @@ type Case struct {
 	CurrentEditionID *string
 }
 
+type CaseLock struct {
+	CaseID    string
+	AccountID string
+	ClaimedAt pgtype.Timestamptz
+	BeatenAt  pgtype.Timestamptz
+}
+
 type Category struct {
 	ID        string
 	ProjectID string

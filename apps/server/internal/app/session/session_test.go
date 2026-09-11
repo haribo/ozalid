@@ -3,6 +3,7 @@ package session_test
 import (
 	"context"
 	"errors"
+	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"testing"
 
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
@@ -20,6 +21,16 @@ func (r refusingRepo) SaveReview(
 	return session.Result{}, nil
 }
 
+func (r refusingRepo) ClaimCase(context.Context, string, string, actor.Actor) (review.Hold, error) {
+	r.t.Error("the session reached the repository, want it refused first")
+	return review.Hold{}, nil
+}
+
+func (r refusingRepo) ReleaseCase(context.Context, string, string, actor.Actor) error {
+	r.t.Error("the session reached the repository, want it refused first")
+	return nil
+}
+
 // recordingRepo remembers what the service handed it.
 type recordingRepo struct{ got session.Save }
 
@@ -28,6 +39,14 @@ func (r *recordingRepo) SaveReview(
 ) (session.Result, error) {
 	r.got = save
 	return session.Result{}, nil
+}
+
+func (r *recordingRepo) ClaimCase(context.Context, string, string, actor.Actor) (review.Hold, error) {
+	return review.Hold{}, nil
+}
+
+func (r *recordingRepo) ReleaseCase(context.Context, string, string, actor.Actor) error {
+	return nil
 }
 
 func TestACommentWithNothingWrittenInItIsRefused(t *testing.T) {

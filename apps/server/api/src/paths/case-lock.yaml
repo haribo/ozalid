@@ -1,0 +1,55 @@
+parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
+  - name: caseId
+    in: path
+    required: true
+    schema: { type: string }
+
+post:
+  operationId: claimCase
+  security:
+    - session: []
+  summary: Hold the case, or keep holding it
+  description: |
+    Claiming is also the heartbeat (ADR 0005, #95): the same call takes a free
+    or expired lock and renews the caller's own. Somebody else's live hold
+    answers 423, naming them. Occupancy is never a state — the case reads the
+    same before and after.
+  tags: [reviews]
+  responses:
+    "200":
+      description: The caller holds the case.
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/Hold"
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
+    "423":
+      $ref: "../components/responses.yaml#/Held"
+
+delete:
+  operationId: releaseCase
+  security:
+    - session: []
+  summary: Let the case go
+  description: |
+    Releasing a lock nobody holds, or somebody else's, changes nothing
+    (ADR 0005).
+  tags: [reviews]
+  responses:
+    "204":
+      description: The caller no longer holds the case.
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"

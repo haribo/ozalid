@@ -42,5 +42,7 @@ post:
             $ref: "../components/review.yaml#/ReviewOutcome"
     "400":
       $ref: "../components/responses.yaml#/BadRequest"
+    "423":
+      $ref: "../components/responses.yaml#/Held"
     "404":
       $ref: "../components/responses.yaml#/NotFound"

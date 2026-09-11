@@ -696,6 +696,37 @@ export interface paths {
         patch: operations["updateCase"];
         trace?: never;
     };
+    "/projects/{slug}/cases/{caseId}/lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hold the case, or keep holding it
+         * @description Claiming is also the heartbeat (ADR 0005, #95): the same call takes a free
+         *     or expired lock and renews the caller's own. Somebody else's live hold
+         *     answers 423, naming them. Occupancy is never a state — the case reads the
+         *     same before and after.
+         */
+        post: operations["claimCase"];
+        /**
+         * Let the case go
+         * @description Releasing a lock nobody holds, or somebody else's, changes nothing
+         *     (ADR 0005).
+         */
+        delete: operations["releaseCase"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{slug}/cases/{caseId}/captures": {
         parameters: {
             query?: never;
@@ -1077,6 +1108,13 @@ export interface components {
          * @enum {string}
          */
         CaseState: "not-instrumented" | "to-review" | "refused" | "accepted";
+        /** @description Who holds the case, and since when. Occupancy, never a state (ADR 0005). */
+        Hold: {
+            by: string;
+            name: string;
+            /** Format: date-time */
+            since: string;
+        };
         /**
          * @description How this case's captures stand at the edition it points at. A capture with
          *     no verdict yet counts as still to judge.
@@ -1094,6 +1132,8 @@ export interface components {
             categoryId?: string | null;
             title: string;
             description?: string | null;
+            /** @description Present while a reviewer holds the case (ADR 0005, */
+            held?: components["schemas"]["Hold"];
             state: components["schemas"]["CaseState"];
             /** @description An archived case leaves the catalogue but stays readable. */
             archived: boolean;
@@ -1536,6 +1576,18 @@ export interface components {
         };
         /** @description No such resource. */
         NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["problem"];
+            };
+        };
+        /**
+         * @description Somebody else holds this case (ADR 0005, #95): a held case takes no
+         *     verdict but its holder's. The detail names them.
+         */
+        Held: {
             headers: {
                 [name: string]: unknown;
             };
@@ -2569,6 +2621,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            423: components["responses"]["Held"];
         };
     };
     unjudgeRecording: {
@@ -2597,6 +2650,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            423: components["responses"]["Held"];
         };
     };
     getCase: {
@@ -2651,6 +2705,57 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    claimCase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller holds the case. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Hold"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            423: components["responses"]["Held"];
+        };
+    };
+    releaseCase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller no longer holds the case. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
@@ -2854,6 +2959,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["MoveRefused"];
+            423: components["responses"]["Held"];
         };
     };
     unjudgeComment: {
@@ -2890,6 +2996,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["MoveRefused"];
+            423: components["responses"]["Held"];
         };
     };
     saveReview: {
@@ -2921,6 +3028,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            423: components["responses"]["Held"];
         };
     };
     archiveCase: {

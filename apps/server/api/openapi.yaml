@@ -1249,6 +1249,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '423':
+          $ref: '#/components/responses/Held'
     delete:
       operationId: unjudgeRecording
       security:
@@ -1278,6 +1280,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '423':
+          $ref: '#/components/responses/Held'
   /projects/{slug}/cases/{caseId}:
     parameters:
       - name: slug
@@ -1335,6 +1339,64 @@ paths:
                 $ref: '#/components/schemas/Case'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /projects/{slug}/cases/{caseId}/lock:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: claimCase
+      security:
+        - session: []
+      summary: Hold the case, or keep holding it
+      description: |
+        Claiming is also the heartbeat (ADR 0005, #95): the same call takes a free
+        or expired lock and renews the caller's own. Somebody else's live hold
+        answers 423, naming them. Occupancy is never a state — the case reads the
+        same before and after.
+      tags:
+        - reviews
+      responses:
+        '200':
+          description: The caller holds the case.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hold'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '423':
+          $ref: '#/components/responses/Held'
+    delete:
+      operationId: releaseCase
+      security:
+        - session: []
+      summary: Let the case go
+      description: |
+        Releasing a lock nobody holds, or somebody else's, changes nothing
+        (ADR 0005).
+      tags:
+        - reviews
+      responses:
+        '204':
+          description: The caller no longer holds the case.
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -1648,6 +1710,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MoveRefused'
+        '423':
+          $ref: '#/components/responses/Held'
     post:
       operationId: judgeComment
       security:
@@ -1699,6 +1763,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MoveRefused'
+        '423':
+          $ref: '#/components/responses/Held'
   /projects/{slug}/cases/{caseId}/reviews:
     parameters:
       - name: slug
@@ -1748,6 +1814,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '423':
+          $ref: '#/components/responses/Held'
   /projects/{slug}/cases/{caseId}/archive:
     parameters:
       - name: slug
@@ -2049,6 +2117,21 @@ components:
       description: |
         Who holds the ball. Computed by the server from the case's comments; no
         endpoint accepts it as an argument.
+    Hold:
+      type: object
+      required:
+        - by
+        - name
+        - since
+      description: Who holds the case, and since when. Occupancy, never a state (ADR 0005).
+      properties:
+        by:
+          type: string
+        name:
+          type: string
+        since:
+          type: string
+          format: date-time
     CaptureCounts:
       type: object
       required:
@@ -2092,6 +2175,10 @@ components:
         description:
           type: string
           nullable: true
+        held:
+          description: Present while a reviewer holds the case (ADR 0005,
+          allOf:
+            - $ref: '#/components/schemas/Hold'
         state:
           $ref: '#/components/schemas/CaseState'
         archived:
@@ -2878,6 +2965,14 @@ components:
             $ref: '#/components/schemas/problem'
     NotFound:
       description: No such resource.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/problem'
+    Held:
+      description: |
+        Somebody else holds this case (ADR 0005, #95): a held case takes no
+        verdict but its holder's. The detail names them.
       content:
         application/problem+json:
           schema:
