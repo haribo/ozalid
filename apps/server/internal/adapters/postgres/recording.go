@@ -73,7 +73,7 @@ func (r *Repository) moveRecording(
 		return "", translate("recording the judgment", err)
 	}
 
-	facts, err := factsOf(ctx, q, kase)
+	facts, err := r.factsOf(ctx, q, kase)
 	if err != nil {
 		return "", err
 	}

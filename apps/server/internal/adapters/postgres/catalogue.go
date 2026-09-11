@@ -349,8 +349,8 @@ func (r *Repository) SummariseCases(ctx context.Context, projectID string, categ
 // than failing the whole listing.
 func countsOf(ctx context.Context, r *Repository, row sqlcgen.CasesWithCaptureCountsRow) catalogue.CaptureCounts {
 	counts := catalogue.CaptureCounts{Total: row.Captures}
-	facts, err := factsOf(ctx, r.q, sqlcgen.Case{
-		ID: row.ID, ProjectID: row.ProjectID, CurrentEditionID: row.CurrentEditionID,
+	facts, err := r.factsOf(ctx, r.q, sqlcgen.Case{
+		ID: row.ID, ProjectID: row.ProjectID,
 	})
 	if err != nil {
 		return counts

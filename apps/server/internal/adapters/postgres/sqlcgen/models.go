@@ -50,16 +50,15 @@ type CaptureReference struct {
 }
 
 type Case struct {
-	ID               string
-	ProjectID        string
-	CategoryID       *string
-	Title            string
-	Description      *string
-	State            string
-	ArchivedAt       pgtype.Timestamptz
-	CreatedAt        pgtype.Timestamptz
-	UpdatedAt        pgtype.Timestamptz
-	CurrentEditionID *string
+	ID          string
+	ProjectID   string
+	CategoryID  *string
+	Title       string
+	Description *string
+	State       string
+	ArchivedAt  pgtype.Timestamptz
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
 }
 
 type CaseLock struct {
@@ -67,6 +66,7 @@ type CaseLock struct {
 	AccountID string
 	ClaimedAt pgtype.Timestamptz
 	BeatenAt  pgtype.Timestamptz
+	EditionID *string
 }
 
 type Category struct {

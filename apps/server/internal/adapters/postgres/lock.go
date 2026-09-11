@@ -28,7 +28,7 @@ func (r *Repository) window() int32 {
 // ClaimCase takes the case's lock, or renews it: one atomic statement claims
 // a free or expired lock and beats the caller's own. Somebody else's live
 // lock answers review.ErrHeld, naming the holder (ADR 0005).
-func (r *Repository) ClaimCase(ctx context.Context, slug, caseID string, by actor.Actor) (review.Hold, error) {
+func (r *Repository) ClaimCase(ctx context.Context, slug, caseID string, by actor.Actor, fresh bool) (review.Hold, error) {
 	kase, err := r.q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: caseID, Slug: slug})
 	if err != nil {
 		if isNoRows(err) {
@@ -36,8 +36,15 @@ func (r *Repository) ClaimCase(ctx context.Context, slug, caseID string, by acto
 		}
 		return review.Hold{}, translate("finding the case", err)
 	}
+	// The claim stamps what is current now (ADR 0024): these are the bytes
+	// the hold will keep under the reviewer.
+	latest, err := r.latestEditionID(ctx, r.q, kase.ProjectID)
+	if err != nil {
+		return review.Hold{}, err
+	}
 	row, err := r.q.ClaimCaseLock(ctx, sqlcgen.ClaimCaseLockParams{
 		CaseID: kase.ID, AccountID: by.ID, WindowSeconds: r.window(),
+		EditionID: latest, Fresh: fresh,
 	})
 	if err == nil {
 		hold := review.Hold{By: row.AccountID, Since: row.ClaimedAt.Time}
@@ -105,4 +112,33 @@ func (r *Repository) refuseHeld(ctx context.Context, q *sqlcgen.Queries, caseID 
 		return held
 	}
 	return nil
+}
+
+// displayedEdition resolves which edition the case shows (ADR 0024): the
+// live lock's stamped edition, else the project's latest, else nil — a book
+// can start empty (ADR 0008). Derived at read, never stored.
+func (r *Repository) displayedEdition(ctx context.Context, q *sqlcgen.Queries, kase sqlcgen.Case) (*string, error) {
+	row, err := q.ReadCaseLock(ctx, sqlcgen.ReadCaseLockParams{
+		CaseID: kase.ID, WindowSeconds: r.window(),
+	})
+	if err == nil && row.EditionID != nil {
+		return row.EditionID, nil
+	}
+	if err != nil && !isNoRows(err) {
+		return nil, translate("reading the lock", err)
+	}
+	return r.latestEditionID(ctx, q, kase.ProjectID)
+}
+
+// latestEditionID is the free case's answer — and the settle-time one, which
+// deliberately looks past the saver's own lock (ADR 0024).
+func (r *Repository) latestEditionID(ctx context.Context, q *sqlcgen.Queries, projectID string) (*string, error) {
+	edition, err := q.LatestEdition(ctx, projectID)
+	if err != nil {
+		if isNoRows(err) {
+			return nil, nil
+		}
+		return nil, translate("reading the edition", err)
+	}
+	return &edition.ID, nil
 }

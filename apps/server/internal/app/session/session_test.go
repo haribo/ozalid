@@ -21,7 +21,7 @@ func (r refusingRepo) SaveReview(
 	return session.Result{}, nil
 }
 
-func (r refusingRepo) ClaimCase(context.Context, string, string, actor.Actor) (review.Hold, error) {
+func (r refusingRepo) ClaimCase(context.Context, string, string, actor.Actor, bool) (review.Hold, error) {
 	r.t.Error("the session reached the repository, want it refused first")
 	return review.Hold{}, nil
 }
@@ -41,7 +41,7 @@ func (r *recordingRepo) SaveReview(
 	return session.Result{}, nil
 }
 
-func (r *recordingRepo) ClaimCase(context.Context, string, string, actor.Actor) (review.Hold, error) {
+func (r *recordingRepo) ClaimCase(context.Context, string, string, actor.Actor, bool) (review.Hold, error) {
 	return review.Hold{}, nil
 }
 

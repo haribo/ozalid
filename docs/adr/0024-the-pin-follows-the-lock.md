@@ -27,7 +27,11 @@ shows, the server answers from what is true at that moment:
 - otherwise → the project's latest edition.
 
 `case_locks` gains `edition_id`, stamped at claim, kept through heartbeats,
-re-stamped on a fresh claim — including after expiry. `cases.current_edition_id`
+re-stamped on a **fresh claim** — opening the page, expiry included. The
+client says which is which: the on-load claim is fresh, the interval is a
+heartbeat. Reloading is leaving and coming back — without the distinction,
+a reload raced its own release and showed one edition or the other by
+timing. `cases.current_edition_id`
 is removed with its two maintenance mechanisms (`AdvanceCurrentEdition`,
 `ReleaseToLatestEdition`); intake stops skipping `to-review` cases.
 

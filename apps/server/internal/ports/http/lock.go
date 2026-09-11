@@ -41,7 +41,8 @@ func (s *Server) ClaimCase(ctx context.Context, request openapi.ClaimCaseRequest
 		}, nil
 	}
 
-	hold, err := s.session.Claim(ctx, request.Slug, request.CaseId, actorFrom(ctx))
+	fresh := request.Body != nil && request.Body.Fresh != nil && *request.Body.Fresh
+	hold, err := s.session.Claim(ctx, request.Slug, request.CaseId, actorFrom(ctx), fresh)
 	var held *review.Held
 	switch {
 	case errors.As(err, &held):

@@ -114,10 +114,12 @@ watch(
       params: { path: { slug: slug.value } },
     })
     categories.value = tree.error ? [] : tree.data
+    // Opening the case is claiming it (ADR 0005, #95): a fresh claim, so
+    // the hold stamps what is current now (ADR 0024) — before the first
+    // read, or the grid would show what a previous hold pinned. The
+    // interval is the heartbeat, and leaving the page lets go.
+    await review.claim(true)
     await review.load()
-    // Opening the case is claiming it (ADR 0005, #95); the interval is the
-    // heartbeat, and leaving the page lets go.
-    await review.claim()
     loading.value = false
   },
   { immediate: true },

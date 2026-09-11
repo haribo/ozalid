@@ -238,11 +238,11 @@ func TestACommentAnchorsToTheCaptureItWasWrittenAbout(t *testing.T) {
 		t.Fatalf("edition: %v", err)
 	}
 
-	var stepID, variantID, captureID string
+	var stepID, variantID, captureID, editionID string
 	if err := repo.Pool().QueryRow(ctx,
-		`SELECT c.step_id, c.variant_id, c.id FROM captures c
+		`SELECT c.step_id, c.variant_id, c.id, c.edition_id FROM captures c
 		 JOIN steps s ON s.id = c.step_id WHERE s.case_id = $1`, kase.ID,
-	).Scan(&stepID, &variantID, &captureID); err != nil {
+	).Scan(&stepID, &variantID, &captureID, &editionID); err != nil {
 		t.Fatalf("finding the capture: %v", err)
 	}
 
@@ -255,7 +255,7 @@ func TestACommentAnchorsToTheCaptureItWasWrittenAbout(t *testing.T) {
 		t.Fatalf("creating the comment: %v", err)
 	}
 	if err := q.AttachCommentVariant(ctx, sqlcgen.AttachCommentVariantParams{
-		CommentID: created.ID, VariantID: variantID,
+		CommentID: created.ID, VariantID: variantID, EditionID: editionID,
 	}); err != nil {
 		t.Fatalf("attaching: %v", err)
 	}
