@@ -105,6 +105,18 @@ afterwards.
 - A held case is read-only for everyone else ([ADR 0005](../adr/0005-exclusive-case-locking.md)).
 - Locks expire: the session sends a heartbeat, and a lock whose heartbeat has
   gone silent for longer than the configured window is released automatically.
+- The lock is claimed when the reviewer opens the case, renewed by a
+  30-second heartbeat while the page stays open, and released on leaving — or
+  on its own once the heartbeat has been silent for the **expiry window**
+  (default two minutes, `OZALID_LOCK_WINDOW`; long enough to read a crowded
+  grid mid-thought, short enough that a closed laptop frees the case within
+  minutes). Read-only means **no verdict but the holder's**: `SaveReview`,
+  comment and recording judgments answer `423` naming the holder; the dev's
+  moves — tracking, delivering, discarding — are not verdicts and never
+  blocked (§7 already keeps the bytes still under a reviewer). Verified by
+  `TestAHeldCaseRefusesAnotherReviewersVerdict`,
+  `TestASilentLockExpiresOnItsOwn` and the two-reviewers e2e "a held case
+  reads the same and refuses the verdict".
 
 ### 3.3 Movement (is the evidence still the evidence that was judged)
 
@@ -622,6 +634,8 @@ To settle before implementation starts. The technology stack, listed here until
 3. **Non-fingerprintable steps** — some screens have no deterministic frame
    (animations, timers). The predecessor kept a per-project exemption list;
    confirm that model.
-4. **Lock expiry window** — a concrete duration for [§3.2](#32-occupancy-is-someone-working-on-it-right-now).
+4. **Lock expiry window** — answered: two minutes of heartbeat silence,
+   configurable (`OZALID_LOCK_WINDOW`), see
+   [§3.2](#32-occupancy-is-someone-working-on-it-right-now).
 5. **Retention ceiling** — content addressing makes history cheap, not free.
    Decide whether editions are pruned beyond some horizon, and on what rule.
