@@ -63,7 +63,7 @@ export type Recording = { variant: Record<string, string>; bytes: Buffer }
  * case, and a fresh case each run would leave a book full of one-run cases with
  * nothing to compare against.
  */
-async function caseFor(title: string): Promise<string> {
+async function caseFor(title: string, category: string): Promise<string> {
   const listed = (await (await call(`/projects/${PROJECT}/cases`)).json()) as {
     id: string
     title: string
@@ -75,25 +75,17 @@ async function caseFor(title: string): Promise<string> {
     await call(`/projects/${PROJECT}/cases`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title, categoryId: await categoryFor(CATEGORY) }),
+      body: JSON.stringify({ title, categoryId: await categoryFor(category) }),
     })
   ).json()) as { id: string }
   return made.id
 }
 
 /**
- * The branch these captures hang from.
- *
- * A case belongs to exactly one category, and the catalogue only lists the
- * cases of a named one — a case filed nowhere is a case no screen can show
- * (#115). Named here rather than configured: these are ozalid's own screens,
- * and where they belong is not a deployment decision.
- *
- * `account`, not `ozalid`: the project is already called ozalid, and a branch
- * repeating its project's name sorts nothing. The flow captured here is the
- * account one — signing in.
+ * The branch a flow's captures hang from: named by the flow itself (#245) —
+ * a case belongs to exactly one category, and "where it belongs" is what the
+ * flow knows, not a constant of the pusher. Found or made at the root.
  */
-const CATEGORY = 'account'
 
 async function categoryFor(name: string): Promise<string> {
   const tree = (await (await call(`/projects/${PROJECT}/categories`)).json()) as {
@@ -115,9 +107,14 @@ async function categoryFor(name: string): Promise<string> {
 }
 
 /** Upload what the store does not already hold, and push one edition. */
-export async function push(title: string, shots: Shot[], recordings: Recording[] = []) {
+export async function push(
+  title: string,
+  shots: Shot[],
+  recordings: Recording[] = [],
+  category = 'account',
+) {
   expect(shots.length, 'nothing was captured').toBeGreaterThan(0)
-  const caseId = await caseFor(title)
+  const caseId = await caseFor(title, category)
 
   // One step per screen, one capture per variant. The order of the steps is the
   // order they were walked, which is what makes the grid read as the flow.
