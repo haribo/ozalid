@@ -426,15 +426,20 @@ Intake is governed by a **per-project policy** ([ADR 0007](../adr/0007-run-intak
   `to-review`. The refusal lists the blocking cases. This keeps pressure on
   finishing reviews, at the cost of blocking the whole project on one
   unfinished review.
-- `per-case` — intake is always accepted and stored; each case keeps pointing
-  at the edition its reviewer is judging, and advances when that review ends.
-  **A delivery advances the case at once**: judging a fix means reading the
-  bytes that claim to fix it, so `deliver` releases the case onto the latest
-  edition even mid-review. The pin only protects what is still being judged of
-  the current sweep — accepted captures keep their verdicts, and a capture that
-  changed under one comes back marked `moved`, as always. Decided when a
-  reviewer was asked to judge a fix while the pin showed them the screen from
-  before it (#142).
+- `per-case` — intake is always accepted and stored; a case shows the edition
+  its **holder** is judging
+  ([ADR 0024](../adr/0024-the-pin-follows-the-lock.md)): a live lock pins the
+  bytes stamped at claim, and a case nobody holds always reads at the latest
+  edition — nothing to advance, nothing to catch up. **A delivery advances
+  the case at once**: judging a fix means reading the bytes that claim to fix
+  it, so `deliver` re-stamps the live lock onto the latest edition even
+  mid-review (#142). The pin only protects what is still being judged of the
+  current sweep — accepted captures keep their verdicts, and a capture that
+  changed under one comes back marked `moved`, as always. When a review
+  settles, the state re-derives against the latest edition, ignoring the
+  saver's own lock. Verified by `TestAFreeCaseReadsAtTheLatestEdition`,
+  `TestAHeldCaseKeepsItsBytesUntilTheLockDies` and
+  `TestADeliveryAdvancesTheCaseOntoItsEdition`.
 
 Running the test suite is never gated. Only intake is.
 

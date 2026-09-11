@@ -19,6 +19,18 @@ post:
     answers 423, naming them. Occupancy is never a state — the case reads the
     same before and after.
   tags: [reviews]
+  requestBody:
+    required: false
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            fresh:
+              type: boolean
+              description: |
+                Opening the page (true) re-stamps the hold onto the latest
+                edition; the heartbeat (false, the default) keeps the bytes.
   responses:
     "200":
       description: The caller holds the case.

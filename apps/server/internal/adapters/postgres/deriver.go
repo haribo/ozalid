@@ -13,7 +13,17 @@ import (
 //
 // Captures are read at the edition the case is judged against — its pin —
 // falling back to the project's latest when the case was never pinned.
-func factsOf(ctx context.Context, q *sqlcgen.Queries, kase sqlcgen.Case) (review.Facts, error) {
+func (r *Repository) factsOf(ctx context.Context, q *sqlcgen.Queries, kase sqlcgen.Case) (review.Facts, error) {
+	editionID, err := r.displayedEdition(ctx, q, kase)
+	if err != nil {
+		return review.Facts{}, err
+	}
+	return factsOfAt(ctx, q, kase, editionID)
+}
+
+// factsOfAt reads the facts against one already-resolved edition — the
+// settle-time re-derivation resolves to the latest itself (ADR 0024).
+func factsOfAt(ctx context.Context, q *sqlcgen.Queries, kase sqlcgen.Case, editionID *string) (review.Facts, error) {
 	var facts review.Facts
 
 	threshold, err := q.PixelThresholdByProject(ctx, kase.ProjectID)
@@ -21,21 +31,6 @@ func factsOf(ctx context.Context, q *sqlcgen.Queries, kase sqlcgen.Case) (review
 		return facts, translate("reading the pixel threshold", err)
 	}
 	facts.PixelThreshold = int(threshold)
-
-	editionID := kase.CurrentEditionID
-	if editionID == nil {
-		edition, err := q.LatestEdition(ctx, kase.ProjectID)
-		if err != nil {
-			if isNoRows(err) {
-				// A book can start empty (ADR 0008): no edition, no captures.
-				editionID = nil
-			} else {
-				return facts, translate("reading the edition", err)
-			}
-		} else {
-			editionID = &edition.ID
-		}
-	}
 
 	if editionID != nil {
 		rows, err := q.CaseCaptureFacts(ctx, sqlcgen.CaseCaptureFactsParams{

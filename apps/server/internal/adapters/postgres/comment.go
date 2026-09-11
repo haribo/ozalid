@@ -133,10 +133,12 @@ func (r *Repository) Judge(
 			}); err != nil {
 				return "", translate("recording the acceptance", err)
 			}
-			if kase.CurrentEditionID != nil {
+			if shown, err := r.displayedEdition(ctx, q, kase); err != nil {
+				return "", err
+			} else if shown != nil {
 				if err := q.StampCaptureReference(ctx, sqlcgen.StampCaptureReferenceParams{
 					CaseID: c.CaseID, StepID: c.StepID, VariantID: variantID,
-					EditionID: *kase.CurrentEditionID, ApprovedBy: by.ID,
+					EditionID: *shown, ApprovedBy: by.ID,
 				}); err != nil {
 					return "", translate("stamping the reference", err)
 				}
@@ -144,9 +146,11 @@ func (r *Repository) Judge(
 		} else {
 			// The refusal's anchor follows the refused variant: the judge
 			// refused these bytes.
-			if kase.CurrentEditionID != nil {
+			if shown, err := r.displayedEdition(ctx, q, kase); err != nil {
+				return "", err
+			} else if shown != nil {
 				if err := q.ReanchorCommentVariant(ctx, sqlcgen.ReanchorCommentVariantParams{
-					CommentID: commentID, VariantID: variantID, EditionID: *kase.CurrentEditionID,
+					CommentID: commentID, VariantID: variantID, EditionID: *shown,
 				}); err != nil {
 					return "", translate("re-anchoring the refusal", err)
 				}
@@ -237,9 +241,11 @@ func (r *Repository) Unjudge(
 			if err != nil {
 				return "", translate("reading the case", err)
 			}
-			if kase.CurrentEditionID != nil {
+			if shown, err := r.displayedEdition(ctx, q, kase); err != nil {
+				return "", err
+			} else if shown != nil {
 				if err := q.RestoreCommentVariant(ctx, sqlcgen.RestoreCommentVariantParams{
-					CommentID: commentID, VariantID: variantID, EditionID: *kase.CurrentEditionID,
+					CommentID: commentID, VariantID: variantID, EditionID: *shown,
 				}); err != nil {
 					return "", translate("restoring the coverage", err)
 				}
@@ -347,20 +353,28 @@ func (r *Repository) Edit(
 	if err := q.DetachCommentVariants(ctx, commentID); err != nil {
 		return appcomment.Outcome{}, translate("clearing the variants", err)
 	}
+	kase, err := q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: comment.CaseID, Slug: slug})
+	if err != nil {
+		return appcomment.Outcome{}, translate("reading the case", err)
+	}
+	shown, err := r.displayedEdition(ctx, q, kase)
+	if err != nil {
+		return appcomment.Outcome{}, err
+	}
+	anchor := ""
+	if shown != nil {
+		anchor = *shown
+	}
 	for _, variantID := range variantIDs {
 		if err := q.AttachCommentVariant(ctx, sqlcgen.AttachCommentVariantParams{
-			CommentID: commentID, VariantID: variantID,
+			CommentID: commentID, VariantID: variantID, EditionID: anchor,
 		}); err != nil {
 			return appcomment.Outcome{}, translate("attaching a variant", err)
 		}
 	}
 
-	kase, err := q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: comment.CaseID, Slug: slug})
-	if err != nil {
-		return appcomment.Outcome{}, translate("reading the case", err)
-	}
 	before := review.CaseState(kase.State)
-	facts, err := factsOf(ctx, q, kase)
+	facts, err := r.factsOf(ctx, q, kase)
 	if err != nil {
 		return appcomment.Outcome{}, err
 	}
@@ -510,7 +524,11 @@ func (r *Repository) move(
 	// the reference is stamped for every covered capture — otherwise the
 	// derivation would read the fix's own pixels as "moved" against the
 	// pre-fix reference (#206, seen on production as "moved · 19203 px").
-	if m == review.MoveAccept && to == review.CommentAccepted && kase.CurrentEditionID != nil {
+	shownForSettle, err := r.displayedEdition(ctx, q, kase)
+	if err != nil {
+		return appcomment.Outcome{}, err
+	}
+	if m == review.MoveAccept && to == review.CommentAccepted && shownForSettle != nil {
 		covered, err := q.CommentCoveredVariants(ctx, comment.ID)
 		if err != nil {
 			return appcomment.Outcome{}, translate("reading the covered variants", err)
@@ -518,7 +536,7 @@ func (r *Repository) move(
 		for _, variantID := range covered {
 			if err := q.StampCaptureReference(ctx, sqlcgen.StampCaptureReferenceParams{
 				CaseID: kase.ID, StepID: comment.StepID, VariantID: variantID,
-				EditionID: *kase.CurrentEditionID, ApprovedBy: by.ID,
+				EditionID: *shownForSettle, ApprovedBy: by.ID,
 			}); err != nil {
 				return appcomment.Outcome{}, translate("stamping the reference", err)
 			}
@@ -529,12 +547,20 @@ func (r *Repository) move(
 	// bytes that claim to fix it, and the pin was showing the reviewer the
 	// screen from before the fix (product.md §7, #142).
 	if m == review.MoveDeliver {
-		if err := q.ReleaseToLatestEdition(ctx, kase.ID); err != nil {
-			return appcomment.Outcome{}, translate("advancing onto the delivery", err)
+		latest, err := r.latestEditionID(ctx, q, kase.ProjectID)
+		if err != nil {
+			return appcomment.Outcome{}, err
+		}
+		if latest != nil {
+			if err := q.RestampLiveLock(ctx, sqlcgen.RestampLiveLockParams{
+				CaseID: kase.ID, EditionID: latest, WindowSeconds: r.window(),
+			}); err != nil {
+				return appcomment.Outcome{}, translate("advancing onto the delivery", err)
+			}
 		}
 	}
 
-	facts, err := factsOf(ctx, q, kase)
+	facts, err := r.factsOf(ctx, q, kase)
 	if err != nil {
 		return appcomment.Outcome{}, err
 	}

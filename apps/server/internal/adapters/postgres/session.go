@@ -45,6 +45,13 @@ func (r *Repository) SaveReview(
 	}
 	before := review.CaseState(kase.State)
 
+	// What the saver is looking at (ADR 0024): their lock's stamped edition,
+	// or the latest when nothing pins.
+	shown, err := r.displayedEdition(ctx, q, kase)
+	if err != nil {
+		return session.Result{}, err
+	}
+
 	for _, c := range save.Comments {
 		created, err := q.CreateComment(ctx, sqlcgen.CreateCommentParams{
 			CaseID: caseID, StepID: c.StepID, Body: c.Body, AuthorID: by.ID,
@@ -53,8 +60,13 @@ func (r *Repository) SaveReview(
 			return session.Result{}, translate("recording a comment", err)
 		}
 		for _, variantID := range c.VariantIDs {
+			// Anchored to the bytes the reviewer is looking at (ADR 0024).
+			anchor := ""
+			if shown != nil {
+				anchor = *shown
+			}
 			if err := q.AttachCommentVariant(ctx, sqlcgen.AttachCommentVariantParams{
-				CommentID: created.ID, VariantID: variantID,
+				CommentID: created.ID, VariantID: variantID, EditionID: anchor,
 			}); err != nil {
 				return session.Result{}, translate("attaching a variant", err)
 			}
@@ -77,13 +89,13 @@ func (r *Repository) SaveReview(
 		// last comment was settled was never looked at, and claiming otherwise
 		// would make "who approved this" a lie.
 		//
-		// A case pointing at no edition has nothing to remember yet.
-		if kase.CurrentEditionID == nil {
+		// A case showing no edition has nothing to remember yet.
+		if shown == nil {
 			continue
 		}
 		if err := q.StampCaptureReference(ctx, sqlcgen.StampCaptureReferenceParams{
 			CaseID: caseID, StepID: capture.StepID, VariantID: capture.VariantID,
-			EditionID: *kase.CurrentEditionID, ApprovedBy: by.ID,
+			EditionID: *shown, ApprovedBy: by.ID,
 		}); err != nil {
 			return session.Result{}, translate("stamping the reference", err)
 		}
@@ -114,10 +126,10 @@ func (r *Repository) SaveReview(
 			// Accepting had released the variant from the coverage
 			// (ADR 0022); the take-back restores it, anchored to the bytes
 			// on display at the pinned edition.
-			if kase.CurrentEditionID != nil {
+			if shown != nil {
 				if err := q.RestoreCommentVariant(ctx, sqlcgen.RestoreCommentVariantParams{
 					CommentID: ref.CommentID, VariantID: capture.VariantID,
-					EditionID: *kase.CurrentEditionID,
+					EditionID: *shown,
 				}); err != nil {
 					return session.Result{}, translate("restoring the coverage", err)
 				}
@@ -153,10 +165,10 @@ func (r *Repository) SaveReview(
 			return session.Result{}, translate("reading the settled remarks", err)
 		}
 		for _, remark := range remarks {
-			if kase.CurrentEditionID != nil {
+			if shown != nil {
 				if err := q.RestoreCommentVariant(ctx, sqlcgen.RestoreCommentVariantParams{
 					CommentID: remark.ID, VariantID: capture.VariantID,
-					EditionID: *kase.CurrentEditionID,
+					EditionID: *shown,
 				}); err != nil {
 					return session.Result{}, translate("restoring the coverage", err)
 				}
@@ -197,34 +209,26 @@ func (r *Repository) SaveReview(
 		}
 	}
 
-	facts, err := factsOf(ctx, q, kase)
+	facts, err := factsOfAt(ctx, q, kase, shown)
 	if err != nil {
 		return session.Result{}, err
 	}
 	outcome := review.Compute(facts)
 
-	if outcome.State != before {
-		// The reviewer has let go, so the case catches up with whatever landed
-		// while they were looking. It was only held back to keep one fixed set
-		// of bytes under them (product.md §7).
-		if before == review.CaseToReview {
-			if err := q.ReleaseToLatestEdition(ctx, caseID); err != nil {
-				return session.Result{}, translate("releasing the case onto the latest edition", err)
-			}
-			// The caught-up edition can carry unjudged videos (ADR 0023):
-			// the state is derived against what the case now shows, not
-			// against the edition the reviewer just left.
-			released, err := q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: caseID, Slug: slug})
-			if err != nil {
-				return session.Result{}, translate("re-reading the case", err)
-			}
-			released.State = string(before)
-			facts, err = factsOf(ctx, q, released)
-			if err != nil {
-				return session.Result{}, err
-			}
-			outcome = review.Compute(facts)
+	if outcome.State != before && before == review.CaseToReview {
+		// When a review settles, the state re-derives against the latest
+		// edition, past the saver's own lock (ADR 0024): the edition already
+		// waiting can carry unjudged videos (ADR 0023), and nothing later
+		// flips a state stamped blind to it.
+		latest, err := r.latestEditionID(ctx, q, kase.ProjectID)
+		if err != nil {
+			return session.Result{}, err
 		}
+		facts, err = factsOfAt(ctx, q, kase, latest)
+		if err != nil {
+			return session.Result{}, err
+		}
+		outcome = review.Compute(facts)
 	}
 
 	if outcome.State != before {

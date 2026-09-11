@@ -61,7 +61,7 @@ type Result struct {
 // the transaction that guarantees it belongs in the adapter (backend ADR 0001).
 type Repository interface {
 	SaveReview(ctx context.Context, slug, caseID string, by actor.Actor, save Save) (Result, error)
-	ClaimCase(ctx context.Context, slug, caseID string, by actor.Actor) (review.Hold, error)
+	ClaimCase(ctx context.Context, slug, caseID string, by actor.Actor, fresh bool) (review.Hold, error)
 	ReleaseCase(ctx context.Context, slug, caseID string, by actor.Actor) error
 }
 
@@ -73,8 +73,8 @@ func New(repo Repository) *Service { return &Service{repo: repo} }
 
 // Claim holds the case for this reviewer, or renews the hold — the same call
 // is the heartbeat (ADR 0005, #95).
-func (s *Service) Claim(ctx context.Context, slug, caseID string, by actor.Actor) (review.Hold, error) {
-	return s.repo.ClaimCase(ctx, slug, caseID, by)
+func (s *Service) Claim(ctx context.Context, slug, caseID string, by actor.Actor, fresh bool) (review.Hold, error) {
+	return s.repo.ClaimCase(ctx, slug, caseID, by, fresh)
 }
 
 // Release lets the case go; a lock not held answers nothing.

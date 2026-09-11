@@ -329,17 +329,15 @@ func TestAnOlderEditionCanStillBeRead(t *testing.T) {
 		t.Error("the older edition does not show the bytes it was taken with")
 	}
 
-	// And the default read stays there too. The case went to to-review on the
-	// first captures, so a reviewer holds it; the second edition is stored but
-	// does not become what they are judging (product.md §7, ADR 0017).
-	// TestACaseCatchesUpOnceItsReviewEnds covers the other half: the case moves
-	// onto the newest edition once the review ends.
+	// And the free case reads at the latest (ADR 0024): the older edition
+	// stays readable on request, it just is not what a case nobody holds
+	// shows. TestAHeldCaseKeepsItsBytesUntilTheLockDies covers the held half.
 	byDefault, err := repo.CaseGrid(ctx, project.Slug, kase.ID, nil)
 	if err != nil {
 		t.Fatalf("reading the default edition: %v", err)
 	}
-	if byDefault.Steps[0].Captures[0].Hash != before {
-		t.Error("an incoming run moved the bytes under the reviewer")
+	if byDefault.Steps[0].Captures[0].Hash != after {
+		t.Error("a free case still shows an old edition")
 	}
 }
 

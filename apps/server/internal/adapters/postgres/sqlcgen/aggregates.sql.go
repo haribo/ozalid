@@ -16,13 +16,9 @@ INSERT INTO comment_variants (comment_id, variant_id, capture_id)
 SELECT $1, $2, (
     SELECT cap.id FROM captures cap
     JOIN comments c ON c.id = $1
-    JOIN cases k ON k.id = c.case_id
     WHERE cap.step_id = c.step_id
       AND cap.variant_id = $2
-      AND cap.edition_id = coalesce(
-            k.current_edition_id,
-            (SELECT e.id FROM editions e WHERE e.project_id = k.project_id
-             ORDER BY e.created_at DESC, e.id DESC LIMIT 1))
+      AND cap.edition_id = $3::text
 )
 ON CONFLICT DO NOTHING
 `
@@ -30,6 +26,7 @@ ON CONFLICT DO NOTHING
 type AttachCommentVariantParams struct {
 	CommentID string
 	VariantID string
+	EditionID string
 }
 
 // The anchor is the capture the reviewer was looking at: the one of the
@@ -37,8 +34,10 @@ type AttachCommentVariantParams struct {
 // the comment shows for as long as it lives — a step's name is a label, and
 // positions shift (#132). Null when the step and variant had no capture, which is what
 // there was to see.
+// The edition rides in from the caller's resolver (ADR 0024): the pin is
+// derived, never stored, so no query reads it off the case.
 func (q *Queries) AttachCommentVariant(ctx context.Context, arg AttachCommentVariantParams) error {
-	_, err := q.db.Exec(ctx, attachCommentVariant, arg.CommentID, arg.VariantID)
+	_, err := q.db.Exec(ctx, attachCommentVariant, arg.CommentID, arg.VariantID, arg.EditionID)
 	return err
 }
 
@@ -430,7 +429,7 @@ WITH latest AS (
     LIMIT 1
 )
 SELECT
-    k.id, k.project_id, k.category_id, k.title, k.description, k.state, k.archived_at, k.created_at, k.updated_at, k.current_edition_id,
+    k.id, k.project_id, k.category_id, k.title, k.description, k.state, k.archived_at, k.created_at, k.updated_at,
     count(c.id)                                                        AS captures,
     max(e.created_at)::timestamptz                                     AS last_edition
 FROM cases k
@@ -450,18 +449,17 @@ type CasesWithCaptureCountsParams struct {
 }
 
 type CasesWithCaptureCountsRow struct {
-	ID               string
-	ProjectID        string
-	CategoryID       *string
-	Title            string
-	Description      *string
-	State            string
-	ArchivedAt       pgtype.Timestamptz
-	CreatedAt        pgtype.Timestamptz
-	UpdatedAt        pgtype.Timestamptz
-	CurrentEditionID *string
-	Captures         int64
-	LastEdition      pgtype.Timestamptz
+	ID          string
+	ProjectID   string
+	CategoryID  *string
+	Title       string
+	Description *string
+	State       string
+	ArchivedAt  pgtype.Timestamptz
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	Captures    int64
+	LastEdition pgtype.Timestamptz
 }
 
 // Every case with the state of its captures at the edition it points at.
@@ -487,7 +485,6 @@ func (q *Queries) CasesWithCaptureCounts(ctx context.Context, arg CasesWithCaptu
 			&i.ArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.CurrentEditionID,
 			&i.Captures,
 			&i.LastEdition,
 		); err != nil {
@@ -580,26 +577,38 @@ func (q *Queries) CategoryTreeWithCounts(ctx context.Context, projectID string) 
 }
 
 const claimCaseLock = `-- name: ClaimCaseLock :one
-INSERT INTO case_locks (case_id, account_id)
-VALUES ($1, $2)
+INSERT INTO case_locks (case_id, account_id, edition_id)
+VALUES ($1, $2, $3)
 ON CONFLICT (case_id) DO UPDATE
 SET account_id = EXCLUDED.account_id,
     claimed_at = CASE
         WHEN case_locks.account_id = EXCLUDED.account_id
-         AND case_locks.beaten_at > now() - make_interval(secs => $3::int)
+         AND case_locks.beaten_at > now() - make_interval(secs => $4::int)
         THEN case_locks.claimed_at
         ELSE now()
     END,
+    -- The pin follows the claim (ADR 0024): a heartbeat keeps the bytes, a
+    -- fresh claim — opening the page, expiry included — re-stamps onto what
+    -- is current now. Reloading is leaving and coming back.
+    edition_id = CASE
+        WHEN NOT $5::boolean
+         AND case_locks.account_id = EXCLUDED.account_id
+         AND case_locks.beaten_at > now() - make_interval(secs => $4::int)
+        THEN case_locks.edition_id
+        ELSE EXCLUDED.edition_id
+    END,
     beaten_at = now()
 WHERE case_locks.account_id = EXCLUDED.account_id
-   OR case_locks.beaten_at < now() - make_interval(secs => $3::int)
+   OR case_locks.beaten_at < now() - make_interval(secs => $4::int)
 RETURNING case_id, account_id, claimed_at
 `
 
 type ClaimCaseLockParams struct {
 	CaseID        string
 	AccountID     string
+	EditionID     *string
 	WindowSeconds int32
+	Fresh         bool
 }
 
 type ClaimCaseLockRow struct {
@@ -614,7 +623,13 @@ type ClaimCaseLockRow struct {
 // holds it instead. The window rides in as seconds so expiry is read, never
 // written.
 func (q *Queries) ClaimCaseLock(ctx context.Context, arg ClaimCaseLockParams) (ClaimCaseLockRow, error) {
-	row := q.db.QueryRow(ctx, claimCaseLock, arg.CaseID, arg.AccountID, arg.WindowSeconds)
+	row := q.db.QueryRow(ctx, claimCaseLock,
+		arg.CaseID,
+		arg.AccountID,
+		arg.EditionID,
+		arg.WindowSeconds,
+		arg.Fresh,
+	)
 	var i ClaimCaseLockRow
 	err := row.Scan(&i.CaseID, &i.AccountID, &i.ClaimedAt)
 	return i, err
@@ -946,7 +961,7 @@ func (q *Queries) GetCommentIssue(ctx context.Context, arg GetCommentIssueParams
 }
 
 const readCaseLock = `-- name: ReadCaseLock :one
-SELECT l.account_id, l.claimed_at, u.name AS holder_name
+SELECT l.account_id, l.claimed_at, l.edition_id, u.name AS holder_name
 FROM case_locks l
 JOIN users u ON u.id = l.account_id
 WHERE l.case_id = $1
@@ -961,13 +976,19 @@ type ReadCaseLockParams struct {
 type ReadCaseLockRow struct {
 	AccountID  string
 	ClaimedAt  pgtype.Timestamptz
+	EditionID  *string
 	HolderName string
 }
 
 func (q *Queries) ReadCaseLock(ctx context.Context, arg ReadCaseLockParams) (ReadCaseLockRow, error) {
 	row := q.db.QueryRow(ctx, readCaseLock, arg.CaseID, arg.WindowSeconds)
 	var i ReadCaseLockRow
-	err := row.Scan(&i.AccountID, &i.ClaimedAt, &i.HolderName)
+	err := row.Scan(
+		&i.AccountID,
+		&i.ClaimedAt,
+		&i.EditionID,
+		&i.HolderName,
+	)
 	return i, err
 }
 
@@ -1085,22 +1106,24 @@ func (q *Queries) ReleaseCommentVariant(ctx context.Context, arg ReleaseCommentV
 	return result.RowsAffected(), nil
 }
 
-const releaseToLatestEdition = `-- name: ReleaseToLatestEdition :exec
-UPDATE cases k
-SET current_edition_id = (
-        SELECT e.id FROM editions e
-        WHERE e.project_id = k.project_id
-        ORDER BY e.created_at DESC, e.id DESC
-        LIMIT 1
-    ),
-    updated_at = now()
-WHERE k.id = $1
+const restampLiveLock = `-- name: RestampLiveLock :exec
+UPDATE case_locks
+SET edition_id = $1
+WHERE case_id = $2
+  AND beaten_at > now() - make_interval(secs => $3::int)
 `
 
-// A review that ends releases the case onto the project's most recent edition:
-// it was only held back so the reviewer judged one fixed set of bytes.
-func (q *Queries) ReleaseToLatestEdition(ctx context.Context, caseID string) error {
-	_, err := q.db.Exec(ctx, releaseToLatestEdition, caseID)
+type RestampLiveLockParams struct {
+	EditionID     *string
+	CaseID        string
+	WindowSeconds int32
+}
+
+// A delivery advances the case at once (#142, ADR 0024): the live lock is
+// re-stamped onto the latest edition; with no live lock there is nothing to
+// do — the case already reads at the latest.
+func (q *Queries) RestampLiveLock(ctx context.Context, arg RestampLiveLockParams) error {
+	_, err := q.db.Exec(ctx, restampLiveLock, arg.EditionID, arg.CaseID, arg.WindowSeconds)
 	return err
 }
 

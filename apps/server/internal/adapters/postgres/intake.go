@@ -157,15 +157,9 @@ func (r *Repository) WriteEdition(
 		}
 	}
 
-	// A case advances onto the edition that just landed -- unless a reviewer is
-	// sitting on it. `to-review` means somebody is looking, and moving the
-	// bytes under them would have them judge one image and approve another
-	// (product.md §7).
-	if _, err := q.AdvanceCurrentEdition(ctx, sqlcgen.AdvanceCurrentEditionParams{
-		EditionID: &edition.ID, CaseIds: caseIDs(m),
-	}); err != nil {
-		return appintake.Result{}, translate("pointing the cases at the edition", err)
-	}
+	// Nothing to advance: the displayed edition is derived (ADR 0024) — a
+	// held case keeps the bytes its lock stamped, everyone else reads the
+	// latest the moment it lands.
 
 	// A new edition brings new video bytes, and nobody has judged them: the
 	// cases it carries recordings for return to the reviewer (ADR 0023).

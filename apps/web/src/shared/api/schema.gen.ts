@@ -2720,7 +2720,17 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description Opening the page (true) re-stamps the hold onto the latest
+                     *     edition; the heartbeat (false, the default) keeps the bytes.
+                     */
+                    fresh?: boolean;
+                };
+            };
+        };
         responses: {
             /** @description The caller holds the case. */
             200: {

@@ -90,18 +90,16 @@ RETURNING *;
 -- the comment shows for as long as it lives — a step's name is a label, and
 -- positions shift (#132). Null when the step and variant had no capture, which is what
 -- there was to see.
+-- The edition rides in from the caller's resolver (ADR 0024): the pin is
+-- derived, never stored, so no query reads it off the case.
 -- name: AttachCommentVariant :exec
 INSERT INTO comment_variants (comment_id, variant_id, capture_id)
 SELECT @comment_id, @variant_id, (
     SELECT cap.id FROM captures cap
     JOIN comments c ON c.id = @comment_id
-    JOIN cases k ON k.id = c.case_id
     WHERE cap.step_id = c.step_id
       AND cap.variant_id = @variant_id
-      AND cap.edition_id = coalesce(
-            k.current_edition_id,
-            (SELECT e.id FROM editions e WHERE e.project_id = k.project_id
-             ORDER BY e.created_at DESC, e.id DESC LIMIT 1))
+      AND cap.edition_id = @edition_id::text
 )
 ON CONFLICT DO NOTHING;
 
@@ -232,19 +230,6 @@ SET blob_hash   = EXCLUDED.blob_hash,
     approved_by = EXCLUDED.approved_by,
     approved_at = now();
 
--- A review that ends releases the case onto the project's most recent edition:
--- it was only held back so the reviewer judged one fixed set of bytes.
--- name: ReleaseToLatestEdition :exec
-UPDATE cases k
-SET current_edition_id = (
-        SELECT e.id FROM editions e
-        WHERE e.project_id = k.project_id
-        ORDER BY e.created_at DESC, e.id DESC
-        LIMIT 1
-    ),
-    updated_at = now()
-WHERE k.id = @case_id;
-
 -- What a case is judged against right now, and who wrote the reference.
 -- name: CaseReferences :many
 SELECT step_id, variant_id, environment_id, blob_hash, approved_by, approved_at
@@ -368,8 +353,8 @@ WHERE cv.comment_id = @comment_id AND cv.variant_id = @variant_id;
 -- holds it instead. The window rides in as seconds so expiry is read, never
 -- written.
 -- name: ClaimCaseLock :one
-INSERT INTO case_locks (case_id, account_id)
-VALUES (@case_id, @account_id)
+INSERT INTO case_locks (case_id, account_id, edition_id)
+VALUES (@case_id, @account_id, @edition_id)
 ON CONFLICT (case_id) DO UPDATE
 SET account_id = EXCLUDED.account_id,
     claimed_at = CASE
@@ -378,17 +363,36 @@ SET account_id = EXCLUDED.account_id,
         THEN case_locks.claimed_at
         ELSE now()
     END,
+    -- The pin follows the claim (ADR 0024): a heartbeat keeps the bytes, a
+    -- fresh claim — opening the page, expiry included — re-stamps onto what
+    -- is current now. Reloading is leaving and coming back.
+    edition_id = CASE
+        WHEN NOT @fresh::boolean
+         AND case_locks.account_id = EXCLUDED.account_id
+         AND case_locks.beaten_at > now() - make_interval(secs => @window_seconds::int)
+        THEN case_locks.edition_id
+        ELSE EXCLUDED.edition_id
+    END,
     beaten_at = now()
 WHERE case_locks.account_id = EXCLUDED.account_id
    OR case_locks.beaten_at < now() - make_interval(secs => @window_seconds::int)
 RETURNING case_id, account_id, claimed_at;
 
 -- name: ReadCaseLock :one
-SELECT l.account_id, l.claimed_at, u.name AS holder_name
+SELECT l.account_id, l.claimed_at, l.edition_id, u.name AS holder_name
 FROM case_locks l
 JOIN users u ON u.id = l.account_id
 WHERE l.case_id = @case_id
   AND l.beaten_at > now() - make_interval(secs => @window_seconds::int);
+
+-- A delivery advances the case at once (#142, ADR 0024): the live lock is
+-- re-stamped onto the latest edition; with no live lock there is nothing to
+-- do — the case already reads at the latest.
+-- name: RestampLiveLock :exec
+UPDATE case_locks
+SET edition_id = @edition_id
+WHERE case_id = @case_id
+  AND beaten_at > now() - make_interval(secs => @window_seconds::int);
 
 -- Releasing somebody else's lock, or one nobody holds, changes nothing.
 -- name: ReleaseCaseLock :exec

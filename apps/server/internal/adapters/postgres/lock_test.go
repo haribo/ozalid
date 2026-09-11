@@ -39,7 +39,7 @@ func TestAHeldCaseRefusesAnotherReviewersVerdict(t *testing.T) {
 	marc := reviewer(t, ctx, repo, "marc")
 	stateBefore := caseState(t, ctx, repo, project.Slug, kase.ID)
 
-	if _, err := repo.ClaimCase(ctx, project.Slug, kase.ID, nina); err != nil {
+	if _, err := repo.ClaimCase(ctx, project.Slug, kase.ID, nina, true); err != nil {
 		t.Fatalf("nina claiming: %v", err)
 	}
 	if state := caseState(t, ctx, repo, project.Slug, kase.ID); state != stateBefore {
@@ -89,16 +89,16 @@ func TestASilentLockExpiresOnItsOwn(t *testing.T) {
 	marc := reviewer(t, ctx, repo, "marc")
 	repo.SetLockWindow(1 * time.Second)
 
-	if _, err := repo.ClaimCase(ctx, project.Slug, kase.ID, nina); err != nil {
+	if _, err := repo.ClaimCase(ctx, project.Slug, kase.ID, nina, true); err != nil {
 		t.Fatalf("nina claiming: %v", err)
 	}
 	var held *review.Held
-	if _, err := repo.ClaimCase(ctx, project.Slug, kase.ID, marc); !errors.As(err, &held) {
+	if _, err := repo.ClaimCase(ctx, project.Slug, kase.ID, marc, true); !errors.As(err, &held) {
 		t.Fatalf("marc claiming a live lock = %v, want Held", err)
 	}
 
 	time.Sleep(1200 * time.Millisecond)
-	if _, err := repo.ClaimCase(ctx, project.Slug, kase.ID, marc); err != nil {
+	if _, err := repo.ClaimCase(ctx, project.Slug, kase.ID, marc, true); err != nil {
 		t.Errorf("marc claiming after the silence = %v, want the expired lock taken", err)
 	}
 }
@@ -118,7 +118,7 @@ func TestTwoReviewersRaceForTheLock(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, results[i] = repo.ClaimCase(ctx, project.Slug, kase.ID, by)
+			_, results[i] = repo.ClaimCase(ctx, project.Slug, kase.ID, by, true)
 		}()
 	}
 	wg.Wait()

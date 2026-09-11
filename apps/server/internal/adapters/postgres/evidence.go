@@ -51,9 +51,8 @@ func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionI
 
 	// Statuses are derived here, never read from storage (ADR 0021): the same
 	// facts, the same rule, at the edition this grid displays.
-	displayed := kase
-	displayed.CurrentEditionID = &edition.ID
-	facts, err := factsOf(ctx, r.q, displayed)
+	shown := edition.ID
+	facts, err := factsOfAt(ctx, r.q, kase, &shown)
 	if err != nil {
 		return evidence.Grid{}, err
 	}
@@ -142,15 +141,23 @@ func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionI
 	return grid, nil
 }
 
-// resolveEdition picks the edition to read against: the one asked for, then the
-// one the case is being judged against, then the project's most recent.
+// resolveEdition picks the edition to read against: the one asked for, then
+// the live lock's stamped one, then the project's most recent (ADR 0024).
 //
-// The case's own pointer comes before the latest edition on purpose. A run
-// landing mid-review must not change what the reviewer is looking at, or they
-// would judge one set of bytes and approve another (product.md §7).
+// The holder's pin comes before the latest edition on purpose. A run landing
+// mid-review must not change what the reviewer is looking at, or they would
+// judge one set of bytes and approve another (product.md §7) — and a case
+// nobody holds always reads at the latest.
 func (r *Repository) resolveEdition(ctx context.Context, kase sqlcgen.Case, editionID *string) (sqlcgen.Edition, error) {
 	if editionID == nil {
-		editionID = kase.CurrentEditionID
+		row, err := r.q.ReadCaseLock(ctx, sqlcgen.ReadCaseLockParams{
+			CaseID: kase.ID, WindowSeconds: r.window(),
+		})
+		if err == nil {
+			editionID = row.EditionID
+		} else if !isNoRows(err) {
+			return sqlcgen.Edition{}, translate("reading the lock", err)
+		}
 	}
 	if editionID != nil {
 		edition, err := r.q.EditionByID(ctx, sqlcgen.EditionByIDParams{

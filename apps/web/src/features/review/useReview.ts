@@ -131,9 +131,10 @@ export function useReview(slug: () => string, caseId: () => string) {
 
   /** Claim the case, or keep holding it — the same call is the heartbeat.
    * A 423 means somebody else reviews: the page turns read-only. */
-  async function claim() {
+  async function claim(fresh = false) {
     const result = await api.POST('/projects/{slug}/cases/{caseId}/lock', {
       params: { path: { slug: slug(), caseId: caseId() } },
+      body: { fresh },
     })
     if (result.response.status === 423) {
       const found = await api.GET('/projects/{slug}/cases/{caseId}', {
