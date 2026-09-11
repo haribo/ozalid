@@ -3,7 +3,7 @@
  * One case: what it is, the evidence it is judged from, and — when a capture is
  * open — the carousel where judging happens.
  */
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, type components } from '@/shared/api'
 import { StatePill } from '@/shared/ui'
@@ -115,10 +115,35 @@ watch(
     })
     categories.value = tree.error ? [] : tree.data
     await review.load()
+    // Opening the case is claiming it (ADR 0005, #95); the interval is the
+    // heartbeat, and leaving the page lets go.
+    await review.claim()
     loading.value = false
   },
   { immediate: true },
 )
+
+const HEARTBEAT_MS = 30_000
+let heartbeat: ReturnType<typeof setInterval> | undefined
+
+/** Leaving is letting go — including by closing the tab or a hard
+ * navigation, where Vue never unmounts: keepalive lets the release outlive
+ * the page (ADR 0005). */
+function releaseOnLeave() {
+  void fetch(`/api/projects/${slug.value}/cases/${caseId.value}/lock`, {
+    method: 'DELETE',
+    keepalive: true,
+  })
+}
+onMounted(() => {
+  heartbeat = setInterval(() => void review.claim(), HEARTBEAT_MS)
+  window.addEventListener('pagehide', releaseOnLeave)
+})
+onBeforeUnmount(() => {
+  clearInterval(heartbeat)
+  window.removeEventListener('pagehide', releaseOnLeave)
+  void review.release()
+})
 
 async function onAccept(stepId: string, variantId: string, withdraw: boolean) {
   await review.accept(stepId, variantId, withdraw)
@@ -217,6 +242,27 @@ async function refreshCase() {
         <template v-if="review.grid.value?.editionId">
           <span>·</span>
           <span>edition of {{ formatMoment(review.grid.value.takenAt) }}</span>
+          <span
+            v-if="review.lockedBy.value"
+            class="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 dark:border-slate-600 dark:bg-slate-900"
+          >
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.3"
+              aria-hidden="true"
+            >
+              <path d="M1.5 8s2.4-4.2 6.5-4.2S14.5 8 14.5 8s-2.4 4.2-6.5 4.2S1.5 8 1.5 8z" />
+              <circle cx="8" cy="8" r="2" />
+            </svg>
+            held by {{ review.lockedBy.value.name }}
+            <template v-if="review.lockedBy.value.since">
+              · since {{ formatMoment(review.lockedBy.value.since) }}</template
+            >
+          </span>
           <template v-if="review.grid.value.revision">
             <span>·</span>
             <span>rev {{ review.grid.value.revision }}</span>
@@ -234,6 +280,7 @@ async function refreshCase() {
         :step-id="open?.stepId ?? ''"
         :variant-id="open?.variantId ?? openRecording ?? ''"
         :recording="openRecording !== null"
+        :held-by="review.lockedBy.value"
         :busy="review.saving.value"
         class="fixed inset-0 z-40"
         @close="closeCarousel"

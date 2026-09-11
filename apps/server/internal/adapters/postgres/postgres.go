@@ -8,6 +8,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -19,6 +20,9 @@ import (
 type Repository struct {
 	pool *pgxpool.Pool
 	q    *sqlcgen.Queries
+	// lockWindow is how long a silent heartbeat keeps holding (ADR 0005);
+	// zero means the default.
+	lockWindow time.Duration
 }
 
 // Open connects to the database and verifies it answers.

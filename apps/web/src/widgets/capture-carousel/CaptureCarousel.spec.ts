@@ -575,3 +575,24 @@ describe('the recording is judged in the carousel (ADR 0023, #226)', () => {
     w.unmount()
   })
 })
+
+describe('a held case takes no verdict but its holder’s (ADR 0005, #95)', () => {
+  it('goes inert and says who holds it', async () => {
+    const w = mount(CaptureCarousel, {
+      props: {
+        slug: 'atlas',
+        grid,
+        comments: [],
+        stepId: 's1',
+        variantId: 'v1',
+        heldBy: { name: 'nina', since: '2026-09-11T10:42:00Z' },
+      },
+    })
+    expect(w.text()).toContain('nina is reviewing this case — read-only until they let go')
+    await half(w, 'accept').trigger('click')
+    await half(w, 'refuse').trigger('click')
+    expect(w.emitted('accept')).toBeUndefined()
+    expect(w.emitted('refuse')).toBeUndefined()
+    expect(w.find('form').exists()).toBe(false)
+  })
+})

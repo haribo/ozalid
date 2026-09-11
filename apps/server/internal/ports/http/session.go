@@ -39,6 +39,12 @@ func (s *Server) SaveReview(ctx context.Context, request openapi.SaveReviewReque
 			NotFoundApplicationProblemPlusJSONResponse: notFound("case"),
 		}, nil
 	case err != nil:
+		var held *review.Held
+		if errors.As(err, &held) {
+			return openapi.SaveReview423ApplicationProblemPlusJSONResponse{
+				HeldApplicationProblemPlusJSONResponse: openapi.HeldApplicationProblemPlusJSONResponse(heldProblem(held)),
+			}, nil
+		}
 		return nil, err
 	}
 

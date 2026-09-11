@@ -125,6 +125,35 @@ export function useReview(slug: () => string, caseId: () => string) {
     await load()
   }
 
+  /** Who else holds the case (ADR 0005, #95): null while the caller does —
+   * or while nobody does. Filled from the claim's 423 and the case read. */
+  const lockedBy = ref<{ name: string; since: string } | null>(null)
+
+  /** Claim the case, or keep holding it — the same call is the heartbeat.
+   * A 423 means somebody else reviews: the page turns read-only. */
+  async function claim() {
+    const result = await api.POST('/projects/{slug}/cases/{caseId}/lock', {
+      params: { path: { slug: slug(), caseId: caseId() } },
+    })
+    if (result.response.status === 423) {
+      const found = await api.GET('/projects/{slug}/cases/{caseId}', {
+        params: { path: { slug: slug(), caseId: caseId() } },
+      })
+      lockedBy.value = found.data?.held
+        ? { name: found.data.held.name, since: found.data.held.since }
+        : { name: 'somebody', since: '' }
+      return
+    }
+    if (!result.error) lockedBy.value = null
+  }
+
+  /** Let the case go — leaving the page is letting go. */
+  async function release() {
+    await api.DELETE('/projects/{slug}/cases/{caseId}/lock', {
+      params: { path: { slug: slug(), caseId: caseId() } },
+    })
+  }
+
   /** Judge the flow video on screen (ADR 0023): the verdict lands on
    * exactly these bytes, and a new edition resets it. */
   async function judgeRecording(recordingId: string, accept: boolean, remark: string) {
@@ -228,6 +257,9 @@ export function useReview(slug: () => string, caseId: () => string) {
     saving,
     held,
     load,
+    claim,
+    release,
+    lockedBy,
     accept,
     unaccept,
     refuse,

@@ -80,6 +80,9 @@ type Case struct {
 	ArchivedAt *time.Time
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+	// Held names who is reviewing this case right now, nil when free.
+	// Occupancy, never a state (ADR 0005, #95).
+	Held *review.Held
 }
 
 // Archived reports whether the case has left the catalogue. An archived case

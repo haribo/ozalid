@@ -173,6 +173,10 @@ func (s *Server) JudgeComment(ctx context.Context, request openapi.JudgeCommentR
 		}, nil
 	case isRefusedMove(err):
 		return openapi.JudgeComment409ApplicationProblemPlusJSONResponse{MoveRefusedApplicationProblemPlusJSONResponse: openapi.MoveRefusedApplicationProblemPlusJSONResponse(refusedMove(err))}, nil
+	case heldOf(err) != nil:
+		return openapi.JudgeComment423ApplicationProblemPlusJSONResponse{
+			HeldApplicationProblemPlusJSONResponse: openapi.HeldApplicationProblemPlusJSONResponse(heldProblem(heldOf(err))),
+		}, nil
 	case err != nil:
 		return nil, err
 	}
@@ -217,6 +221,10 @@ func (s *Server) UnjudgeComment(ctx context.Context, request openapi.UnjudgeComm
 		}, nil
 	case isRefusedMove(err):
 		return openapi.UnjudgeComment409ApplicationProblemPlusJSONResponse{MoveRefusedApplicationProblemPlusJSONResponse: openapi.MoveRefusedApplicationProblemPlusJSONResponse(refusedMove(err))}, nil
+	case heldOf(err) != nil:
+		return openapi.UnjudgeComment423ApplicationProblemPlusJSONResponse{
+			HeldApplicationProblemPlusJSONResponse: openapi.HeldApplicationProblemPlusJSONResponse(heldProblem(heldOf(err))),
+		}, nil
 	case err != nil:
 		return nil, err
 	}

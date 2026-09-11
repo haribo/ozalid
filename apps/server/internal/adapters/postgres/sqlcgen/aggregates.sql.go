@@ -579,6 +579,47 @@ func (q *Queries) CategoryTreeWithCounts(ctx context.Context, projectID string) 
 	return items, nil
 }
 
+const claimCaseLock = `-- name: ClaimCaseLock :one
+INSERT INTO case_locks (case_id, account_id)
+VALUES ($1, $2)
+ON CONFLICT (case_id) DO UPDATE
+SET account_id = EXCLUDED.account_id,
+    claimed_at = CASE
+        WHEN case_locks.account_id = EXCLUDED.account_id
+         AND case_locks.beaten_at > now() - make_interval(secs => $3::int)
+        THEN case_locks.claimed_at
+        ELSE now()
+    END,
+    beaten_at = now()
+WHERE case_locks.account_id = EXCLUDED.account_id
+   OR case_locks.beaten_at < now() - make_interval(secs => $3::int)
+RETURNING case_id, account_id, claimed_at
+`
+
+type ClaimCaseLockParams struct {
+	CaseID        string
+	AccountID     string
+	WindowSeconds int32
+}
+
+type ClaimCaseLockRow struct {
+	CaseID    string
+	AccountID string
+	ClaimedAt pgtype.Timestamptz
+}
+
+// Claiming is also renewing (ADR 0005, #95): one atomic statement takes a
+// free or expired lock, or beats the caller's own. Somebody else's live lock
+// makes the upsert a no-op — no row comes back, and the caller reads who
+// holds it instead. The window rides in as seconds so expiry is read, never
+// written.
+func (q *Queries) ClaimCaseLock(ctx context.Context, arg ClaimCaseLockParams) (ClaimCaseLockRow, error) {
+	row := q.db.QueryRow(ctx, claimCaseLock, arg.CaseID, arg.AccountID, arg.WindowSeconds)
+	var i ClaimCaseLockRow
+	err := row.Scan(&i.CaseID, &i.AccountID, &i.ClaimedAt)
+	return i, err
+}
+
 const commentCoveredVariants = `-- name: CommentCoveredVariants :many
 SELECT variant_id FROM comment_variants WHERE comment_id = $1
 `
@@ -904,6 +945,32 @@ func (q *Queries) GetCommentIssue(ctx context.Context, arg GetCommentIssueParams
 	return items, nil
 }
 
+const readCaseLock = `-- name: ReadCaseLock :one
+SELECT l.account_id, l.claimed_at, u.name AS holder_name
+FROM case_locks l
+JOIN users u ON u.id = l.account_id
+WHERE l.case_id = $1
+  AND l.beaten_at > now() - make_interval(secs => $2::int)
+`
+
+type ReadCaseLockParams struct {
+	CaseID        string
+	WindowSeconds int32
+}
+
+type ReadCaseLockRow struct {
+	AccountID  string
+	ClaimedAt  pgtype.Timestamptz
+	HolderName string
+}
+
+func (q *Queries) ReadCaseLock(ctx context.Context, arg ReadCaseLockParams) (ReadCaseLockRow, error) {
+	row := q.db.QueryRow(ctx, readCaseLock, arg.CaseID, arg.WindowSeconds)
+	var i ReadCaseLockRow
+	err := row.Scan(&i.AccountID, &i.ClaimedAt, &i.HolderName)
+	return i, err
+}
+
 const reanchorCommentVariant = `-- name: ReanchorCommentVariant :exec
 UPDATE comment_variants cv
 SET capture_id = (
@@ -981,6 +1048,21 @@ func (q *Queries) RecordJudgment(ctx context.Context, arg RecordJudgmentParams) 
 		arg.ActorID,
 		arg.VariantID,
 	)
+	return err
+}
+
+const releaseCaseLock = `-- name: ReleaseCaseLock :exec
+DELETE FROM case_locks WHERE case_id = $1 AND account_id = $2
+`
+
+type ReleaseCaseLockParams struct {
+	CaseID    string
+	AccountID string
+}
+
+// Releasing somebody else's lock, or one nobody holds, changes nothing.
+func (q *Queries) ReleaseCaseLock(ctx context.Context, arg ReleaseCaseLockParams) error {
+	_, err := q.db.Exec(ctx, releaseCaseLock, arg.CaseID, arg.AccountID)
 	return err
 }
 

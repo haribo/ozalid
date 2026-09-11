@@ -480,6 +480,15 @@ func (r *Repository) move(
 		return appcomment.Outcome{}, translate("reading the comment", err)
 	}
 
+	// A held case takes no verdict but its holder's (ADR 0005, #95). The
+	// dev's moves — tracking, delivering, discarding — are not verdicts and
+	// pass untouched.
+	if m == review.MoveAccept || m == review.MoveRefuse || m == review.MoveUnjudge {
+		if err := r.refuseHeld(ctx, q, comment.CaseID, by); err != nil {
+			return appcomment.Outcome{}, err
+		}
+	}
+
 	// Each move decides for itself: discard consults the comment machine, the
 	// ref moves consult the ref machine and derive the comment from its refs.
 	// A refused move is the domain's answer, not a database failure.

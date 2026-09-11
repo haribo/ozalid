@@ -361,3 +361,35 @@ SET capture_id = (
     LIMIT 1
 )
 WHERE cv.comment_id = @comment_id AND cv.variant_id = @variant_id;
+
+-- Claiming is also renewing (ADR 0005, #95): one atomic statement takes a
+-- free or expired lock, or beats the caller's own. Somebody else's live lock
+-- makes the upsert a no-op — no row comes back, and the caller reads who
+-- holds it instead. The window rides in as seconds so expiry is read, never
+-- written.
+-- name: ClaimCaseLock :one
+INSERT INTO case_locks (case_id, account_id)
+VALUES (@case_id, @account_id)
+ON CONFLICT (case_id) DO UPDATE
+SET account_id = EXCLUDED.account_id,
+    claimed_at = CASE
+        WHEN case_locks.account_id = EXCLUDED.account_id
+         AND case_locks.beaten_at > now() - make_interval(secs => @window_seconds::int)
+        THEN case_locks.claimed_at
+        ELSE now()
+    END,
+    beaten_at = now()
+WHERE case_locks.account_id = EXCLUDED.account_id
+   OR case_locks.beaten_at < now() - make_interval(secs => @window_seconds::int)
+RETURNING case_id, account_id, claimed_at;
+
+-- name: ReadCaseLock :one
+SELECT l.account_id, l.claimed_at, u.name AS holder_name
+FROM case_locks l
+JOIN users u ON u.id = l.account_id
+WHERE l.case_id = @case_id
+  AND l.beaten_at > now() - make_interval(secs => @window_seconds::int);
+
+-- Releasing somebody else's lock, or one nobody holds, changes nothing.
+-- name: ReleaseCaseLock :exec
+DELETE FROM case_locks WHERE case_id = $1 AND account_id = $2;
