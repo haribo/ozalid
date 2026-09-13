@@ -24,6 +24,20 @@ export const router = createRouter({
     { path: '/projects/:slug/access/:serviceAccountId', component: TokensPage },
     { path: '/projects/:slug', component: CataloguePage },
     { path: '/projects/:slug/categories/:categoryId', component: CataloguePage },
+    // The queue walk, addressed down to the capture it is looking at, and
+    // resolving to the catalogue for the same reason the carousel resolves to
+    // the case page: the page underneath must not unmount, or a held verdict
+    // dies with it (frontend ADR 0007). Two addresses, mirroring the
+    // catalogue's own two, because the walk's reach is the depth it was
+    // started from (#205).
+    {
+      path: '/projects/:slug/queue/cases/:caseId/steps/:stepId/variants/:variantId',
+      component: CataloguePage,
+    },
+    {
+      path: '/projects/:slug/categories/:categoryId/queue/cases/:caseId/steps/:stepId/variants/:variantId',
+      component: CataloguePage,
+    },
     { path: '/projects/:slug/cases/:caseId', component: CasePage },
     // The carousel: the same component, so the instance — and the verdict it
     // may be holding through an expired session (#70) — survives opening and

@@ -219,3 +219,55 @@ export async function acceptEverything(seeded: Seeded): Promise<void> {
     }),
   )
 }
+
+/**
+ * Two cases under a category of their own, taken in by **one** run (#205).
+ *
+ * The queue is what a category holds, so a walk tested against the suite's
+ * shared branch would walk every other test's leftovers. A branch per walk
+ * keeps the assertion about this walk.
+ *
+ * One edition covering both cases, never one each: a grid read without a lock
+ * shows the project's latest edition (ADR 0024), so two pushes would leave the
+ * first case showing nothing.
+ */
+export async function seedWalk(
+  page: Page,
+): Promise<{ slug: string; categoryId: string; cases: { id: string; title: string }[] }> {
+  const stamp = Date.now()
+  const branch = (await (
+    await call(
+      `/projects/${PROJECT}/categories`,
+      post({ name: `walk ${stamp}`, parentId: await suiteCategory() }),
+    )
+  ).json()) as { id: string }
+
+  const titles = [`a first flow — ${stamp}`, `a second flow — ${stamp}`]
+  const cases: { id: string; title: string }[] = []
+  for (const title of titles) {
+    const kase = (await (
+      await call(`/projects/${PROJECT}/cases`, post({ title, categoryId: branch.id }))
+    ).json()) as { id: string }
+    cases.push({ id: kase.id, title })
+  }
+
+  const still = await upload(await screen(page, 0))
+  await call(
+    `/projects/${PROJECT}/editions`,
+    post({
+      cases: cases.map((kase) => ({
+        id: kase.id,
+        steps: [
+          {
+            name: 'opens the form',
+            captures: [
+              { variant: LIGHT, hash: still, provenance: { environmentId: 'ci' } },
+              { variant: DARK, hash: still, provenance: { environmentId: 'ci' } },
+            ],
+          },
+        ],
+      })),
+    }),
+  )
+  return { slug: PROJECT, categoryId: branch.id, cases }
+}

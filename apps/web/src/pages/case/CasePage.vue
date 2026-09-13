@@ -11,7 +11,7 @@ import { formatMoment, type CaseState } from '@/shared/lib'
 import { useReview } from '@/features/review'
 import { useSession } from '@/features/session'
 import { CaseGrid } from '@/widgets/case-grid'
-import { CaptureCarousel } from '@/widgets/capture-carousel'
+import { ReviewCarousel } from '@/widgets/capture-carousel'
 import { CommentRecap } from '@/widgets/comment-recap'
 
 type Case = components['schemas']['Case']
@@ -147,57 +147,6 @@ onBeforeUnmount(() => {
   void review.release()
 })
 
-async function onAccept(stepId: string, variantId: string, withdraw: boolean) {
-  await review.accept(stepId, variantId, withdraw)
-  await refreshCase()
-}
-
-async function onUnaccept(stepId: string, variantId: string) {
-  await review.unaccept(stepId, variantId)
-  await refreshCase()
-}
-
-async function onRefuse(input: Parameters<typeof review.refuse>[0]) {
-  await review.refuse(input)
-  await refreshCase()
-}
-
-async function onUnrefuse(stepId: string, variantId: string) {
-  await review.unrefuse(stepId, variantId)
-  await refreshCase()
-}
-
-async function onEdit(commentId: string, body: string, variantIds: string[]) {
-  await review.edit(commentId, body, variantIds)
-  await refreshCase()
-}
-
-async function onJudge(
-  commentId: string,
-  issueRefId: string,
-  accept: boolean,
-  remark: string,
-  variantId: string,
-) {
-  await review.judge(commentId, issueRefId, accept, remark, variantId)
-  await refreshCase()
-}
-
-async function onUnjudge(commentId: string, issueRefId: string, variantId: string) {
-  await review.unjudge(commentId, issueRefId, variantId)
-  await refreshCase()
-}
-
-async function onJudgeRecording(recordingId: string, accept: boolean, remark: string) {
-  await review.judgeRecording(recordingId, accept, remark)
-  await refreshCase()
-}
-
-async function onUnjudgeRecording(recordingId: string) {
-  await review.unjudgeRecording(recordingId)
-  await refreshCase()
-}
-
 /** The case's own state is recomputed by the server on every move, so it is
  * read back rather than guessed here (ADR 0012). */
 async function refreshCase() {
@@ -274,29 +223,18 @@ async function refreshCase() {
 
       <!-- Over the page, not in it: the page stays mounted underneath with
            everything it holds, and the capture gets the window (#125). -->
-      <CaptureCarousel
-        v-if="(open || openRecording) && review.grid.value"
+      <ReviewCarousel
+        v-if="open || openRecording"
         :slug="slug"
-        :grid="review.grid.value"
-        :comments="review.comments.value"
+        :review="review"
         :step-id="open?.stepId ?? ''"
         :variant-id="open?.variantId ?? openRecording ?? ''"
         :recording="openRecording !== null"
-        :held-by="review.lockedBy.value"
-        :busy="review.saving.value"
         class="fixed inset-0 z-40"
         @close="closeCarousel"
         @move="moveTo"
         @move-recording="moveToRecording"
-        @judge-recording="onJudgeRecording"
-        @unjudge-recording="onUnjudgeRecording"
-        @accept="onAccept"
-        @unaccept="onUnaccept"
-        @refuse="onRefuse"
-        @unrefuse="onUnrefuse"
-        @edit="onEdit"
-        @judge="onJudge"
-        @unjudge="onUnjudge"
+        @changed="refreshCase"
       />
 
       <CaseGrid

@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted — 2026-09-03
+Accepted — 2026-09-03 — extended by
+[ADR 0007](0007-a-walk-resolves-to-the-page-it-started-from.md): a queue walk
+is addressed the same way, and resolves to the catalogue it was started from.
 
 ## Context
 
