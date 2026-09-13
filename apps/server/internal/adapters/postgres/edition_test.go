@@ -172,3 +172,69 @@ func TestAHeldCaseKeepsItsBytesUntilTheLockDies(t *testing.T) {
 		t.Errorf("grid still shows the dead lock's edition")
 	}
 }
+
+// A run that does not cover a case must not blank it (#253).
+//
+// Reading every free case at the project's latest edition assumed every run
+// covers the whole book — an assumption nothing states and nothing enforces.
+// A case the last run skipped keeps its state, so the catalogue counts it and
+// the queue promises it; it must have the evidence to go with that.
+func TestACaseReadsAtTheLastEditionThatCoversIt(t *testing.T) {
+	ctx, repo, project, first := intakeFixture(t)
+	q := repo.Queries()
+	seedEdition(t, ctx, repo, project, flow{caseID: first.ID, steps: []string{"opens"}})
+
+	// A later run covering another case only.
+	other := openCase(t, ctx, q, project, first.CategoryID, "another flow")
+	seedEdition(t, ctx, repo, project, flow{caseID: other.ID, steps: []string{"opens"}})
+
+	grid, err := repo.CaseGrid(ctx, project.Slug, first.ID, nil)
+	if err != nil {
+		t.Fatalf("reading the grid: %v", err)
+	}
+	if len(grid.Steps) != 1 || len(grid.Steps[0].Captures) != 2 {
+		t.Errorf("grid = %d steps, want the evidence of the run that did capture it", len(grid.Steps))
+	}
+
+	// And it still awaits the reviewer where the reviewer looks for it.
+	queue, err := repo.ReviewQueue(ctx, project.Slug, nil)
+	if err != nil {
+		t.Fatalf("reading the queue: %v", err)
+	}
+	mine := 0
+	for _, entry := range queue {
+		if entry.CaseID == first.ID {
+			mine++
+		}
+	}
+	if mine != 2 {
+		t.Errorf("queue holds %d of its captures, want 2", mine)
+	}
+}
+
+// Opening such a case must not pin the emptiness either (#253).
+//
+// The claim stamps the edition the hold will keep under the reviewer
+// (ADR 0024); stamping the project's latest would freeze the case on a run
+// that never captured it, for the whole session.
+func TestClaimingACaseTheLastRunSkippedPinsWhatDidCaptureIt(t *testing.T) {
+	ctx, repo, project, first := intakeFixture(t)
+	q := repo.Queries()
+	seedEdition(t, ctx, repo, project, flow{caseID: first.ID, steps: []string{"opens"}})
+
+	other := openCase(t, ctx, q, project, first.CategoryID, "another flow")
+	seedEdition(t, ctx, repo, project, flow{caseID: other.ID, steps: []string{"opens"}})
+
+	nina := reviewer(t, ctx, repo, "nina")
+	if _, err := repo.ClaimCase(ctx, project.Slug, first.ID, nina, true); err != nil {
+		t.Fatalf("claiming: %v", err)
+	}
+
+	grid, err := repo.CaseGrid(ctx, project.Slug, first.ID, nil)
+	if err != nil {
+		t.Fatalf("reading the grid under the hold: %v", err)
+	}
+	if len(grid.Steps) != 1 {
+		t.Errorf("grid = %d steps under the hold, want the run that captured the case", len(grid.Steps))
+	}
+}

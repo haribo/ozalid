@@ -5,7 +5,9 @@
 Accepted — 2026-09-11
 
 Completes [ADR 0005](0005-exclusive-case-locking.md): freezing the bytes
-follows occupancy, not the cycle state.
+follows occupancy, not the cycle state. Amended by
+[ADR 0025](0025-a-case-reads-at-an-edition-that-captured-it.md): the fallback
+below is the latest edition **of that case**, not the project's.
 
 ## Context
 
@@ -24,7 +26,8 @@ Occupancy has had its own answer since ADR 0005 shipped (#247): the lock.
 shows, the server answers from what is true at that moment:
 
 - a **live lock** on the case → the edition stamped when it was claimed;
-- otherwise → the project's latest edition.
+- otherwise → the project's latest edition (narrowed to the case's latest by
+  [ADR 0025](0025-a-case-reads-at-an-edition-that-captured-it.md)).
 
 `case_locks` gains `edition_id`, stamped at claim, kept through heartbeats,
 re-stamped on a **fresh claim** — opening the page, expiry included. The

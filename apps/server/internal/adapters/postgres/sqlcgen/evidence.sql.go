@@ -261,6 +261,36 @@ func (q *Queries) LatestEdition(ctx context.Context, projectID string) (Edition,
 	return i, err
 }
 
+const latestEditionForCase = `-- name: LatestEditionForCase :one
+SELECT e.id, e.project_id, e.revision, e.created_at FROM editions e
+WHERE e.id = (
+    SELECT c.edition_id FROM captures c
+    JOIN steps s ON s.id = c.step_id
+    JOIN editions ce ON ce.id = c.edition_id
+    WHERE s.case_id = $1
+    ORDER BY ce.created_at DESC, ce.id DESC
+    LIMIT 1
+)
+`
+
+// The last edition that actually captured this case (#253).
+//
+// A free case used to read at the project's latest edition, which assumed
+// every run covers the whole book. When one does not, the case keeps its
+// state — the catalogue counts it, the queue promises it — while its grid
+// shows nothing. It reads at the run that did capture it instead.
+func (q *Queries) LatestEditionForCase(ctx context.Context, caseID string) (Edition, error) {
+	row := q.db.QueryRow(ctx, latestEditionForCase, caseID)
+	var i Edition
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Revision,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const recordingBlobInProject = `-- name: RecordingBlobInProject :one
 SELECT r.blob_hash FROM recordings r
 JOIN cases k ON k.id = r.case_id

@@ -220,7 +220,7 @@ func (r *Repository) SaveReview(
 		// edition, past the saver's own lock (ADR 0024): the edition already
 		// waiting can carry unjudged videos (ADR 0023), and nothing later
 		// flips a state stamped blind to it.
-		latest, err := r.latestEditionID(ctx, q, kase.ProjectID)
+		latest, err := r.caseEdition(ctx, q, kase.ID)
 		if err != nil {
 			return session.Result{}, err
 		}
