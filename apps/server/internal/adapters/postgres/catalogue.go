@@ -140,7 +140,42 @@ func (r *Repository) ListCases(ctx context.Context, projectID string, state, cat
 	return out, nil
 }
 
-func (r *Repository) UpdateCase(ctx context.Context, slug, id, title string, description, categoryID *string) (catalogue.Case, error) {
+// UpdateCase writes what the patch names and leaves the rest as it stands. The
+// row is read first because the statement writes every column: overwriting the
+// lot let a patch carrying a title alone null the category, and the case left
+// the tree without a word (#229).
+func (r *Repository) UpdateCase(ctx context.Context, slug, id string, patch app.CasePatch) (catalogue.Case, error) {
+	current, err := r.q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: id, Slug: slug})
+	if err != nil {
+		return catalogue.Case{}, translate("reading the case", err)
+	}
+
+	title, description, categoryID := current.Title, current.Description, current.CategoryID
+	if patch.Title != nil {
+		title = *patch.Title
+	}
+	if patch.Description != nil {
+		// The empty string is how the patch says "clear it": the generated body
+		// gives a pointer, and Go cannot tell an absent field from a null one.
+		if *patch.Description == "" {
+			description = nil
+		} else {
+			description = patch.Description
+		}
+	}
+	if patch.CategoryID != nil {
+		// The new category must be one of this project's. Not found rather than
+		// refused: another project's category does not exist for this caller
+		// (#71, #115).
+		if _, err := r.q.GetCategoryInProject(ctx, sqlcgen.GetCategoryInProjectParams{ID: *patch.CategoryID, Slug: slug}); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return catalogue.Case{}, catalogue.ErrCategoryUnknown
+			}
+			return catalogue.Case{}, translate("reading the new category", err)
+		}
+		categoryID = patch.CategoryID
+	}
+
 	row, err := r.q.UpdateCaseDetails(ctx, sqlcgen.UpdateCaseDetailsParams{
 		ID: id, Title: title, Description: description, CategoryID: categoryID, Slug: slug,
 	})

@@ -1321,7 +1321,12 @@ paths:
         - serviceToken: []
         - session: []
       summary: Change what is mutable about a case
-      description: Its id and its state are not part of that.
+      description: |
+        Its id and its state are not part of that.
+
+        A merge patch: a field the body does not carry is left untouched. The
+        empty string clears a description; nothing clears a category, since a
+        case belongs to exactly one (#229).
       tags:
         - cases
       requestBody:
@@ -2543,18 +2548,19 @@ components:
           default: 0
     CaseUpdate:
       type: object
-      required:
-        - title
       properties:
         title:
           type: string
           minLength: 1
         description:
           type: string
-          nullable: true
+          description: Absent leaves it alone; the empty string clears it.
         categoryId:
           type: string
-          nullable: true
+          minLength: 1
+          description: |
+            Another category of the same project. Absent leaves it alone, and
+            there is no way to remove it: a case belongs to exactly one.
     GridVariant:
       type: object
       required:

@@ -218,13 +218,28 @@ func (s *Server) UpdateCase(ctx context.Context, request openapi.UpdateCaseReque
 			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
 		}, nil
 	}
-	updated, err := s.catalogue.UpdateCase(ctx, request.Slug, request.CaseId, request.Body.Title, request.Body.Description, request.Body.CategoryId)
+	updated, err := s.catalogue.UpdateCase(ctx, request.Slug, request.CaseId, app.CasePatch{
+		Title:       request.Body.Title,
+		Description: request.Body.Description,
+		CategoryID:  request.Body.CategoryId,
+	})
 	switch {
 	case errors.Is(err, catalogue.ErrTitleRequired):
 		return openapi.UpdateCase400ApplicationProblemPlusJSONResponse{
 			BadRequestApplicationProblemPlusJSONResponse: openapi.BadRequestApplicationProblemPlusJSONResponse(
 				problem("invalid-case", "A case needs a title", http.StatusBadRequest, ""),
 			),
+		}, nil
+	case errors.Is(err, catalogue.ErrCategoryRequired):
+		return openapi.UpdateCase400ApplicationProblemPlusJSONResponse{
+			BadRequestApplicationProblemPlusJSONResponse: openapi.BadRequestApplicationProblemPlusJSONResponse(
+				problem("invalid-case", "A case needs a category", http.StatusBadRequest,
+					"The catalogue lists the cases of a named category, so a case filed nowhere is a case no screen can show."),
+			),
+		}, nil
+	case errors.Is(err, catalogue.ErrCategoryUnknown):
+		return openapi.UpdateCase404ApplicationProblemPlusJSONResponse{
+			NotFoundApplicationProblemPlusJSONResponse: notFound("category"),
 		}, nil
 	case errors.Is(err, app.ErrNotFound):
 		return openapi.UpdateCase404ApplicationProblemPlusJSONResponse{NotFoundApplicationProblemPlusJSONResponse: notFound("case")}, nil

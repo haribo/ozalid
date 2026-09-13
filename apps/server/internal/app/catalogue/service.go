@@ -82,12 +82,23 @@ func (s *Service) ListCases(ctx context.Context, projectID string, state, catego
 
 // UpdateCase changes what is mutable about a case. Its id and its state are
 // not part of that.
-func (s *Service) UpdateCase(ctx context.Context, slug, id, title string, description, categoryID *string) (catalogue.Case, error) {
-	cleaned, err := catalogue.CleanTitle(title)
-	if err != nil {
-		return catalogue.Case{}, err
+//
+// The patch merges: only what it names is written, so a caller editing one
+// field cannot empty the others (#229).
+func (s *Service) UpdateCase(ctx context.Context, slug, id string, patch CasePatch) (catalogue.Case, error) {
+	if patch.Title != nil {
+		cleaned, err := catalogue.CleanTitle(*patch.Title)
+		if err != nil {
+			return catalogue.Case{}, err
+		}
+		patch.Title = &cleaned
 	}
-	return s.repo.UpdateCase(ctx, slug, id, cleaned, description, categoryID)
+	// An empty one is a malformed request, not a category nobody has, exactly
+	// as at creation (#115).
+	if patch.CategoryID != nil && strings.TrimSpace(*patch.CategoryID) == "" {
+		return catalogue.Case{}, catalogue.ErrCategoryRequired
+	}
+	return s.repo.UpdateCase(ctx, slug, id, patch)
 }
 
 // ArchiveCase takes a case out of the catalogue without destroying it: its

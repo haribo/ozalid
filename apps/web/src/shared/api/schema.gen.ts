@@ -692,6 +692,10 @@ export interface paths {
         /**
          * Change what is mutable about a case
          * @description Its id and its state are not part of that.
+         *
+         *     A merge patch: a field the body does not carry is left untouched. The
+         *     empty string clears a description; nothing clears a category, since a
+         *     case belongs to exactly one (#229).
          */
         patch: operations["updateCase"];
         trace?: never;
@@ -1323,9 +1327,14 @@ export interface components {
             position: number;
         };
         CaseUpdate: {
-            title: string;
-            description?: string | null;
-            categoryId?: string | null;
+            title?: string;
+            /** @description Absent leaves it alone; the empty string clears it. */
+            description?: string;
+            /**
+             * @description Another category of the same project. Absent leaves it alone, and
+             *     there is no way to remove it: a case belongs to exactly one.
+             */
+            categoryId?: string;
         };
         GridVariant: {
             id: string;

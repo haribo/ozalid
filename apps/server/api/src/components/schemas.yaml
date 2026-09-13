@@ -93,11 +93,20 @@ Hold:
 
 CaseUpdate:
   type: object
-  required: [title]
+  # A merge patch: an absent field is left as it stands. Overwriting the whole
+  # row made a patch carrying only a title empty the category, which filed the
+  # case nowhere — the state `NewCase` refuses at creation (#115, #229).
   properties:
     title: { type: string, minLength: 1 }
-    description: { type: string, nullable: true }
-    categoryId: { type: string, nullable: true }
+    description:
+      type: string
+      description: Absent leaves it alone; the empty string clears it.
+    categoryId:
+      type: string
+      minLength: 1
+      description: |
+        Another category of the same project. Absent leaves it alone, and
+        there is no way to remove it: a case belongs to exactly one.
 
 Category:
   type: object

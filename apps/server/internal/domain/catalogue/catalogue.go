@@ -19,6 +19,10 @@ var (
 	ErrCategoryRequired = errors.New("catalogue: a case needs a category")
 	ErrNameRequired     = errors.New("catalogue: a category needs a name")
 	ErrCategoryNotEmpty = errors.New("catalogue: only an empty category can be deleted")
+	// ErrCategoryUnknown means the category a patch names is none of this
+	// project's. Distinct from ErrCategoryRequired so the two answers stay
+	// distinct: a malformed request, and a category nobody has (#229).
+	ErrCategoryUnknown = errors.New("catalogue: no such category in this project")
 	// ErrCategoryCycle means a move would make a category its own ancestor:
 	// the tree would stop being one (#179).
 	ErrCategoryCycle       = errors.New("catalogue: a category cannot become its own ancestor")
