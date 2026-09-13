@@ -85,3 +85,36 @@ test('the walk keeps its address, so a capture in it can be pointed at', async (
   await page.goto(url)
   await expect(page.getByRole('dialog', { name: 'capture' })).toContainText('2 / 4 to judge')
 })
+
+test('the walk says it is over, and what the sitting came to', async ({ page }) => {
+  const seeded = await seedWalk(page)
+  await page.goto(`/projects/${seeded.slug}/categories/${seeded.categoryId}`)
+  await page.getByRole('button', { name: 'Review them' }).click()
+
+  const carousel = page.getByRole('dialog', { name: 'capture' })
+  const accepted = carousel.getByRole('button', { name: 'accept' })
+  // The first capture has to be on screen before a key means anything.
+  await expect(carousel).toContainText('1 / 4 to judge')
+
+  for (let i = 0; i < 4; i++) {
+    await page.keyboard.press(' ')
+    await expect(accepted).toHaveAttribute('aria-pressed', 'true')
+    await page.keyboard.press('ArrowRight')
+    if (i < 3) {
+      await expect(carousel).toContainText(`${i + 2} / 4 to judge`)
+      await expect(page.locator('[data-test="walk-loading"]')).toBeHidden()
+    }
+  }
+
+  // Past the last capture: the tally, read back from the server rather than
+  // counted in the browser (#255).
+  const over = page.locator('[data-test="walk-over"]')
+  await expect(over).toContainText('Nothing is waiting on you')
+  await expect(over).toContainText('4 captures judged across 2 cases')
+  await expect(over).toContainText('4 accepted')
+  await expect(over).toContainText('0 refused')
+
+  await over.getByRole('button', { name: /^Back to/ }).click()
+  await expect(carousel).toBeHidden()
+  await expect(page.getByText(/need your verdict/)).toBeHidden()
+})

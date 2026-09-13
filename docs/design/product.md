@@ -327,6 +327,27 @@ capture's status — the empty verdict pair for `to-review`, the stage badge for
 remove (ADR 0021). Crossing into the next case is said by the case name
 changing, at title size; nothing annotates a change already on screen.
 
+**The walk says when it is over.** Judging the last capture and walking on
+ends the sitting rather than leaving the reviewer standing on a capture they
+have just judged. The screen says what the sitting came to — how many captures
+were judged, across how many cases, under which scope — and offers the two ways
+out: back to where the walk was started, or the project's whole queue.
+
+That tally is **read back from the server**, never counted in the browser. A
+verdict is sent as it is made and nothing accumulates client-side (§3.5), so a
+number the screen kept for itself would be the one thing on it nobody could
+check — and a reload mid-walk would make it lie. The entries the walk began
+with are compared against the statuses those captures now carry: what left the
+queue was judged, and its status says where it went. *Rejected: counting the
+verdicts as they are made, which is fewer requests and a number the server
+never confirmed.*
+
+A walk left before its end says so rather than claiming the book is clean: the
+screen names what is still waiting. Verified by
+`says the sitting is over, with what the server says it came to`,
+`does not claim nothing waits when something still does` and the e2e
+"the walk says it is over, and what the sitting came to".
+
 **The interface says capture.** Never *square*, never *cell*: those are grid
 vocabulary, and the product names the thing a **capture** (§2).
 

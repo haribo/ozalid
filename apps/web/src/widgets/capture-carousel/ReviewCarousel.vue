@@ -32,6 +32,8 @@ const emit = defineEmits<{
   move: [stepId: string, variantId: string]
   moveRecording: [variantId: string]
   moveEntry: [entry: QueueEntry]
+  finish: []
+  reviewProject: []
   /** A verdict landed: the server recomputed what it recomputes, and the page
    * decides what to read back. */
   changed: []
@@ -105,6 +107,8 @@ async function unjudgeRecording(recordingId: string) {
     @move="(stepId, variantId) => emit('move', stepId, variantId)"
     @move-recording="(variantId) => emit('moveRecording', variantId)"
     @move-entry="(entry) => emit('moveEntry', entry)"
+    @finish="emit('finish')"
+    @review-project="emit('reviewProject')"
     @accept="accept"
     @unaccept="unaccept"
     @refuse="refuse"

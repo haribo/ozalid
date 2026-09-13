@@ -48,12 +48,14 @@ const entries: QueueEntry[] = [
   entry('case-b', 'choose a carrier', 's9', 'v1'),
 ]
 
-function walkAt(caseId: string): Walk {
+function walkAt(caseId: string, summary?: Walk['summary']): Walk {
   return {
     entries,
     caseId,
     trail: 'Checkout › Payment',
     caseName: caseId === 'case-a' ? 'pay by card' : 'choose a carrier',
+    scope: 'Checkout',
+    summary,
   }
 }
 
@@ -93,14 +95,53 @@ describe('walking a queue', () => {
     })
   })
 
-  it('stops at both ends instead of wrapping', () => {
+  it('stops at the start instead of wrapping, and says so at the end', () => {
     const first = mountWalking('v1')
     press('ArrowLeft')
     expect(first.emitted('moveEntry')).toBeUndefined()
+    expect(first.emitted('finish')).toBeUndefined()
 
+    // Walking past the last entry asks for the tally rather than leaving the
+    // reviewer standing on a capture they have judged (#255).
     const last = mountWalking('v1', 's9', 'case-b')
     press('ArrowRight')
     expect(last.emitted('moveEntry')).toBeUndefined()
+    expect(last.emitted('finish')).toHaveLength(1)
+  })
+
+  it('says the sitting is over, with what the server says it came to', () => {
+    const w = mount(CaptureCarousel, {
+      props: {
+        slug: 'atlas',
+        grid,
+        comments: [],
+        stepId: 's1',
+        variantId: 'v1',
+        walk: walkAt('case-a', { accepted: 10, refused: 2, cases: 3, remaining: 0 }),
+      },
+    })
+    const over = w.find('[data-test="walk-over"]')
+    expect(over.text()).toContain('Nothing is waiting on you')
+    expect(over.text()).toContain('12 captures judged across 3 cases under Checkout')
+    expect(over.text()).toContain('2 refusals went back to the developers')
+    expect(over.text()).toContain('Back to Checkout')
+    // The capture itself is gone: the sitting is what the screen is about now.
+    expect(w.find('img').exists()).toBe(false)
+  })
+
+  it('does not claim nothing waits when something still does', () => {
+    const w = mount(CaptureCarousel, {
+      props: {
+        slug: 'atlas',
+        grid,
+        comments: [],
+        stepId: 's1',
+        variantId: 'v1',
+        walk: walkAt('case-a', { accepted: 1, refused: 0, cases: 1, remaining: 2 }),
+      },
+    })
+    expect(w.find('[data-test="walk-over"]').text()).toContain('2 captures still waiting')
+    expect(w.find('[data-test="walk-over"]').text()).not.toContain('Nothing is waiting')
   })
 
   it('counts the queue, not the flow', () => {
