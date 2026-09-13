@@ -35,7 +35,12 @@ patch:
     - serviceToken: []
     - session: []
   summary: Change what is mutable about a case
-  description: Its id and its state are not part of that.
+  description: |
+    Its id and its state are not part of that.
+
+    A merge patch: a field the body does not carry is left untouched. The
+    empty string clears a description; nothing clears a category, since a
+    case belongs to exactly one (#229).
   tags: [cases]
   requestBody:
     required: true

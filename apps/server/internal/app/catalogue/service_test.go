@@ -17,8 +17,14 @@ type stubRepo struct {
 
 	gotTitle    string
 	gotName     string
+	gotPatch    *app.CasePatch
 	archiveRows bool
 	deleteRows  bool
+}
+
+func (s *stubRepo) UpdateCase(_ context.Context, _, _ string, patch app.CasePatch) (catalogue.Case, error) {
+	s.gotPatch = &patch
+	return catalogue.Case{ID: "abc123456789"}, nil
 }
 
 func (s *stubRepo) CreateCase(_ context.Context, projectID string, categoryID string, title string, description *string) (catalogue.Case, error) {
@@ -61,6 +67,45 @@ func TestSurroundingSpaceIsTrimmedBeforeStoring(t *testing.T) {
 	}
 	if repo.gotTitle != "pay by card" {
 		t.Errorf("stored title = %q, want it trimmed", repo.gotTitle)
+	}
+}
+
+// An update may move a case, never unfile it: a blank category is a malformed
+// request, answered as such rather than written (#115, #229).
+func TestAPatchCannotEmptyTheCategory(t *testing.T) {
+	repo := &stubRepo{}
+	svc := app.New(repo)
+
+	blank := "   "
+	_, err := svc.UpdateCase(context.Background(), "atlas", "abc123456789", app.CasePatch{CategoryID: &blank})
+	if !errors.Is(err, catalogue.ErrCategoryRequired) {
+		t.Errorf("err = %v, want ErrCategoryRequired", err)
+	}
+	if repo.gotPatch != nil {
+		t.Error("the repository was called with a blank category")
+	}
+}
+
+// A title is cleaned when the patch carries one, and left alone when it does
+// not — an update of the description must not have to repeat the title (#229).
+func TestAPatchedTitleIsTrimmedAndAnAbsentOneIsLeftAlone(t *testing.T) {
+	repo := &stubRepo{}
+	svc := app.New(repo)
+
+	title := "  pay by card  "
+	if _, err := svc.UpdateCase(context.Background(), "atlas", "abc123456789", app.CasePatch{Title: &title}); err != nil {
+		t.Fatalf("patching the title: %v", err)
+	}
+	if repo.gotPatch == nil || repo.gotPatch.Title == nil || *repo.gotPatch.Title != "pay by card" {
+		t.Errorf("patched title = %v, want it trimmed", repo.gotPatch)
+	}
+
+	description := "with a saved card"
+	if _, err := svc.UpdateCase(context.Background(), "atlas", "abc123456789", app.CasePatch{Description: &description}); err != nil {
+		t.Fatalf("patching the description: %v", err)
+	}
+	if repo.gotPatch.Title != nil {
+		t.Errorf("title = %q on a patch that never named it, want nil", *repo.gotPatch.Title)
 	}
 }
 

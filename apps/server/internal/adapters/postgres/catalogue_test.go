@@ -93,3 +93,98 @@ func TestASiblingNameCollisionIsAConflict(t *testing.T) {
 		t.Error("renaming onto a sibling's name was accepted, want a conflict")
 	}
 }
+
+// A patch says what changes; what it does not say survives. An update carrying
+// only a title used to null the category, and the case left the catalogue in
+// silence — the state creation refuses since #115. Found on the vilajo
+// integration, not by reading the schema (#229).
+func TestUpdatingACaseLeavesWhatThePatchDoesNotName(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+
+	description := "with a card already saved"
+	if _, err := repo.UpdateCase(ctx, project.Slug, kase.ID, app.CasePatch{Description: &description}); err != nil {
+		t.Fatalf("writing the description: %v", err)
+	}
+
+	title := "pay by saved card"
+	updated, err := repo.UpdateCase(ctx, project.Slug, kase.ID, app.CasePatch{Title: &title})
+	if err != nil {
+		t.Fatalf("renaming: %v", err)
+	}
+	if updated.Title != title {
+		t.Errorf("title = %q, want %q", updated.Title, title)
+	}
+	if updated.CategoryID == nil || *updated.CategoryID != *kase.CategoryID {
+		t.Errorf("category = %v after a patch that never named it, want %v", updated.CategoryID, *kase.CategoryID)
+	}
+	if updated.Description == nil || *updated.Description != description {
+		t.Errorf("description = %v after a patch that never named it, want %q", updated.Description, description)
+	}
+}
+
+// Clearing is said with the empty string: the request body hands the server a
+// pointer, and Go cannot tell an absent field from a null one (#229).
+func TestAnEmptyDescriptionClearsIt(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+
+	description := "to be forgotten"
+	if _, err := repo.UpdateCase(ctx, project.Slug, kase.ID, app.CasePatch{Description: &description}); err != nil {
+		t.Fatalf("writing the description: %v", err)
+	}
+
+	blank := ""
+	cleared, err := repo.UpdateCase(ctx, project.Slug, kase.ID, app.CasePatch{Description: &blank})
+	if err != nil {
+		t.Fatalf("clearing the description: %v", err)
+	}
+	if cleared.Description != nil {
+		t.Errorf("description = %q, want it cleared", *cleared.Description)
+	}
+}
+
+// A case moves inside its own project's tree and nowhere else. Another
+// project's category is not found rather than refused: a refusal would confirm
+// it exists somewhere (#71, #115, #229).
+func TestACaseMovesOnlyOntoACategoryOfItsOwnProject(t *testing.T) {
+	ctx, repo, project, kase := intakeFixture(t)
+	q := repo.Queries()
+
+	elsewhere, err := q.CreateProject(ctx, sqlcgen.CreateProjectParams{
+		Slug: project.Slug + "-elsewhere", Name: "elsewhere", IntakePolicy: "per-case",
+	})
+	if err != nil {
+		t.Fatalf("creating the other project: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := repo.Pool().Exec(ctx, "DELETE FROM projects WHERE id = $1", elsewhere.ID); err != nil {
+			t.Errorf("cleaning up the other project: %v", err)
+		}
+	})
+	foreign := seedCategory(t, ctx, q, elsewhere.ID)
+
+	if _, err := repo.UpdateCase(ctx, project.Slug, kase.ID, app.CasePatch{CategoryID: foreign}); !errors.Is(err, catalogue.ErrCategoryUnknown) {
+		t.Errorf("err = %v, want ErrCategoryUnknown", err)
+	}
+	still, err := repo.CaseByID(ctx, project.Slug, kase.ID)
+	if err != nil {
+		t.Fatalf("reading the case back: %v", err)
+	}
+	if still.CategoryID == nil || *still.CategoryID != *kase.CategoryID {
+		t.Errorf("category = %v after a refused move, want %v", still.CategoryID, *kase.CategoryID)
+	}
+
+	// And the move that is legitimate goes through.
+	home, err := q.CreateCategory(ctx, sqlcgen.CreateCategoryParams{
+		ProjectID: project.ID, Name: "checkout", Position: 1,
+	})
+	if err != nil {
+		t.Fatalf("creating the destination: %v", err)
+	}
+	moved, err := repo.UpdateCase(ctx, project.Slug, kase.ID, app.CasePatch{CategoryID: &home.ID})
+	if err != nil {
+		t.Fatalf("moving inside the project: %v", err)
+	}
+	if moved.CategoryID == nil || *moved.CategoryID != home.ID {
+		t.Errorf("category = %v, want %v", moved.CategoryID, home.ID)
+	}
+}
