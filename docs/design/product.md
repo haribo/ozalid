@@ -277,6 +277,64 @@ captures moving: images also move for a refactor or a dependency bump, and
 summoning the reviewer for that is noise. The dev may ask without having
 implemented everything — one issue can depend on the verdict given on another.
 
+### 3.6 The review queue
+
+A case is one flow, but the work rarely arrives one flow at a time: a run
+re-captures broadly, and the reviewer faces ten cases carrying two captures
+each. The **queue** is that work, read as one list instead of ten screens. It
+changes nothing about what a verdict is or where it is given — the carousel
+stays the one place a capture is judged (§3.5).
+
+**What it holds.** Every capture whose status reads `to-review` or `moved`.
+Those two are the whole of what awaits the reviewer (§3.1); there is no third
+source and no word outside that vocabulary. A delivered fix reads `to-review`
+like any unjudged capture — what makes it a fix lives on its comment (§6), not
+on the queue entry.
+
+**Its reach is contextual.** The queue covers the category being read and every
+category beneath it; read at the project root, that is the whole project. The
+catalogue is one screen at every depth, so a queue scoped to the project would
+advertise the project's 42 while the reader stands in a category holding 12 — a
+count that lies. One rule at every depth, the root being the case where nothing
+is excluded. *Rejected: a project-wide queue offered at every depth.*
+
+**Its order is by case, then by step position, then by variant label.** A case
+is finished before the next begins: the flow is the unit of meaning, and the
+reviewer keeps one context for the length of a case. *Rejected: ordering by age
+across cases, which empties the oldest debt first but changes flow context on
+every capture.*
+
+**Leaving it is a consequence, never an action.** The queue is computed at read
+time from stored statuses; it is not a stored list. Nothing enqueues and nothing
+dequeues, and no endpoint takes it as an argument
+([ADR 0002](../adr/0002-server-owns-the-review-lifecycle.md)). A capture leaves
+when the verdict it was waiting for is recorded.
+
+**A held case is walked, not skipped.** Occupancy is its own axis (§3.2): the
+walk claims the case it enters — a fresh claim, before reading its captures, so
+the hold stamps what is current ([ADR 0024](../adr/0024-the-pin-follows-the-lock.md))
+— and releases it on leaving. A claim answering `423` means the case is
+read-only for this pass: the reviewer sees what is there and moves on, which is
+what a held case already promises everyone but its holder (§3.2). *Rejected:
+hiding a held case from the queue. The queue is computed server-side at read
+time and a holder can appear a second later, so the skip would be stale on
+arrival and the count the catalogue advertises would stop matching what the walk
+opens.*
+
+**A queue entry carries no marker of its own.** The carousel already shows a
+capture's status — the empty verdict pair for `to-review`, the stage badge for
+`moved`. A second word for the same fact is what one vocabulary exists to
+remove (ADR 0021). Crossing into the next case is said by the case name
+changing, at title size; nothing annotates a change already on screen.
+
+**The interface says capture.** Never *square*, never *cell*: those are grid
+vocabulary, and the product names the thing a **capture** (§2).
+
+Verified by `TestTheQueueHoldsWhatAwaitsTheReviewer`,
+`TestTheQueueReachesUnderTheCategoryItIsReadFrom`,
+`TestTheQueueOrdersByCaseThenStep` and the e2e "a reviewer walks a project's
+queue across cases" (#204, #205).
+
 ## 4. Capture storage
 
 Content-addressed ([ADR 0004](../adr/0004-content-addressed-capture-storage.md)):
