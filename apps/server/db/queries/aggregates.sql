@@ -397,3 +397,29 @@ WHERE case_id = @case_id
 -- Releasing somebody else's lock, or one nobody holds, changes nothing.
 -- name: ReleaseCaseLock :exec
 DELETE FROM case_locks WHERE case_id = $1 AND account_id = $2;
+
+-- The cases that may carry a queue entry, in catalogue order (#204).
+--
+-- A capture's status is derived, never stored (ADR 0021), so there is no
+-- column to filter captures on. The case's state is stored, and a case reads
+-- `to-review` as soon as one of its captures is `to-review` or `moved` — so
+-- this narrows the work to a superset the caller then derives, on the index
+-- `cases_state_idx` and without walking a single capture.
+--
+-- A superset, not the answer: a case also reads `to-review` when only a
+-- comment or a recording awaits, with no capture in either status. Those
+-- contribute no entry once derived.
+-- name: CasesAwaitingReview :many
+WITH RECURSIVE scope AS (
+    SELECT id FROM categories
+    WHERE project_id = $1
+      AND (sqlc.narg('category_id')::text IS NULL OR id = sqlc.narg('category_id')::text)
+  UNION ALL
+    SELECT c.id FROM categories c JOIN scope s ON c.parent_id = s.id
+)
+SELECT k.* FROM cases k
+WHERE k.project_id = $1
+  AND k.archived_at IS NULL
+  AND k.state = 'to-review'
+  AND (sqlc.narg('category_id')::text IS NULL OR k.category_id IN (SELECT id FROM scope))
+ORDER BY k.title, k.id;

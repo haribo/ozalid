@@ -421,6 +421,68 @@ func (q *Queries) CaseStandingRefusals(ctx context.Context, caseID string) ([]Ca
 	return items, nil
 }
 
+const casesAwaitingReview = `-- name: CasesAwaitingReview :many
+WITH RECURSIVE scope AS (
+    SELECT id FROM categories
+    WHERE project_id = $1
+      AND ($2::text IS NULL OR id = $2::text)
+  UNION ALL
+    SELECT c.id FROM categories c JOIN scope s ON c.parent_id = s.id
+)
+SELECT k.id, k.project_id, k.category_id, k.title, k.description, k.state, k.archived_at, k.created_at, k.updated_at FROM cases k
+WHERE k.project_id = $1
+  AND k.archived_at IS NULL
+  AND k.state = 'to-review'
+  AND ($2::text IS NULL OR k.category_id IN (SELECT id FROM scope))
+ORDER BY k.title, k.id
+`
+
+type CasesAwaitingReviewParams struct {
+	ProjectID  string
+	CategoryID *string
+}
+
+// The cases that may carry a queue entry, in catalogue order (#204).
+//
+// A capture's status is derived, never stored (ADR 0021), so there is no
+// column to filter captures on. The case's state is stored, and a case reads
+// `to-review` as soon as one of its captures is `to-review` or `moved` — so
+// this narrows the work to a superset the caller then derives, on the index
+// `cases_state_idx` and without walking a single capture.
+//
+// A superset, not the answer: a case also reads `to-review` when only a
+// comment or a recording awaits, with no capture in either status. Those
+// contribute no entry once derived.
+func (q *Queries) CasesAwaitingReview(ctx context.Context, arg CasesAwaitingReviewParams) ([]Case, error) {
+	rows, err := q.db.Query(ctx, casesAwaitingReview, arg.ProjectID, arg.CategoryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Case{}
+	for rows.Next() {
+		var i Case
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.CategoryID,
+			&i.Title,
+			&i.Description,
+			&i.State,
+			&i.ArchivedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const casesWithCaptureCounts = `-- name: CasesWithCaptureCounts :many
 WITH latest AS (
     SELECT id FROM editions

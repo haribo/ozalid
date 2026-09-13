@@ -1017,6 +1017,38 @@ export interface paths {
         patch: operations["updateCategory"];
         trace?: never;
     };
+    "/projects/{slug}/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Read the captures awaiting the reviewer
+         * @description The queue (`product.md` §3.6): every capture reading `to-review` or
+         *     `moved`, in the order a reviewer walks it — by case in catalogue order,
+         *     then by step position, then by variant label.
+         *
+         *     `categoryId` scopes it to that category and every one beneath it, at
+         *     unrestricted depth (ADR 0014). Without it, the whole project. A project
+         *     with nothing awaiting a verdict answers an empty queue, never an error.
+         *
+         *     Read-only, and computed at request time from stored facts: a capture's
+         *     status is derived, never stored (ADR 0021), and nothing enqueues or
+         *     dequeues (ADR 0002).
+         */
+        get: operations["getReviewQueue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1553,6 +1585,31 @@ export interface components {
             comments: number;
             /** @description The status of every capture the case has, after the save. */
             verdicts: components["schemas"]["CaptureVerdict"][];
+        };
+        QueueEntry: {
+            caseId: string;
+            caseTitle: string;
+            /** @description Where the case is filed. Absent only for a case filed nowhere, which creation has refused since */
+            categoryId?: string;
+            stepId: string;
+            stepName: string;
+            stepPosition: number;
+            variant: components["schemas"]["GridVariant"];
+            /**
+             * @description The capture awaiting a verdict. Its `status` reads `to-review` or
+             *     `moved` — the two that await the reviewer, and nothing on the entry
+             *     repeats what that status already says (`product.md` §3.6).
+             */
+            capture: components["schemas"]["GridCapture"];
+        };
+        ReviewQueue: {
+            /**
+             * @description In walking order: by case in catalogue order, then by step position,
+             *     then by variant label (`product.md` §3.6). A flat list, because the
+             *     reviewer walks one capture at a time; the grouping by case is the
+             *     order, not a nesting.
+             */
+            entries: components["schemas"]["QueueEntry"][];
         };
     };
     responses: {
@@ -3158,6 +3215,33 @@ export interface operations {
                     "application/problem+json": components["schemas"]["problem"];
                 };
             };
+        };
+    };
+    getReviewQueue: {
+        parameters: {
+            query?: {
+                categoryId?: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The captures awaiting the reviewer, in walking order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewQueue"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
 }

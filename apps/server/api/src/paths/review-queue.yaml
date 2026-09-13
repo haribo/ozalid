@@ -1,0 +1,42 @@
+parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
+
+get:
+  operationId: getReviewQueue
+  security:
+    - serviceToken: []
+    - session: []
+  summary: Read the captures awaiting the reviewer
+  description: |
+    The queue (`product.md` §3.6): every capture reading `to-review` or
+    `moved`, in the order a reviewer walks it — by case in catalogue order,
+    then by step position, then by variant label.
+
+    `categoryId` scopes it to that category and every one beneath it, at
+    unrestricted depth (ADR 0014). Without it, the whole project. A project
+    with nothing awaiting a verdict answers an empty queue, never an error.
+
+    Read-only, and computed at request time from stored facts: a capture's
+    status is derived, never stored (ADR 0021), and nothing enqueues or
+    dequeues (ADR 0002).
+  tags: [reviews]
+  parameters:
+    - name: categoryId
+      in: query
+      schema: { type: string }
+  responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "200":
+      description: The captures awaiting the reviewer, in walking order.
+      content:
+        application/json:
+          schema:
+            $ref: "../components/evidence.yaml#/ReviewQueue"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"
