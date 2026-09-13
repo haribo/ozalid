@@ -547,7 +547,7 @@ func (r *Repository) move(
 	// bytes that claim to fix it, and the pin was showing the reviewer the
 	// screen from before the fix (product.md §7, #142).
 	if m == review.MoveDeliver {
-		latest, err := r.latestEditionID(ctx, q, kase.ProjectID)
+		latest, err := r.caseEdition(ctx, q, kase.ID)
 		if err != nil {
 			return appcomment.Outcome{}, err
 		}

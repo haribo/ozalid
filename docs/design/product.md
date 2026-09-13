@@ -487,8 +487,14 @@ Intake is governed by a **per-project policy** ([ADR 0007](../adr/0007-run-intak
 - `per-case` — intake is always accepted and stored; a case shows the edition
   its **holder** is judging
   ([ADR 0024](../adr/0024-the-pin-follows-the-lock.md)): a live lock pins the
-  bytes stamped at claim, and a case nobody holds always reads at the latest
-  edition — nothing to advance, nothing to catch up. **A delivery advances
+  bytes stamped at claim, and a case nobody holds reads at the latest edition
+  **that captured it** — nothing to advance, nothing to catch up. A run need
+  not cover the whole book, and one that skips a case changes nothing about
+  it: the case keeps its state and keeps showing the run that did capture it,
+  rather than going blank while the catalogue still counts it
+  ([ADR 0025](../adr/0025-a-case-reads-at-an-edition-that-captured-it.md)).
+  Verified by `TestACaseReadsAtTheLastEditionThatCoversIt` and
+  `TestClaimingACaseTheLastRunSkippedPinsWhatDidCaptureIt`. **A delivery advances
   the case at once**: judging a fix means reading the bytes that claim to fix
   it, so `deliver` re-stamps the live lock onto the latest edition even
   mid-review (#142). The pin only protects what is still being judged of the

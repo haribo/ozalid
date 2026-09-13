@@ -38,7 +38,7 @@ func (r *Repository) ClaimCase(ctx context.Context, slug, caseID string, by acto
 	}
 	// The claim stamps what is current now (ADR 0024): these are the bytes
 	// the hold will keep under the reviewer.
-	latest, err := r.latestEditionID(ctx, r.q, kase.ProjectID)
+	latest, err := r.caseEdition(ctx, r.q, kase.ID)
 	if err != nil {
 		return review.Hold{}, err
 	}
@@ -127,13 +127,17 @@ func (r *Repository) displayedEdition(ctx context.Context, q *sqlcgen.Queries, k
 	if err != nil && !isNoRows(err) {
 		return nil, translate("reading the lock", err)
 	}
-	return r.latestEditionID(ctx, q, kase.ProjectID)
+	return r.caseEdition(ctx, q, kase.ID)
 }
 
-// latestEditionID is the free case's answer — and the settle-time one, which
+// caseEdition is the free case's answer — and the settle-time one, which
 // deliberately looks past the saver's own lock (ADR 0024).
-func (r *Repository) latestEditionID(ctx context.Context, q *sqlcgen.Queries, projectID string) (*string, error) {
-	edition, err := q.LatestEdition(ctx, projectID)
+//
+// The last edition that captured **this case**, never merely the project's
+// last: a case pinned to a run that skipped it shows nothing while its state
+// still says the reviewer is needed (#253, ADR 0025).
+func (r *Repository) caseEdition(ctx context.Context, q *sqlcgen.Queries, caseID string) (*string, error) {
+	edition, err := q.LatestEditionForCase(ctx, caseID)
 	if err != nil {
 		if isNoRows(err) {
 			return nil, nil

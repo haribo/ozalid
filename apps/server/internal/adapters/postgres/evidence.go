@@ -229,12 +229,16 @@ func (r *Repository) resolveEdition(ctx context.Context, kase sqlcgen.Case, edit
 		return edition, nil
 	}
 
-	edition, err := r.q.LatestEdition(ctx, kase.ProjectID)
+	// Nobody is holding it, so it reads at the last run that captured **this
+	// case** — not the project's latest, which blanked every case a partial
+	// run skipped while their state still said the reviewer was needed
+	// (#253, ADR 0025).
+	edition, err := r.q.LatestEditionForCase(ctx, kase.ID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return sqlcgen.Edition{}, evidence.ErrNoEdition
 	}
 	if err != nil {
-		return sqlcgen.Edition{}, translate("reading the latest edition", err)
+		return sqlcgen.Edition{}, translate("reading the case's latest edition", err)
 	}
 	return edition, nil
 }
