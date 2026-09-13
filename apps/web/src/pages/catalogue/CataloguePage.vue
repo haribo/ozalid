@@ -11,7 +11,7 @@ import { useSession } from '@/features/session'
 import { useReview } from '@/features/review'
 import { CategoryTable } from '@/widgets/category-table'
 import { CaseTable } from '@/widgets/case-table'
-import { ReviewCarousel, type Walk } from '@/widgets/capture-carousel'
+import { ReviewCarousel, type Walk, type WalkSummary } from '@/widgets/capture-carousel'
 
 type Category = components['schemas']['Category']
 type Case = components['schemas']['Case']
@@ -143,6 +143,7 @@ function moveInCase(stepId: string, variantId: string) {
 /** Leaving the walk reads the queue back: what was judged during it has left,
  * and the catalogue says what is left rather than what was there on entry. */
 async function leaveWalk() {
+  summary.value = null
   await router.push(scopeUrl.value)
   await loadQueue()
 }
@@ -167,6 +168,70 @@ const review = useReview(
   () => walking.value?.caseId ?? '',
 )
 
+/** What the reader calls where they are — the category on screen, or the
+ * project. The end-of-walk screen speaks in those words (#255). */
+const scopeName = computed(() => trail.value[trail.value.length - 1]?.name ?? slug.value)
+
+/** The tally of the sitting, or null while it is still going. */
+const summary = ref<WalkSummary | null>(null)
+
+/**
+ * What the walk came to, read back from the server (#255).
+ *
+ * The entries the walk started with are compared against the statuses those
+ * captures now carry: what left the queue was judged, and the judgment says
+ * where it went. Counting the keypresses instead would produce a number the
+ * server never confirmed — and a reload mid-walk would make it lie.
+ */
+async function tally(): Promise<WalkSummary> {
+  const touched = [...new Set(queue.value.map((e) => e.caseId))]
+  const grids = await Promise.all(
+    touched.map((caseId) =>
+      api.GET('/projects/{slug}/cases/{caseId}/captures', {
+        params: { path: { slug: slug.value, caseId } },
+      }),
+    ),
+  )
+
+  const now = new Map<string, string>()
+  grids.forEach((grid) => {
+    if (grid.error) return
+    grid.data.steps.forEach((step) =>
+      step.captures.forEach((capture) => now.set(capture.id, capture.status)),
+    )
+  })
+
+  const out: WalkSummary = { accepted: 0, refused: 0, cases: 0, remaining: 0 }
+  const cases = new Set<string>()
+  queue.value.forEach((entry) => {
+    // A capture the latest read no longer knows about cannot be counted
+    // either way: it is gone from the edition on display, not judged.
+    const status = now.get(entry.capture.id)
+    if (status === 'accepted') {
+      out.accepted++
+      cases.add(entry.caseId)
+    } else if (status === 'refused') {
+      out.refused++
+      cases.add(entry.caseId)
+    } else if (status === 'to-review' || status === 'moved') {
+      out.remaining++
+    }
+  })
+  out.cases = cases.size
+  return out
+}
+
+/** The last capture is judged: say so, with what the sitting came to. */
+async function finishWalk() {
+  summary.value = await tally()
+}
+
+/** From the end screen: leave this walk and read the project's whole queue. */
+async function reviewProject() {
+  summary.value = null
+  await router.push(`/projects/${slug.value}`)
+}
+
 /** What the carousel walks: the entries, and who the reviewer is looking at
  * right now. */
 const walk = computed<Walk | undefined>(() => {
@@ -179,6 +244,8 @@ const walk = computed<Walk | undefined>(() => {
     caseId: walking.value.caseId,
     trail: here ? trailOf(here) : '',
     caseName: here?.caseTitle ?? '',
+    scope: scopeName.value,
+    summary: summary.value ?? undefined,
   }
 })
 
@@ -389,6 +456,8 @@ async function loadQueue() {
       @close="leaveWalk"
       @move="moveInCase"
       @move-entry="walkTo"
+      @finish="finishWalk"
+      @review-project="reviewProject"
     />
   </div>
 </template>
