@@ -13,3 +13,4 @@ reversal is a new ADR carrying links on both sides — are set by
 | [0004](0004-a-status-is-a-glyph-on-a-disc.md) | A status is a glyph on a disc |
 | [0005](0005-the-carousel-has-an-address.md) | The carousel has an address |
 | [0006](0006-primitives-composites-and-the-gallery.md) | Primitives, composites, and the gallery |
+| [0007](0007-a-walk-resolves-to-the-page-it-started-from.md) | A walk resolves to the page it started from |

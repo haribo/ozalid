@@ -3,18 +3,22 @@
  * The catalogue at one depth: the same screen whether it lists sub-categories
  * or cases, so descending teaches nothing new.
  */
-import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { api, type components } from '@/shared/api'
 import { TextField, EmptyState, AppButton, AdminIcon } from '@/shared/ui'
 import { useSession } from '@/features/session'
+import { useReview } from '@/features/review'
 import { CategoryTable } from '@/widgets/category-table'
 import { CaseTable } from '@/widgets/case-table'
+import { ReviewCarousel, type Walk } from '@/widgets/capture-carousel'
 
 type Category = components['schemas']['Category']
 type Case = components['schemas']['Case']
+type QueueEntry = components['schemas']['QueueEntry']
 
 const route = useRoute()
+const router = useRouter()
 const { person } = useSession()
 const slug = computed(() => String(route.params.slug))
 const categoryId = computed(() =>
@@ -78,6 +82,153 @@ const trail = computed(() => {
   return out
 })
 
+/**
+ * The queue under the category being read (product.md §3.6).
+ *
+ * Loaded once per depth and held for the length of the walk: recomputing it
+ * after every verdict would move the list under the reviewer, and the walk
+ * they started is the walk they finish (#205).
+ */
+const queue = ref<QueueEntry[]>([])
+
+const movedCount = computed(() => queue.value.filter((e) => e.capture.status === 'moved').length)
+
+/** Where the walk stands, said by the route: a capture worth judging is a
+ * capture worth pointing at, in a walk as much as in a case (frontend
+ * ADR 0005, ADR 0007). */
+const walking = computed(() =>
+  route.path.includes('/queue/') && route.params.caseId && route.params.stepId
+    ? {
+        caseId: String(route.params.caseId),
+        stepId: String(route.params.stepId),
+        variantId: String(route.params.variantId),
+      }
+    : null,
+)
+
+const queueUrl = computed(() =>
+  categoryId.value
+    ? `/projects/${slug.value}/categories/${categoryId.value}/queue`
+    : `/projects/${slug.value}/queue`,
+)
+
+const scopeUrl = computed(() =>
+  categoryId.value
+    ? `/projects/${slug.value}/categories/${categoryId.value}`
+    : `/projects/${slug.value}`,
+)
+
+function entryUrl(entry: QueueEntry) {
+  return `${queueUrl.value}/cases/${entry.caseId}/steps/${entry.stepId}/variants/${entry.variant.id}`
+}
+
+function startWalk() {
+  const first = queue.value[0]
+  if (first) void router.push(entryUrl(first))
+}
+
+/** Arrow keys walk, they do not stack: replace, so back means the catalogue
+ * rather than a retrace of every capture judged (frontend ADR 0005). */
+function walkTo(entry: QueueEntry) {
+  void router.replace(entryUrl(entry))
+}
+
+function moveInCase(stepId: string, variantId: string) {
+  if (!walking.value) return
+  void router.replace(
+    `${queueUrl.value}/cases/${walking.value.caseId}/steps/${stepId}/variants/${variantId}`,
+  )
+}
+
+/** Leaving the walk reads the queue back: what was judged during it has left,
+ * and the catalogue says what is left rather than what was there on entry. */
+async function leaveWalk() {
+  await router.push(scopeUrl.value)
+  await loadQueue()
+}
+
+/** The trail above the case being judged, trimmed of what the walk's own
+ * scope already says: entered from Recovery, the banner shows what is below
+ * Recovery and not the path back to it. */
+function trailOf(entry: QueueEntry) {
+  const names: string[] = []
+  let id = entry.categoryId ?? null
+  while (id && id !== categoryId.value) {
+    const node = categories.value.find((c) => c.id === id)
+    if (!node) break
+    names.unshift(node.name)
+    id = node.parentId ?? null
+  }
+  return names.join(' › ')
+}
+
+const review = useReview(
+  () => slug.value,
+  () => walking.value?.caseId ?? '',
+)
+
+/** What the carousel walks: the entries, and who the reviewer is looking at
+ * right now. */
+const walk = computed<Walk | undefined>(() => {
+  if (!walking.value) return undefined
+  const here = queue.value.find(
+    (e) => e.caseId === walking.value?.caseId && e.stepId === walking.value?.stepId,
+  )
+  return {
+    entries: queue.value,
+    caseId: walking.value.caseId,
+    trail: here ? trailOf(here) : '',
+    caseName: here?.caseTitle ?? '',
+  }
+})
+
+// Entering a case is claiming it, leaving it is letting go — the walk crosses
+// cases, so it does both as it goes (ADR 0005). A fresh claim stamps the hold
+// onto what is current before the first read (ADR 0024), exactly as opening a
+// case page does.
+let held = ''
+watch(
+  () => walking.value?.caseId ?? '',
+  async (now, before) => {
+    if (before && before !== now) {
+      await api.DELETE('/projects/{slug}/cases/{caseId}/lock', {
+        params: { path: { slug: slug.value, caseId: before } },
+      })
+    }
+    held = now
+    if (!now) return
+    await review.claim(true)
+    await review.load()
+  },
+  { immediate: true },
+)
+
+const HEARTBEAT_MS = 30_000
+let heartbeat: ReturnType<typeof setInterval> | undefined
+
+/** Leaving is letting go, including by closing the tab where Vue never
+ * unmounts: keepalive lets the release outlive the page (ADR 0005). */
+function releaseOnLeave() {
+  if (!held) return
+  void fetch(`/api/projects/${slug.value}/cases/${held}/lock`, {
+    method: 'DELETE',
+    keepalive: true,
+  })
+}
+
+onMounted(() => {
+  heartbeat = setInterval(() => {
+    if (held) void review.claim()
+  }, HEARTBEAT_MS)
+  window.addEventListener('pagehide', releaseOnLeave)
+})
+
+onBeforeUnmount(() => {
+  clearInterval(heartbeat)
+  window.removeEventListener('pagehide', releaseOnLeave)
+  if (held) void review.release()
+})
+
 // watch, not watchEffect: dependencies read after an await are no longer
 // tracked, so the route change would not re-run the effect and descending into
 // a category would show nothing.
@@ -123,10 +274,24 @@ watch(
     } else {
       cases.value = []
     }
+
+    await loadQueue()
     loading.value = false
   },
   { immediate: true },
 )
+
+/** What awaits the reviewer under the category on screen — the whole project
+ * at the root (product.md §3.6). */
+async function loadQueue() {
+  const awaiting = await api.GET('/projects/{slug}/queue', {
+    params: {
+      path: { slug: slug.value },
+      query: categoryId.value ? { categoryId: categoryId.value } : {},
+    },
+  })
+  queue.value = awaiting.error ? [] : awaiting.data.entries
+}
 </script>
 
 <template>
@@ -180,9 +345,50 @@ watch(
     <p v-else-if="loading" class="font-mono text-mono text-slate-500">loading…</p>
 
     <template v-else>
+      <!-- The count and the reach are one sentence: a separate scope label
+           leaves the reader to reattach it, and the catalogue is one screen at
+           every depth, so the number must say where it counts (#205,
+           product.md §3.6). -->
+      <div
+        v-if="queue.length"
+        class="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-md border border-indigo-300 border-l-4 border-l-indigo-600 bg-indigo-50 px-4 py-3 dark:border-indigo-500 dark:border-l-indigo-400 dark:bg-indigo-950"
+      >
+        <div>
+          <p class="font-semibold">
+            <span class="text-indigo-700 dark:text-indigo-300">
+              {{ queue.length }} capture{{ queue.length === 1 ? '' : 's' }}
+            </span>
+            {{ categoryId ? `in ${trail[trail.length - 1]?.name}` : `across ${slug}` }} need{{
+              queue.length === 1 ? 's' : ''
+            }}
+            your verdict
+          </p>
+          <p class="font-mono text-mono text-slate-500 dark:text-slate-400">
+            {{ queue.length - movedCount }} to-review · {{ movedCount }} moved
+          </p>
+        </div>
+        <AppButton @click="startWalk">Review them</AppButton>
+      </div>
+
       <CategoryTable v-if="children.length" :slug="slug" :categories="children" class="mb-6" />
       <CaseTable v-if="cases.length" :slug="slug" :cases="cases" />
       <EmptyState v-if="!children.length && !cases.length"> nothing here yet </EmptyState>
     </template>
+
+    <!-- Over the catalogue, not instead of it: the page stays mounted with
+         everything it holds, including a verdict a dead session refused
+         (frontend ADR 0005, ADR 0007). -->
+    <ReviewCarousel
+      v-if="walking"
+      :slug="slug"
+      :review="review"
+      :step-id="walking.stepId"
+      :variant-id="walking.variantId"
+      :walk="walk"
+      class="fixed inset-0 z-40"
+      @close="leaveWalk"
+      @move="moveInCase"
+      @move-entry="walkTo"
+    />
   </div>
 </template>

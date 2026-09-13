@@ -12,6 +12,24 @@ import { AppButton, MovedIcon, VerdictPair } from '@/shared/ui'
 
 type Grid = components['schemas']['Grid']
 type Comment = components['schemas']['Comment']
+type QueueEntry = components['schemas']['QueueEntry']
+
+/**
+ * A walk across a project's queue rather than one case's grid (#205).
+ *
+ * The entries are fixed for the length of the walk: recomputing them after
+ * every verdict would move the list under the reviewer, and the one they
+ * started is the one they finish.
+ */
+export type Walk = {
+  entries: QueueEntry[]
+  /** The case the open capture belongs to — the walk crosses cases. */
+  caseId: string
+  /** The category trail above the case, already trimmed of what every case
+   * in the walk shares. */
+  trail: string
+  caseName: string
+}
 
 const props = defineProps<{
   slug: string
@@ -19,6 +37,9 @@ const props = defineProps<{
   comments: Comment[]
   stepId: string
   variantId: string
+  /** Walking a queue: left and right follow it instead of the grid's steps,
+   * and the banner says which case the reviewer is in (#205). */
+  walk?: Walk
   /** The recording view (ADR 0023): the player instead of a capture, the
    * pair judging the video of this variant at the current edition. */
   recording?: boolean
@@ -31,6 +52,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   move: [stepId: string, variantId: string]
+  /** The walk reached another entry, which may sit in another case (#205). */
+  moveEntry: [entry: QueueEntry]
   /** Accept the capture; withdraw carries the capture's draft refusals when the
    * verdict is switched in one gesture (ADR 0020). */
   accept: [stepId: string, variantId: string, withdraw: boolean]
@@ -158,9 +181,34 @@ const verdict = computed<'none' | 'accepted' | 'refused'>(() => {
  * moved, the bar says the verdict, the grid keeps its discs. */
 const moved = computed(() => capture.value?.status === 'moved')
 
+/** Where the open capture sits in the walk, when there is one (#205). */
+const walkIndex = computed(() => {
+  const walk = props.walk
+  if (!walk) return -1
+  return walk.entries.findIndex(
+    (e) =>
+      e.caseId === walk.caseId && e.stepId === props.stepId && e.variant.id === props.variantId,
+  )
+})
+
+/** The walk crossed into another case and its grid is still on its way: the
+ * address already names the new capture, the evidence does not exist yet.
+ * Judging blind is worse than waiting, so the stage says so and the pair goes
+ * inert until the pixels are there (#205). */
+const awaitingCase = computed(() => !!props.walk && !props.recording && !capture.value)
+
 /** Left and right walk the steps, keeping the variant; a step that lacks it
  * is skipped rather than switching the lens under the reviewer (#149). */
 function go(delta: number) {
+  // Walking a queue, the walk is the queue: the next entry may be another
+  // step, another variant or another case, and the reviewer says so by
+  // pressing the same key (#205).
+  if (props.walk) {
+    if (walkIndex.value < 0) return
+    const next = props.walk.entries[walkIndex.value + delta]
+    if (next) emit('moveEntry', next)
+    return
+  }
   if (props.recording) {
     // The video is the walk's first position: right enters the steps.
     if (delta > 0) {
@@ -381,6 +429,7 @@ function onKey(event: KeyboardEvent) {
       if (props.recording) return
       event.preventDefault()
       if (sheet.value) break
+      if (awaitingCase.value) break
       onAccept()
       break
     default:
@@ -410,7 +459,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         · {{ variant?.label }}
       </span>
       <span>
-        <template v-if="!recording">{{ stepIndex + 1 }} / {{ grid.steps.length }} · </template>
+        <!-- Walking a queue, the position is the queue's: the flow's own
+             counter would answer a question the reviewer is not asking (#205). -->
+        <template v-if="walk">{{ walkIndex + 1 }} / {{ walk.entries.length }} to judge · </template>
+        <template v-else-if="!recording">{{ stepIndex + 1 }} / {{ grid.steps.length }} · </template>
         <!-- Arrow glyphs are missing from most monospace faces and render as
              empty boxes; the system font has them. -->
         <kbd class="rounded border border-current px-1 font-sans">←</kbd>
@@ -420,6 +472,26 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <kbd class="rounded border border-current px-1">space</kbd>
         {{ recording ? 'play' : 'accept' }} ·
         <kbd class="rounded border border-current px-1">Esc</kbd> close
+      </span>
+    </div>
+
+    <!-- Walking a queue, the case changes under an otherwise unchanged screen.
+         The name at title size is what says it: no interstitial, no transition
+         marker, and no status word — the verdict pair announces `to-review`
+         and the badge announces `moved` (#205, product.md §3.6). -->
+    <div
+      v-if="walk"
+      data-test="walk-banner"
+      class="flex flex-wrap items-center gap-x-3 border-b border-l-4 border-slate-200 border-l-indigo-600 bg-indigo-50 px-3 py-2 dark:border-slate-700 dark:border-l-indigo-400 dark:bg-indigo-950"
+    >
+      <span
+        v-if="walk.trail"
+        class="w-full font-mono text-mono text-indigo-700 dark:text-indigo-300"
+      >
+        {{ walk.trail }}
+      </span>
+      <span class="truncate text-title font-semibold text-slate-900 dark:text-slate-100">
+        {{ walk.caseName }}
       </span>
     </div>
 
@@ -444,6 +516,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <MovedIcon :size="12" />moved<template v-if="capture.movedPixels !== undefined">
           · {{ capture.movedPixels }} px</template
         >
+      </span>
+      <span
+        v-if="awaitingCase"
+        class="font-mono text-mono text-slate-500 dark:text-slate-400"
+        data-test="walk-loading"
+      >
+        loading the next case…
       </span>
       <!-- The capture takes the space the window offers and never leaves it:
            the wrapper fills the stage, so the max constraints bind against a
@@ -521,7 +600,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </p>
       <VerdictPair
         :verdict="verdict"
-        :disabled="busy || !!heldBy || sheet !== null"
+        :disabled="busy || awaitingCase || !!heldBy || sheet !== null"
         @accept="onAccept"
         @refuse="onRefuse"
       />
