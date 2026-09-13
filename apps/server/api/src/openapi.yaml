@@ -87,6 +87,8 @@ paths:
     $ref: "./paths/case-archive.yaml"
   /projects/{slug}/categories/{categoryId}:
     $ref: "./paths/category.yaml"
+  /projects/{slug}/queue:
+    $ref: "./paths/review-queue.yaml"
 
 # Declared on every operation, never globally. An empty default would say the
 # same thing less visibly — this way `security` is a decision somebody made

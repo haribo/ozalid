@@ -15,6 +15,63 @@ import (
 	"github.com/haribo/ozalid/internal/contract"
 )
 
+// ReviewQueue returns the captures awaiting the reviewer, in walking order
+// (product.md §3.6).
+//
+// Two steps, and the first is what keeps it cheap. A capture's status is
+// derived at read time and sits in no column (ADR 0021), so there is nothing
+// to filter captures on — but the case's state is stored, and a case reads
+// `to-review` as soon as one of its captures does or has moved. Reading those
+// cases off `cases_state_idx` narrows the work to a superset; deriving them
+// with the one rule the domain owns turns it into the answer. Copying that
+// derivation into SQL would be a second implementation of it (#204).
+func (r *Repository) ReviewQueue(ctx context.Context, slug string, categoryID *string) ([]evidence.QueueEntry, error) {
+	project, err := r.q.GetProjectBySlug(ctx, slug)
+	if err != nil {
+		return nil, translate("reading the project", err)
+	}
+	candidates, err := r.q.CasesAwaitingReview(ctx, sqlcgen.CasesAwaitingReviewParams{
+		ProjectID: project.ID, CategoryID: categoryID,
+	})
+	if err != nil {
+		return nil, translate("reading the cases awaiting review", err)
+	}
+
+	queue := make([]evidence.QueueEntry, 0, len(candidates))
+	for _, kase := range candidates {
+		// The grid comes ordered by step position then variant label, which is
+		// the walking order, and it carries the derived statuses already.
+		grid, err := r.CaseGrid(ctx, slug, kase.ID, nil)
+		if err != nil {
+			// A queue that swallows a read failure drops work off a reviewer's
+			// list without a word. It fails loudly instead.
+			return nil, err
+		}
+		variants := make(map[string]evidence.Variant, len(grid.Variants))
+		for _, v := range grid.Variants {
+			variants[v.ID] = v
+		}
+
+		for _, step := range grid.Steps {
+			for _, capture := range step.Captures {
+				// The two statuses that await the reviewer, and no third
+				// source. A case reading `to-review` because a comment or a
+				// recording awaits, with no capture in either status,
+				// contributes nothing.
+				if capture.Status != string(review.CaptureToReview) && capture.Status != string(review.CaptureMoved) {
+					continue
+				}
+				queue = append(queue, evidence.QueueEntry{
+					CaseID: kase.ID, CaseTitle: kase.Title, CategoryID: kase.CategoryID,
+					StepID: step.ID, StepName: step.Name, StepPos: step.Position,
+					Variant: variants[capture.VariantID], Capture: capture,
+				})
+			}
+		}
+	}
+	return queue, nil
+}
+
 // CaseGrid reads one case's evidence at one edition.
 func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionID *string) (evidence.Grid, error) {
 	// The project is part of the lookup, so a case from elsewhere has no grid

@@ -73,9 +73,27 @@ type Grid struct {
 	Recordings []Recording
 }
 
+// QueueEntry is one capture awaiting the reviewer, carrying where it sits: a
+// reviewer walking a project's work needs the case and the step to know what
+// they are looking at (product.md §3.6).
+//
+// Nothing here repeats the capture's status in another word — the status is on
+// the capture, and one fact gets one word (ADR 0021).
+type QueueEntry struct {
+	CaseID     string
+	CaseTitle  string
+	CategoryID *string
+	StepID     string
+	StepName   string
+	StepPos    int
+	Variant    Variant
+	Capture    Capture
+}
+
 // Repository is the outbound port this package needs.
 type Repository interface {
 	CaseGrid(ctx context.Context, slug, caseID string, editionID *string) (Grid, error)
+	ReviewQueue(ctx context.Context, slug string, categoryID *string) ([]QueueEntry, error)
 	CaptureBlob(ctx context.Context, slug, captureID string) (string, error)
 	RecordingBlob(ctx context.Context, slug, recordingID string) (string, error)
 	JudgeRecording(ctx context.Context, slug, recordingID string, by actor.Actor, accept bool, remark string) (review.CaseState, error)
@@ -95,6 +113,15 @@ func New(repo Repository) *Service { return &Service{repo: repo} }
 // being instrumented is a legitimate state, not a failure (ADR 0012).
 func (s *Service) Grid(ctx context.Context, slug, caseID string, editionID *string) (Grid, error) {
 	return s.repo.CaseGrid(ctx, slug, caseID, editionID)
+}
+
+// Queue returns the captures awaiting the reviewer under a category, or under
+// the whole project when categoryID is nil (product.md §3.6).
+//
+// Nothing to review is an empty queue, not an error: a project whose book is
+// clean is the point of the exercise.
+func (s *Service) Queue(ctx context.Context, slug string, categoryID *string) ([]QueueEntry, error) {
+	return s.repo.ReviewQueue(ctx, slug, categoryID)
 }
 
 // CaptureBlob answers where one capture's bytes are stored, or ErrNotFound

@@ -83,6 +83,11 @@ func (c oneCapture) RecordingBlob(context.Context, string, string) (string, erro
 	return "", catalogue.ErrNotFound
 }
 
+// These tests read one capture's bytes; the queue is not what they exercise.
+func (c oneCapture) ReviewQueue(context.Context, string, *string) ([]evidence.QueueEntry, error) {
+	return nil, nil
+}
+
 // serverHolding wires a server whose one capture points at hash.
 func serverHolding(t *testing.T, hash string) http.Handler {
 	t.Helper()
