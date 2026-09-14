@@ -15,6 +15,7 @@ import {
   pushRecordings,
 } from './fixture'
 import { emptyMailbox, linkSentTo } from './mailbox'
+import { asksAsThemselves, freshContext, signIn } from './session'
 
 /** The grid's own captures. The recap is another table, and its ticks are actions
  * rather than statuses — an assertion that spans both proves nothing about
@@ -421,17 +422,13 @@ test('a held case reads the same and refuses the verdict (#95)', async ({ page, 
   await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
   await expect(page.locator('table').first()).toBeVisible()
 
-  // Marc, in a browser of his own.
-  const theirs = await context.browser()!.newContext()
+  // Marc, in a browser of his own — from nothing, and asking as himself: a
+  // bare newContext() would carry the first reviewer's session, and this test
+  // would be checking that somebody is refused their own lock (#123).
+  const theirs = await freshContext(context)
   const their = await theirs.newPage()
-  const { emptyMailbox: empty, linkSentTo: link } = await import('./mailbox')
-  await empty(email)
-  await their.goto('/sign-in')
-  await their.getByLabel('address').fill(email)
-  await their.getByRole('button', { name: 'Send the link' }).click()
-  await expect(their.getByText('The link is on its way.')).toBeVisible()
-  await their.goto(`/sign-in/${await link(email)}`)
-  await expect(their.getByRole('button', { name: 'sign out' })).toBeVisible()
+  await signIn(their, email)
+  await asksAsThemselves(context, theirs)
 
   // The server refuses his verdict, whatever the screen offers — and names
   // the holder. The state reads the same as before the hold.
