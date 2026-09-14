@@ -15,7 +15,14 @@
 import { computed } from 'vue'
 import type { components } from '@/shared/api'
 import { EmptyState, AppButton, MissingIcon, MovedIcon, StateIcon, VariantHead } from '@/shared/ui'
-import { type Tone } from '@/shared/lib'
+import {
+  isSettled,
+  readingOf,
+  SETTLED_GROUND,
+  SETTLED_INK,
+  SETTLED_LABEL,
+  SETTLED_TONE,
+} from '@/shared/lib'
 
 type Grid = components['schemas']['Grid']
 type Capture = Grid['steps'][number]['captures'][number]
@@ -55,34 +62,18 @@ const RING: Record<string, string> = {
   refused: 'border-amber-600 dark:border-amber-500',
   'to-review': NEUTRAL,
 }
-const INK: Record<string, string> = {
-  accepted: 'text-emerald-700 dark:text-emerald-400',
-  refused: 'text-amber-700 dark:text-amber-400',
-}
-const TONE: Record<string, Tone> = { accepted: 'done', refused: 'dev' }
-const LABEL: Record<string, string> = { accepted: 'accepted', refused: 'refused' }
-
 /**
- * The six readings a capture can have, and no others.
- *
- * A capture that has moved is one of them: for the only question the grid asks,
- * it has not been validated — not the bytes on display. It renders as a capture
- * to judge, and the mark saying why it came back takes the place of the verdict
- * badge it used to wear. Validated-and-moved and commented-and-moved are one
- * capture: what separated them is exactly what the grid no longer reports
- * (frontend ADR 0003).
+ * The readings a capture has, and the marks that carry them, both read from
+ * `shared/lib` since ADR 0026: the stage draws the same answer to the same
+ * question, and two copies are how two surfaces drift apart (frontend
+ * ADR 0002, ADR 0003).
  */
-function reading(capture: Capture): 'moved' | 'judged' | 'pending' {
-  if (capture.status === 'moved') return 'moved'
-  if (capture.status === 'accepted' || capture.status === 'refused') return 'judged'
-  return 'pending'
+function reading(capture: Capture) {
+  return readingOf(capture.status)
 }
 
-/** Judged and settled: it steps back, because full intensity is reserved for
- * what still needs eyes. That is what makes the answer readable at a glance
- * rather than by counting. */
 function settled(capture: Capture) {
-  return reading(capture) === 'judged'
+  return isSettled(capture.status)
 }
 
 function isOpen(step: Grid['steps'][number], capture: Capture) {
@@ -181,12 +172,12 @@ const tally = computed(() => {
                 <span
                   v-if="recordingOf(v.id)!.status !== 'to-review'"
                   class="pointer-events-none absolute inset-0 grid place-items-center"
-                  :class="INK[recordingOf(v.id)!.status]"
+                  :class="SETTLED_INK[recordingOf(v.id)!.status]"
                 >
                   <StateIcon
-                    :tone="TONE[recordingOf(v.id)!.status]"
+                    :tone="SETTLED_TONE[recordingOf(v.id)!.status]"
                     :size="18"
-                    :label="LABEL[recordingOf(v.id)!.status]"
+                    :label="SETTLED_LABEL[recordingOf(v.id)!.status]"
                     :class="
                       recordingOf(v.id)!.status === 'accepted'
                         ? 'bg-emerald-50 dark:bg-emerald-950'
@@ -241,17 +232,13 @@ const tally = computed(() => {
                   <span
                     v-if="settled(captureOf(step, v.id)!)"
                     class="pointer-events-none absolute inset-0 grid place-items-center"
-                    :class="INK[captureOf(step, v.id)!.status]"
+                    :class="SETTLED_INK[captureOf(step, v.id)!.status]"
                   >
                     <StateIcon
-                      :tone="TONE[captureOf(step, v.id)!.status]"
+                      :tone="SETTLED_TONE[captureOf(step, v.id)!.status]"
                       :size="18"
-                      :label="LABEL[captureOf(step, v.id)!.status]"
-                      :class="
-                        captureOf(step, v.id)!.status === 'accepted'
-                          ? 'bg-emerald-50 dark:bg-emerald-950'
-                          : 'bg-amber-50 dark:bg-amber-950'
-                      "
+                      :label="SETTLED_LABEL[captureOf(step, v.id)!.status]"
+                      :class="SETTLED_GROUND[captureOf(step, v.id)!.status]"
                     />
                   </span>
                   <span

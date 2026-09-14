@@ -55,11 +55,12 @@ describe('CaptureCarousel', () => {
     expect(mountAt('v2').text()).toContain('1 / 1')
   })
 
-  it('never marks the capture: no veil, no disc — the verdict lives in the bar (ADR 0020)', () => {
+  it('marks a settled capture: the veil and the disc, as the grid does (ADR 0026)', () => {
     const judged = mountAt('v2')
-    expect(judged.find('img').classes()).not.toContain('opacity-40')
-    expect(judged.find('[aria-label="accepted"]').exists()).toBe(false)
-    // The bar is where the verdict reads.
+    expect(judged.find('img').classes()).toContain('opacity-40')
+    expect(judged.find('[data-test="stage-mark"]').exists()).toBe(true)
+    expect(judged.find('[aria-label="accepted"]').exists()).toBe(true)
+    // The bar still reads the verdict: the mark answers another question.
     expect(half(judged, '✓ accepted').attributes('aria-pressed')).toBe('true')
   })
 
