@@ -114,6 +114,10 @@ export async function push(
   category = 'account',
 ) {
   expect(shots.length, 'nothing was captured').toBeGreaterThan(0)
+  // Nowhere to push to is not a failure: the walk and its stability check have
+  // already done their work, and they are the part that must run everywhere
+  // (#264).
+  if (!pushes) return
   const caseId = await caseFor(title, category)
 
   // One step per screen, one capture per variant. The order of the steps is the
