@@ -23,6 +23,10 @@ export default defineConfig({
   // its own — it does not inherit the one above.
   preview: {
     port: Number(process.env.OZALID_E2E_WEB_PORT ?? 4174),
+    // A busy port is a loud failure. Without this vite serves on the next free
+    // one, and an e2e suite told to look at 4174 points at whatever lives
+    // there — another product's app, for two runs, on 2026-09-05 (#168).
+    strictPort: true,
     proxy: { '/api': API },
   },
   test: {
