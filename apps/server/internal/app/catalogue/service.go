@@ -114,6 +114,15 @@ func (s *Service) ArchiveCase(ctx context.Context, slug, id string) error {
 	return nil
 }
 
+// CaseHistory reads how a case reached the state it is in (#94,
+// product.md §9).
+//
+// A read, and only a read: the journal says how the state got here, it does
+// not get to disagree about where it is (ADR 0002).
+func (s *Service) CaseHistory(ctx context.Context, slug, id string) ([]catalogue.Transition, error) {
+	return s.repo.CaseHistory(ctx, slug, id)
+}
+
 // CreateCategory adds a node to the tree.
 func (s *Service) CreateCategory(ctx context.Context, projectID string, parentID *string, name string, position int32) (catalogue.Category, error) {
 	cleaned, err := catalogue.CleanName(name)

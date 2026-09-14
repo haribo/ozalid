@@ -249,6 +249,52 @@ func (s *Server) UpdateCase(ctx context.Context, request openapi.UpdateCaseReque
 	return openapi.UpdateCase200JSONResponse(toAPICase(updated)), nil
 }
 
+// GetCaseHistory answers how a case reached the state it is in (#94).
+func (s *Server) GetCaseHistory(ctx context.Context, request openapi.GetCaseHistoryRequestObject) (openapi.GetCaseHistoryResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.ReadProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.GetCaseHistory401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.GetCaseHistory403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
+	history, err := s.catalogue.CaseHistory(ctx, request.Slug, request.CaseId)
+	if errors.Is(err, app.ErrNotFound) {
+		return openapi.GetCaseHistory404ApplicationProblemPlusJSONResponse{
+			NotFoundApplicationProblemPlusJSONResponse: notFound("case"),
+		}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]openapi.Transition, 0, len(history))
+	for _, t := range history {
+		transition := openapi.Transition{
+			At:    t.At,
+			Cause: t.Cause,
+			Actor: openapi.Actor{
+				Id:   t.Actor.ID,
+				Kind: openapi.ActorKind(t.Actor.Kind),
+				Name: nonEmptyPtr(t.Actor.Name),
+			},
+		}
+		if t.FromState != "" {
+			from := openapi.CaseState(t.FromState)
+			transition.FromState = &from
+		}
+		if t.ToState != "" {
+			to := openapi.CaseState(t.ToState)
+			transition.ToState = &to
+		}
+		out = append(out, transition)
+	}
+	return openapi.GetCaseHistory200JSONResponse(out), nil
+}
+
 // ArchiveCase takes a case out of the catalogue without destroying it.
 func (s *Server) ArchiveCase(ctx context.Context, request openapi.ArchiveCaseRequestObject) (openapi.ArchiveCaseResponseObject, error) {
 	if why, no := s.mayNot(ctx, request.Slug, access.WriteProject); no {

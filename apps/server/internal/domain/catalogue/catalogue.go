@@ -89,6 +89,31 @@ type Case struct {
 	Held *review.Held
 }
 
+// Transition is one recorded change of state on a case (#94).
+//
+// The journal also stores the inputs the computation consumed and the rule
+// version that produced it — a regression oracle (ADR 0002), not something a
+// reader is owed. They stop at the repository.
+type Transition struct {
+	At        time.Time
+	FromState string
+	ToState   string
+	// Cause is the fact that caused the change, in the server's own words:
+	// `edition-accepted`, `review-saved`, `comment-discarded`.
+	Cause string
+	Actor TransitionActor
+}
+
+// TransitionActor is who caused it. The kind is derived from how the caller
+// authenticated, which is why the journal is worth keeping (ADR 0018).
+type TransitionActor struct {
+	ID   string
+	Kind string
+	// Name is empty when the account is gone or was never named: rows written
+	// before identity existed keep whatever they named.
+	Name string
+}
+
 // Archived reports whether the case has left the catalogue. An archived case
 // stays readable with its captures, comments and journal (ADR 0014).
 func (c Case) Archived() bool { return c.ArchivedAt != nil }

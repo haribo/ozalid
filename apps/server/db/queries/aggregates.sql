@@ -423,3 +423,21 @@ WHERE k.project_id = $1
   AND k.state = 'to-review'
   AND (sqlc.narg('category_id')::text IS NULL OR k.category_id IN (SELECT id FROM scope))
 ORDER BY k.title, k.id;
+
+-- A case's transitions, oldest first, each naming who caused it (#94).
+--
+-- `inputs` and `rule_version` stay here: they are the regression oracle
+-- (ADR 0002), not something a reader is owed, and shipping the computation's
+-- fingerprint invites a client to compute on it.
+--
+-- The actor's name is resolved where it can be — a person, or a program —
+-- because an opaque id names nobody. Rows written before identity existed keep
+-- whatever they named; history is not rewritten to look answered.
+-- name: CaseHistory :many
+SELECT j.from_state, j.to_state, j.cause, j.actor_id, j.actor_kind, j.at,
+       coalesce(u.name, s.name, '')::text AS actor_name
+FROM journal j
+LEFT JOIN users u ON u.id = j.actor_id
+LEFT JOIN service_accounts s ON s.id = j.actor_id
+WHERE j.case_id = $1
+ORDER BY j.at, j.id;

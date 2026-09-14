@@ -67,6 +67,8 @@ paths:
     $ref: "./paths/case.yaml"
   /projects/{slug}/cases/{caseId}/lock:
     $ref: "./paths/case-lock.yaml"
+  /projects/{slug}/cases/{caseId}/history:
+    $ref: "./paths/case-history.yaml"
   /projects/{slug}/cases/{caseId}/captures:
     $ref: "./paths/case-captures.yaml"
   /projects/{slug}/cases/{caseId}/comments:

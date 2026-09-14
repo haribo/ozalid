@@ -1420,6 +1420,52 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /projects/{slug}/cases/{caseId}/history:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getCaseHistory
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Read how a case reached the state it is in
+      description: |
+        The transition journal (`product.md` §9): every recorded change of state on
+        this case, oldest first, each naming what caused it and who.
+
+        It answers *what happened on this case, in order, caused by whom*. It is
+        **not** an audit export (`product.md` §10) and it is not a second source of
+        truth for the state: the state is stored and computed by the server
+        (ADR 0002), and the journal says how it got there without getting to
+        disagree about where it is.
+
+        A case nobody has ever moved answers an empty history, not an error.
+      tags:
+        - cases
+      responses:
+        '200':
+          description: The transitions, oldest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transition'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /projects/{slug}/cases/{caseId}/captures:
     parameters:
       - name: slug
@@ -2606,6 +2652,48 @@ components:
           description: |
             Another category of the same project. Absent leaves it alone, and
             there is no way to remove it: a case belongs to exactly one.
+    Actor:
+      type: object
+      required:
+        - id
+        - kind
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum:
+            - human
+            - machine
+        name:
+          type: string
+          description: |
+            Absent when the account is gone or was never named — rows written
+            before identity existed keep whatever they named, and history is not
+            rewritten to look answered.
+    Transition:
+      type: object
+      required:
+        - at
+        - cause
+        - actor
+      properties:
+        at:
+          type: string
+          format: date-time
+        fromState:
+          $ref: '#/components/schemas/CaseState'
+        toState:
+          $ref: '#/components/schemas/CaseState'
+        cause:
+          type: string
+          description: |
+            The fact that caused the change, in the server's own words —
+            `edition-accepted`, `review-saved`, `comment-discarded`. Not an enum:
+            the vocabulary grows with the moves the product records, and a client
+            that switches on it would break on the next one.
+        actor:
+          $ref: '#/components/schemas/Actor'
     GridVariant:
       type: object
       required:
