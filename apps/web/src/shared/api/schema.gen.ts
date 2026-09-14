@@ -1381,6 +1381,10 @@ export interface components {
              * @description The capture. Fetch its image at
              *     `/projects/{slug}/captures/{captureId}` — the hash names no project and
              *     cannot be authorised (`product.md` §8.1).
+             *
+             *     It names **these bytes at this edition**: the same step and variant,
+             *     re-captured by the next run, is a different capture with a different
+             *     id. Quoting one elsewhere quotes a moment, not a screen.
              */
             id: string;
             variantId: string;

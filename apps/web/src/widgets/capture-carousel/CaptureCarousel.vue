@@ -8,7 +8,7 @@
  */
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import type { components } from '@/shared/api'
-import { AppButton, MovedIcon, VerdictPair } from '@/shared/ui'
+import { AppButton, CopyableId, MovedIcon, VariantHead, VerdictPair } from '@/shared/ui'
 
 type Grid = components['schemas']['Grid']
 type Comment = components['schemas']['Comment']
@@ -235,6 +235,11 @@ const walkOver = computed(() => {
     summary.refused === 1 ? '' : 's'
   } went back to the developers.`
 })
+
+/** The id of the object on screen — the capture, or the recording in the
+ * recording view. Absent when there is nothing to name: crossing into the next
+ * case of a walk, the header stands before its evidence arrives (#258). */
+const namedId = computed(() => (props.recording ? rec.value?.id : capture.value?.id))
 
 const awaitingCase = computed(() => !!props.walk && !props.recording && !capture.value)
 
@@ -547,11 +552,31 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <div
         class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 font-mono text-mono text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
       >
-        <span>
-          <b class="font-medium text-slate-900 dark:text-slate-100">{{
-            recording ? 'recording' : step?.name
-          }}</b>
-          · {{ variant?.label }}
+        <span class="flex min-w-0 items-center gap-2.5">
+          <!-- The id of what is on screen, so a capture worth judging can be
+               quoted elsewhere — a ticket, a thread, a request against the API
+               (#258, product.md §3.5). -->
+          <CopyableId
+            v-if="namedId"
+            data-test="named-id"
+            :value="namedId"
+            :label="`Copy the ${recording ? 'recording' : 'capture'} id`"
+          />
+          <span class="truncate">
+            <b class="font-medium text-slate-900 dark:text-slate-100">{{
+              recording ? 'recording' : step?.name
+            }}</b>
+            ·
+          </span>
+          <!-- The variant as the grid draws it (#220): shapes for the values
+               the interface knows, words for the ones it does not. -->
+          <VariantHead
+            v-if="variant"
+            :label="variant.label"
+            :values="variant.values"
+            compact
+            class="flex-none"
+          />
         </span>
         <span>
           <!-- Walking a queue, the position is the queue's: the flow's own

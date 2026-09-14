@@ -265,6 +265,13 @@ draft can no longer be edited or withdrawn. Verified by
 lives in the bar, and the grid keeps its marks. One issue at a time in the
 zone: the capture's other references live in the recap.
 
+**The carousel names what it shows.** The object on screen carries its id,
+copyable in one gesture: a capture worth judging is a capture worth quoting
+somewhere else — a ticket, a thread, a request against the API. Where that id
+sits in the bar is interface, not design. Verified by
+`names the capture on screen`, `names the recording in the recording view`,
+`copies the id it shows` and `names nothing when there is nothing on screen`.
+
 A capture covered by a comment whose **every open ref is delivered** reads
 `to-review`: the ball is the reviewer's, and the grid says so. It reads
 `refused` only while some ref still sits with the dev — tracked or refused —

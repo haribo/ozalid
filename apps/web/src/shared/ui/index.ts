@@ -1,4 +1,5 @@
 export { default as AdminIcon } from './AdminIcon.vue'
+export { default as CopyableId } from './CopyableId.vue'
 export { default as ActionIcon } from './ActionIcon.vue'
 export { default as MissingIcon } from './MissingIcon.vue'
 export { default as MovedIcon } from './MovedIcon.vue'
