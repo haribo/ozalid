@@ -148,10 +148,10 @@ export async function push(
     ],
   })
 
-  // Until #223 the server names the missing captures and the missing
-  // recordings in two separate refusals, so the loop uploads whatever each
-  // one lists and pushes again. Three rounds cover both worlds; a fourth
-  // refusal is a real error.
+  // One refusal names every missing address, captures and recordings together
+  // (#223, delivered by #225), so one upload round is enough: push, upload
+  // what was named, push again. A second refusal is a real error — the loop
+  // used to allow three rounds for a server that answered in two halves.
   for (let round = 0; ; round++) {
     const attempt = await fetch(`${PUSH_API}/api/projects/${PROJECT}/editions`, {
       method: 'POST',
@@ -160,7 +160,7 @@ export async function push(
     })
     if (attempt.ok) break
     const refusalBody = (await attempt.json()) as { type?: string; missingContent?: string[] }
-    if (!String(refusalBody.type).includes('missing-content') || round >= 2) {
+    if (!String(refusalBody.type).includes('missing-content') || round >= 1) {
       throw new Error(`POST /editions — ${attempt.status} ${JSON.stringify(refusalBody)}`)
     }
 
