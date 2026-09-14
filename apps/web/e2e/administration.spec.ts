@@ -5,22 +5,12 @@
  * on a project, and that person signs in and reaches the book. Every step in a
  * browser, against a real server.
  */
-import { expect, test, type Page } from '@playwright/test'
-import { emptyMailbox, linkSentTo } from './mailbox'
+import { expect, test } from '@playwright/test'
+import { asksAsThemselves, freshContext, signIn } from './session'
 
 const PROJECT = process.env.OZALID_E2E_PROJECT ?? 'e2e'
 
 const unique = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-
-/** Signs a browser in through the interface, the way a person does. */
-async function signIn(page: Page, email: string) {
-  await emptyMailbox(email)
-  await page.goto('/sign-in')
-  await page.getByLabel('address').fill(email)
-  await page.getByRole('button', { name: 'Send the link' }).click()
-  await expect(page.getByText('The link is on its way.')).toBeVisible()
-  await page.goto(`/sign-in/${await linkSentTo(email)}`)
-}
 
 test('the landing page shows the projects, not a hardcoded one', async ({ page }) => {
   // It redirected to `/projects/demo`, which exists on nobody's instance.
@@ -58,9 +48,10 @@ test('an administrator onboards somebody, who then reaches the project', async (
   await expect(page.getByRole('cell', { name, exact: true })).toBeVisible()
 
   // 3. the person signs in, in a browser of their own, and the project is there
-  const theirs = await context.browser()!.newContext()
+  const theirs = await freshContext(context)
   const their = await theirs.newPage()
   await signIn(their, email)
+  await asksAsThemselves(context, theirs)
   await expect(their.getByRole('link', { name: PROJECT, exact: true })).toBeVisible()
   await their.getByRole('link', { name: PROJECT, exact: true }).click()
   await expect(their).toHaveURL(new RegExp(`/projects/${PROJECT}$`))
@@ -78,9 +69,10 @@ test('a person who administers nothing is not offered the accounts screen', asyn
   await page.getByLabel('address').fill(email)
   await page.getByRole('button', { name: 'Create the account' }).click()
 
-  const theirs = await context.browser()!.newContext()
+  const theirs = await freshContext(context)
   const their = await theirs.newPage()
   await signIn(their, email)
+  await asksAsThemselves(context, theirs)
 
   // The link is absent, and that is a convenience: the server refuses either
   // way, which is what the next line checks.
@@ -285,16 +277,10 @@ test('a person who only reads is not offered the tree-building button', async ({
     data: { rights: 'reader' },
   })
 
-  // From nothing, not from the config's storage: the admin session must not
-  // leak into this browser (#123).
-  const theirs = await context.browser()!.newContext({
-    storageState: { cookies: [], origins: [] },
-  })
+  const theirs = await freshContext(context)
   const their = await theirs.newPage()
   await signIn(their, email)
-  // Signed in *and landed*: the top bar names the person once whoAmI resolves,
-  // and only then is the session cookie the one this test is about (#123).
-  await expect(their.getByText('sign out')).toBeVisible()
+  await asksAsThemselves(context, theirs)
 
   await their.goto(`/projects/${slug}`)
   await expect(their.getByRole('link', { name: 'checkout' })).toBeVisible()
