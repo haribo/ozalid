@@ -12,6 +12,7 @@ import {
   ActionIcon,
   AdminIcon,
   AppButton,
+  CopyableId,
   VerdictPair,
   EmptyState,
   MintedTokenPanel,
@@ -188,6 +189,17 @@ const GAUGE = [
         the one moment a token is readable · shown here with fake bytes
       </p>
       <MintedTokenPanel token="ozp_the-gallery-token-nobody-can-spend" @dismiss="() => {}" />
+    </section>
+
+    <section class="mb-10">
+      <h2 class="text-body font-semibold">CopyableId</h2>
+      <p class="mb-3 font-mono text-label text-slate-500 uppercase">
+        an id worth quoting elsewhere · no acknowledgement, the click is the answer
+      </p>
+      <div class="flex flex-wrap items-center gap-3 font-mono text-mono text-slate-500">
+        <CopyableId value="a1b2c3d4e5f6" label="Copy the capture id" />
+        <CopyableId value="9f8e7d6c5b4a" label="Copy the recording id" />
+      </div>
     </section>
   </main>
 </template>

@@ -6,8 +6,7 @@ import prettier from 'eslint-config-prettier'
 // frontend ADR 0002. A slice reaches downward, never sideways, never upward.
 const LAYERS = ['app', 'pages', 'widgets', 'features', 'shared']
 
-const upward = (layer: string) =>
-  LAYERS.slice(0, LAYERS.indexOf(layer)).map((l) => `@/${l}/*`)
+const upward = (layer: string) => LAYERS.slice(0, LAYERS.indexOf(layer)).map((l) => `@/${l}/*`)
 
 export default defineConfigWithVueTs(
   { ignores: ['dist/**', 'node_modules/**', 'src/shared/api/schema.gen.ts'] },
@@ -29,7 +28,10 @@ export default defineConfigWithVueTs(
       'vue/no-restricted-html-elements': [
         'error',
         { element: 'button', message: 'use AppButton (shared/ui) — #155' },
-        { element: 'input', message: 'use TextField (shared/ui) — #155; a checkbox is the scoped exception' },
+        {
+          element: 'input',
+          message: 'use TextField (shared/ui) — #155; a checkbox is the scoped exception',
+        },
       ],
     },
   },
@@ -37,6 +39,7 @@ export default defineConfigWithVueTs(
     // The primitives themselves: the one raw <button>, the one dashed border.
     files: [
       'src/shared/ui/AppButton.vue',
+      'src/shared/ui/CopyableId.vue',
       'src/shared/ui/VerdictPair.vue',
       'src/shared/ui/EmptyState.vue',
       'src/shared/ui/StateIcon.vue',
