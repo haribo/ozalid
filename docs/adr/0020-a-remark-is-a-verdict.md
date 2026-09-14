@@ -42,4 +42,7 @@ captures that nobody was accountable for.
   the explicit exception to ADR 0006's "nothing is deleted", scoped to the
   reviewer's own drafts; anything an issue was written from is kept forever.
 - The carousel never marks the capture: the verdict lives in the bar, the
-  grid keeps its marks.
+  grid keeps its marks. **Superseded by
+  [ADR 0026](0026-the-stage-marks-a-judged-capture.md)**: the stage marks a
+  settled capture in the grid's own language, and the cost — re-reading at full
+  strength means taking the verdict back — is written there.
