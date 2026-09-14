@@ -13,14 +13,19 @@
  */
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
-import { hashOf, push, pushes, type Recording, type Shot } from './push'
+import { hashOf, push, type Recording, type Shot } from './push'
 import { seed } from './fixture'
 import { SIGNED_IN } from './session'
 
 // Signed out, deliberately: these screens exist before anybody is.
 test.use({ storageState: { cookies: [], origins: [] } })
 
-test.skip(!pushes, 'set OZALID_PUSH_API and OZALID_PUSH_TOKEN to push captures')
+// Capturing and pushing are two things, and only the second needs somewhere to
+// push to. The walk and its double-walk run everywhere — they are the gate that
+// says a screen is byte-stable, and a gate that only fires where credentials
+// exist fires nowhere: the three flows here were skipped on every pull request
+// and on develop too, which is how an unstable screen reached the book (#264).
+// `push()` is what checks `pushes`.
 
 /**
  * An address nobody has, and a different one per shot.
@@ -43,7 +48,10 @@ const anAddress = () =>
  * whole mechanism (#107), so every shot is taken from a full paint: hide,
  * frame, show, frame.
  */
-async function freshPaint(page: Page): Promise<Buffer> {
+async function freshPaint(
+  page: Page,
+  clip?: { x: number; y: number; width: number; height: number },
+): Promise<Buffer> {
   await page.waitForTimeout(250) // transition-all is 150ms; the label has landed
   await page.evaluate(async () => {
     document.body.style.visibility = 'hidden'
@@ -51,7 +59,29 @@ async function freshPaint(page: Page): Promise<Buffer> {
     document.body.style.visibility = ''
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
   })
-  return page.screenshot({ fullPage: true })
+  return clip ? page.screenshot({ clip }) : page.screenshot({ fullPage: true })
+}
+
+/**
+ * The carousel below its header bar.
+ *
+ * The bar names the capture on screen, and a capture id is generated per
+ * edition (#258): framed in, the same screen would carry different pixels every
+ * run and mark itself `moved` forever — which is what #240's frame forbids and
+ * what #264 caught. The evidence keeps what is judged: the stage and the
+ * verdict bar.
+ */
+async function belowTheBar(page: Page) {
+  const bar = page.getByRole('dialog', { name: 'capture' }).locator('> div').first()
+  const box = await bar.boundingBox()
+  const view = page.viewportSize()!
+  if (!box) throw new Error('the carousel header was not on screen')
+  return {
+    x: 0,
+    y: Math.ceil(box.y + box.height),
+    width: view.width,
+    height: view.height - Math.ceil(box.y + box.height),
+  }
 }
 
 async function walk(page: Page, theme: 'light' | 'dark'): Promise<Shot[]> {
@@ -233,20 +263,23 @@ test.describe('judging a capture', () => {
       .click()
     const carousel = page.getByRole('dialog', { name: 'capture' })
     await expect(carousel.getByRole('button', { name: 'accept', exact: true })).toBeVisible()
-    const shots: Shot[] = [{ step: 'faces the capture', variant, bytes: await freshPaint(page) }]
+    const frame = await belowTheBar(page)
+    const shots: Shot[] = [
+      { step: 'faces the capture', variant, bytes: await freshPaint(page, frame) },
+    ]
 
     // The refusal sheet: the remark empty, the variant ticks visible. Blurred
     // so no caret ever blinks into the bytes.
     await carousel.getByRole('button', { name: 'refuse', exact: true }).click()
     await expect(carousel.getByText('Refuse the capture')).toBeVisible()
     await carousel.locator('textarea').blur()
-    shots.push({ step: 'weighs a refusal', variant, bytes: await freshPaint(page) })
+    shots.push({ step: 'weighs a refusal', variant, bytes: await freshPaint(page, frame) })
 
     // Cancel is a true no-op; accepting fills the half and tints the edge.
     await page.keyboard.press('Escape')
     await carousel.getByRole('button', { name: 'accept', exact: true }).click()
     await expect(carousel.getByRole('button', { name: '\u2713 accepted' })).toBeVisible()
-    shots.push({ step: 'has accepted', variant, bytes: await freshPaint(page) })
+    shots.push({ step: 'has accepted', variant, bytes: await freshPaint(page, frame) })
 
     return shots
   }
