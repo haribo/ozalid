@@ -8,7 +8,8 @@
  */
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import type { components } from '@/shared/api'
-import { AppButton, CopyableId, MovedIcon, VariantHead, VerdictPair } from '@/shared/ui'
+import { AppButton, CopyableId, MovedIcon, StateIcon, VariantHead, VerdictPair } from '@/shared/ui'
+import { isSettled, SETTLED_GROUND, SETTLED_INK, SETTLED_LABEL, SETTLED_TONE } from '@/shared/lib'
 
 type Grid = components['schemas']['Grid']
 type Comment = components['schemas']['Comment']
@@ -201,9 +202,19 @@ const verdict = computed<'none' | 'accepted' | 'refused'>(() => {
 })
 
 /** A capture that has moved is back to needing eyes, whatever its verdict
- * says. The image itself never wears a mark (ADR 0020): the badge says it
- * moved, the bar says the verdict, the grid keeps its discs. */
+ * says: the badge says it moved, and it keeps full strength — the mark of a
+ * settled capture would say the opposite (ADR 0026). */
 const moved = computed(() => capture.value?.status === 'moved')
+
+/**
+ * Judged and settled, so the stage says so in the grid's own language
+ * (ADR 0026): the image steps back and its status wears a disc.
+ *
+ * It reads the capture's status, never `verdict`: the pair goes empty while a
+ * delivered fix awaits judgment, and a mark taken from it would make the stage
+ * contradict the grid about the same capture.
+ */
+const settled = computed(() => !props.recording && isSettled(capture.value?.status ?? ''))
 
 /** Where the open capture sits in the walk, when there is one (#205). */
 const walkIndex = computed(() => {
@@ -626,8 +637,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <div
         class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-slate-100 p-6 dark:bg-slate-950"
       >
-        <!-- The capture at full strength, always: no veil, no disc — the
-             verdict lives in the bar, and the grid keeps its marks (ADR 0020).
+        <!-- A settled capture steps back and wears its status, exactly as the
+             grid marks it (ADR 0026): full intensity is reserved for what still
+             needs eyes. Re-reading it at full strength means taking the verdict
+             back, which the ADR records as the price.
              When the sheet is open the stage shrinks with the flex column: the
              pixels stay on screen while the remark is written. -->
         <!-- Said over the stage: the reviewer landed here from a keyboard walk
@@ -656,6 +669,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             :src="`/api/projects/${slug}/captures/${capture.id}`"
             :alt="`${step?.name} — ${variant?.label}`"
             class="max-h-full max-w-full border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900"
+            :class="settled ? 'opacity-40' : ''"
+          />
+        </span>
+        <!-- Centred over the stage, never over the image's own box: the image
+             scales, the mark does not move with it (#177). -->
+        <span
+          v-if="settled && capture"
+          data-test="stage-mark"
+          class="pointer-events-none absolute inset-0 grid place-items-center"
+          :class="SETTLED_INK[capture.status]"
+        >
+          <StateIcon
+            :tone="SETTLED_TONE[capture.status]"
+            :size="28"
+            :label="SETTLED_LABEL[capture.status]"
+            :class="SETTLED_GROUND[capture.status]"
           />
         </span>
         <!-- The player: the browser's own controls, streaming the sniffed
