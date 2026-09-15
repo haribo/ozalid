@@ -108,6 +108,46 @@ CaseUpdate:
         Another category of the same project. Absent leaves it alone, and
         there is no way to remove it: a case belongs to exactly one.
 
+Transition:
+  type: object
+  # What the journal recorded, minus what only the server may read: `inputs`
+  # and `rule_version` are the regression oracle (ADR 0002), and a reader who
+  # receives them is a reader invited to compute on them (#94).
+  required: [at, cause, actor]
+  properties:
+    at: { type: string, format: date-time }
+    fromState:
+      $ref: "#/CaseState"
+    toState:
+      $ref: "#/CaseState"
+    cause:
+      type: string
+      description: |
+        The fact that caused the change, in the server's own words —
+        `edition-accepted`, `review-saved`, `comment-discarded`. Not an enum:
+        the vocabulary grows with the moves the product records, and a client
+        that switches on it would break on the next one.
+    actor:
+      $ref: "#/Actor"
+
+Actor:
+  type: object
+  # Who caused it, and of what kind: a person or a program. That distinction is
+  # derived from how the caller authenticated and is why the journal is worth
+  # keeping (ADR 0018).
+  required: [id, kind]
+  properties:
+    id: { type: string }
+    kind:
+      type: string
+      enum: [human, machine]
+    name:
+      type: string
+      description: |
+        Absent when the account is gone or was never named — rows written
+        before identity existed keep whatever they named, and history is not
+        rewritten to look answered.
+
 Category:
   type: object
   required: [id, name, position, cases]

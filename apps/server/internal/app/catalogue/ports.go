@@ -24,6 +24,7 @@ type Repository interface {
 	ListCases(ctx context.Context, projectID string, state, categoryID *string) ([]catalogue.Case, error)
 	UpdateCase(ctx context.Context, slug, id string, patch CasePatch) (catalogue.Case, error)
 	ArchiveCase(ctx context.Context, slug, id string) (bool, error)
+	CaseHistory(ctx context.Context, slug, id string) ([]catalogue.Transition, error)
 
 	CreateCategory(ctx context.Context, projectID string, parentID *string, name string, position int32) (catalogue.Category, error)
 	UpdateCategory(ctx context.Context, slug, id string, patch CategoryPatch) (catalogue.Category, error)

@@ -185,6 +185,40 @@ func (r *Repository) UpdateCase(ctx context.Context, slug, id string, patch app.
 	return toCase(row), nil
 }
 
+// CaseHistory reads a case's transitions, oldest first (#94).
+//
+// The project is part of the lookup, so a case from elsewhere has no history
+// here rather than one somebody may not see (#71).
+func (r *Repository) CaseHistory(ctx context.Context, slug, id string) ([]catalogue.Transition, error) {
+	kase, err := r.q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: id, Slug: slug})
+	if err != nil {
+		return nil, translate("reading the case", err)
+	}
+	rows, err := r.q.CaseHistory(ctx, &kase.ID)
+	if err != nil {
+		return nil, translate("reading the journal", err)
+	}
+
+	out := make([]catalogue.Transition, 0, len(rows))
+	for _, row := range rows {
+		transition := catalogue.Transition{
+			At:    row.At.Time,
+			Cause: row.Cause,
+			Actor: catalogue.TransitionActor{
+				ID: row.ActorID, Kind: row.ActorKind, Name: row.ActorName,
+			},
+		}
+		if row.FromState != nil {
+			transition.FromState = *row.FromState
+		}
+		if row.ToState != nil {
+			transition.ToState = *row.ToState
+		}
+		out = append(out, transition)
+	}
+	return out, nil
+}
+
 func (r *Repository) ArchiveCase(ctx context.Context, slug, id string) (bool, error) {
 	rows, err := r.q.ArchiveCase(ctx, sqlcgen.ArchiveCaseParams{ID: id, Slug: slug})
 	if err != nil {

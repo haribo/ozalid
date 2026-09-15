@@ -335,6 +335,63 @@ func (q *Queries) CaseComments(ctx context.Context, arg CaseCommentsParams) ([]C
 	return items, nil
 }
 
+const caseHistory = `-- name: CaseHistory :many
+SELECT j.from_state, j.to_state, j.cause, j.actor_id, j.actor_kind, j.at,
+       coalesce(u.name, s.name, '')::text AS actor_name
+FROM journal j
+LEFT JOIN users u ON u.id = j.actor_id
+LEFT JOIN service_accounts s ON s.id = j.actor_id
+WHERE j.case_id = $1
+ORDER BY j.at, j.id
+`
+
+type CaseHistoryRow struct {
+	FromState *string
+	ToState   *string
+	Cause     string
+	ActorID   string
+	ActorKind string
+	At        pgtype.Timestamptz
+	ActorName string
+}
+
+// A case's transitions, oldest first, each naming who caused it (#94).
+//
+// `inputs` and `rule_version` stay here: they are the regression oracle
+// (ADR 0002), not something a reader is owed, and shipping the computation's
+// fingerprint invites a client to compute on it.
+//
+// The actor's name is resolved where it can be — a person, or a program —
+// because an opaque id names nobody. Rows written before identity existed keep
+// whatever they named; history is not rewritten to look answered.
+func (q *Queries) CaseHistory(ctx context.Context, caseID *string) ([]CaseHistoryRow, error) {
+	rows, err := q.db.Query(ctx, caseHistory, caseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CaseHistoryRow{}
+	for rows.Next() {
+		var i CaseHistoryRow
+		if err := rows.Scan(
+			&i.FromState,
+			&i.ToState,
+			&i.Cause,
+			&i.ActorID,
+			&i.ActorKind,
+			&i.At,
+			&i.ActorName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const caseReferences = `-- name: CaseReferences :many
 SELECT step_id, variant_id, environment_id, blob_hash, approved_by, approved_at
 FROM capture_references

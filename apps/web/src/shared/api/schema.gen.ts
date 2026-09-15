@@ -731,6 +731,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{slug}/cases/{caseId}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Read how a case reached the state it is in
+         * @description The transition journal (`product.md` §9): every recorded change of state on
+         *     this case, oldest first, each naming what caused it and who.
+         *
+         *     It answers *what happened on this case, in order, caused by whom*. It is
+         *     **not** an audit export (`product.md` §10) and it is not a second source of
+         *     truth for the state: the state is stored and computed by the server
+         *     (ADR 0002), and the journal says how it got there without getting to
+         *     disagree about where it is.
+         *
+         *     A case nobody has ever moved answers an empty history, not an error.
+         */
+        get: operations["getCaseHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{slug}/cases/{caseId}/captures": {
         parameters: {
             query?: never;
@@ -1367,6 +1399,31 @@ export interface components {
              *     there is no way to remove it: a case belongs to exactly one.
              */
             categoryId?: string;
+        };
+        Actor: {
+            id: string;
+            /** @enum {string} */
+            kind: "human" | "machine";
+            /**
+             * @description Absent when the account is gone or was never named — rows written
+             *     before identity existed keep whatever they named, and history is not
+             *     rewritten to look answered.
+             */
+            name?: string;
+        };
+        Transition: {
+            /** Format: date-time */
+            at: string;
+            fromState?: components["schemas"]["CaseState"];
+            toState?: components["schemas"]["CaseState"];
+            /**
+             * @description The fact that caused the change, in the server's own words —
+             *     `edition-accepted`, `review-saved`, `comment-discarded`. Not an enum:
+             *     the vocabulary grows with the moves the product records, and a client
+             *     that switches on it would break on the next one.
+             */
+            cause: string;
+            actor: components["schemas"]["Actor"];
         };
         GridVariant: {
             id: string;
@@ -2835,6 +2892,32 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getCaseHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The transitions, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transition"][];
+                };
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
