@@ -37,6 +37,43 @@ func (s *Server) GetCaseCaptures(ctx context.Context, request openapi.GetCaseCap
 	return openapi.GetCaseCaptures200JSONResponse(toAPIGrid(grid)), nil
 }
 
+// GetReviewQueue returns the captures awaiting the reviewer under a category,
+// or under the whole project (product.md §3.6).
+func (s *Server) GetReviewQueue(ctx context.Context, request openapi.GetReviewQueueRequestObject) (openapi.GetReviewQueueResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.ReadProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.GetReviewQueue401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.GetReviewQueue403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
+	entries, err := s.evidence.Queue(ctx, request.Slug, request.Params.CategoryId)
+	if errors.Is(err, app.ErrNotFound) {
+		return openapi.GetReviewQueue404ApplicationProblemPlusJSONResponse{
+			NotFoundApplicationProblemPlusJSONResponse: notFound("project"),
+		}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	out := openapi.ReviewQueue{Entries: make([]openapi.QueueEntry, 0, len(entries))}
+	for _, e := range entries {
+		out.Entries = append(out.Entries, openapi.QueueEntry{
+			CaseId: e.CaseID, CaseTitle: e.CaseTitle, CategoryId: e.CategoryID,
+			StepId: e.StepID, StepName: e.StepName, StepPosition: e.StepPos,
+			Variant: openapi.GridVariant{
+				Id: e.Variant.ID, Label: e.Variant.Label, Values: e.Variant.Values,
+			},
+			Capture: toAPICapture(e.Capture),
+		})
+	}
+	return openapi.GetReviewQueue200JSONResponse(out), nil
+}
+
 func toAPIGrid(g evidence.Grid) openapi.Grid {
 	out := openapi.Grid{
 		CaseId:     g.CaseID,
@@ -61,33 +98,34 @@ func toAPIGrid(g evidence.Grid) openapi.Grid {
 	for _, st := range g.Steps {
 		step := openapi.GridStep{
 			Id: st.ID, Name: st.Name, Position: st.Position,
-			Cells: make([]openapi.GridCell, 0, len(st.Cells)),
+			Captures: make([]openapi.GridCapture, 0, len(st.Captures)),
 		}
-		for _, c := range st.Cells {
-			cell := openapi.GridCell{
-				Id:         c.ID,
-				VariantId:  c.VariantID,
-				Hash:       c.Hash,
-				Status:     openapi.GridCellStatus(c.Status),
-				Provenance: toAPIProvenance(c.Provenance),
-			}
-			// Absent rather than empty: "nothing to compare against" is a
-			// different answer from "unchanged" (ADR 0017).
-			if c.Freshness != "" {
-				fresh := openapi.GridCellFreshness(c.Freshness)
-				cell.Freshness = &fresh
-			}
-			cell.MovedPixels = c.MovedPixels
-			step.Cells = append(step.Cells, cell)
+		for _, c := range st.Captures {
+			step.Captures = append(step.Captures, toAPICapture(c))
 		}
 		out.Steps = append(out.Steps, step)
 	}
 	for _, r := range g.Recordings {
 		out.Recordings = append(out.Recordings, openapi.GridRecording{
 			Id: r.ID, VariantId: r.VariantID, Hash: r.Hash,
+			Status:  openapi.GridRecordingStatus(r.Status),
+			Refusal: nonEmptyPtr(r.Refusal),
 		})
 	}
 	return out
+}
+
+// toAPICapture renders one capture, wherever it is read from: the grid and the
+// queue show the same thing and must not drift into two renderings of it.
+func toAPICapture(c evidence.Capture) openapi.GridCapture {
+	return openapi.GridCapture{
+		Id:          c.ID,
+		VariantId:   c.VariantID,
+		Hash:        c.Hash,
+		Status:      openapi.GridCaptureStatus(c.Status),
+		MovedPixels: c.MovedPixels,
+		Provenance:  toAPIProvenance(c.Provenance),
+	}
 }
 
 // toAPIProvenance omits the whole object when nothing was recorded, rather than

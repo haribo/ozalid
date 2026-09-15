@@ -1,6 +1,6 @@
 // Package session saves what a reviewer decided in one sitting.
 //
-// One save carries everything: the squares validated and the comments written.
+// One save carries everything: the verdicts given and the remarks written.
 // Splitting it would let a case sit half-judged between two calls, which is
 // the state the whole product exists to avoid.
 package session
@@ -22,29 +22,35 @@ var (
 	// variants is one comment with four variants checked; zero variants is a
 	// comment about nothing (ADR 0006).
 	ErrNoVariant = errors.New("session: a comment covers no variant")
-	// ErrUnknownKind means the comment is neither a defect nor an improvement.
-	ErrUnknownKind = errors.New("session: unknown comment kind")
 )
 
-// NewComment is a report the reviewer wrote during the session.
+// NewComment is a remark the reviewer wrote while refusing. It carries no
+// kind: qualifying into fix or feature belongs to whoever writes the issues
+// (ADR 0020).
 type NewComment struct {
 	StepID     string
-	Kind       string
 	Body       string
 	VariantIDs []string
 }
 
 // Save is what one sitting produced.
 type Save struct {
-	// Validated are the squares the reviewer looked at with nothing to say.
-	Validated []review.Cell
-	Comments  []NewComment
+	// Accepted are the captures the reviewer looked at with nothing to say.
+	Accepted []review.Capture
+	// Unaccepted are acceptances taken back — a misclick, or a second look.
+	// The verdict is a toggle until the review ends (#156, ADR 0020).
+	Unaccepted []review.Capture
+	// Unrefused are draft refusals withdrawn: the reviewer's own remarks with
+	// no issue attached go with them (ADR 0020's explicit exception).
+	Unrefused []review.Capture
+	// Comments are the remarks of this sitting's refusals.
+	Comments []NewComment
 }
 
 // Result reports what the save amounted to.
 type Result struct {
 	State    review.CaseState
-	Verdicts map[review.Cell]review.CaptureStatus
+	Verdicts map[review.Capture]review.CaptureStatus
 	Comments int
 }
 
@@ -55,6 +61,8 @@ type Result struct {
 // the transaction that guarantees it belongs in the adapter (backend ADR 0001).
 type Repository interface {
 	SaveReview(ctx context.Context, slug, caseID string, by actor.Actor, save Save) (Result, error)
+	ClaimCase(ctx context.Context, slug, caseID string, by actor.Actor, fresh bool) (review.Hold, error)
+	ReleaseCase(ctx context.Context, slug, caseID string, by actor.Actor) error
 }
 
 // Service saves review sessions.
@@ -62,6 +70,17 @@ type Service struct{ repo Repository }
 
 // New returns a Service backed by repo.
 func New(repo Repository) *Service { return &Service{repo: repo} }
+
+// Claim holds the case for this reviewer, or renews the hold — the same call
+// is the heartbeat (ADR 0005, #95).
+func (s *Service) Claim(ctx context.Context, slug, caseID string, by actor.Actor, fresh bool) (review.Hold, error) {
+	return s.repo.ClaimCase(ctx, slug, caseID, by, fresh)
+}
+
+// Release lets the case go; a lock not held answers nothing.
+func (s *Service) Release(ctx context.Context, slug, caseID string, by actor.Actor) error {
+	return s.repo.ReleaseCase(ctx, slug, caseID, by)
+}
 
 // Save validates the session and records it.
 //
@@ -74,14 +93,11 @@ func (s *Service) Save(ctx context.Context, slug, caseID string, by actor.Actor,
 		if body == "" {
 			return Result{}, ErrEmptyBody
 		}
-		if c.Kind != "defect" && c.Kind != "improvement" {
-			return Result{}, ErrUnknownKind
-		}
 		if len(c.VariantIDs) == 0 {
 			return Result{}, ErrNoVariant
 		}
 		cleaned = append(cleaned, NewComment{
-			StepID: c.StepID, Kind: c.Kind, Body: body, VariantIDs: c.VariantIDs,
+			StepID: c.StepID, Body: body, VariantIDs: c.VariantIDs,
 		})
 	}
 	save.Comments = cleaned

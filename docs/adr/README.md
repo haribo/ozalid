@@ -31,6 +31,13 @@ on the new one. The full lifecycle is set by
 | [0017](0017-a-reference-belongs-to-an-environment.md) | A reference belongs to an environment |
 | [0018](0018-an-actor-is-never-invented.md) | An actor is never invented — *partly superseded by 0019* |
 | [0019](0019-two-kinds-of-account-one-set-of-rights.md) | Two kinds of account, one set of rights |
+| [0020](0020-a-remark-is-a-verdict.md) | A remark is a verdict |
+| [0021](0021-a-status-says-where-the-next-action-happens.md) | A status says where the next action happens |
+| [0022](0022-a-judgment-lands-on-the-capture-on-screen.md) | A judgment lands on the capture on screen |
+| [0023](0023-a-recording-is-judged.md) | A recording is judged |
+| [0024](0024-the-pin-follows-the-lock.md) | The pin follows the lock |
+| [0025](0025-a-case-reads-at-an-edition-that-captured-it.md) | A case reads at an edition that captured it |
+| [0026](0026-the-stage-marks-a-judged-capture.md) | The stage marks a judged capture |
 
 0001 to 0008 were decided in a single design conversation on 2026-08-18/19 and
 settle what the product is. 0009 to 0011 followed on 2026-08-19 and settle how

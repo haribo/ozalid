@@ -1,11 +1,11 @@
-package freshness_test
+package movement_test
 
 import (
 	"image"
 	"image/color"
 	"testing"
 
-	"github.com/haribo/ozalid/apps/server/internal/domain/freshness"
+	"github.com/haribo/ozalid/apps/server/internal/domain/movement"
 )
 
 // canvas paints a w×h image in one colour.
@@ -23,10 +23,7 @@ func TestTwoIdenticalImagesHaveNotMoved(t *testing.T) {
 	a := canvas(20, 10, color.RGBA{R: 10, G: 20, B: 30, A: 255})
 	b := canvas(20, 10, color.RGBA{R: 10, G: 20, B: 30, A: 255})
 
-	got := freshness.Compare(a, b, 0)
-	if got.State != freshness.Current {
-		t.Errorf("state = %q, want current", got.State)
-	}
+	got := movement.Compare(a, b)
 	if got.Pixels != 0 {
 		t.Errorf("pixels = %d, want 0", got.Pixels)
 	}
@@ -39,9 +36,9 @@ func TestAColourRoundedDifferentlyIsTheSameColour(t *testing.T) {
 	a := canvas(20, 10, color.RGBA{R: 100, G: 100, B: 100, A: 255})
 	b := canvas(20, 10, color.RGBA{R: 102, G: 98, B: 100, A: 255})
 
-	got := freshness.Compare(a, b, 0)
-	if got.State != freshness.Current {
-		t.Errorf("state = %q, want current — a two-step difference is rounding", got.State)
+	got := movement.Compare(a, b)
+	if got.Pixels != 0 {
+		t.Errorf("pixels = %d, want 0 — a two-step difference is rounding", got.Pixels)
 	}
 }
 
@@ -49,39 +46,23 @@ func TestAColourBeyondTheToleranceIsAChange(t *testing.T) {
 	a := canvas(20, 10, color.RGBA{R: 100, G: 100, B: 100, A: 255})
 	b := canvas(20, 10, color.RGBA{R: 100, G: 100, B: 140, A: 255})
 
-	got := freshness.Compare(a, b, 0)
-	if got.State != freshness.ToReReview {
-		t.Errorf("state = %q, want to-re-review", got.State)
+	got := movement.Compare(a, b)
+	if got.Pixels != 20*10 {
+		t.Errorf("pixels = %d, want every pixel — the whole canvas changed colour", got.Pixels)
 	}
 }
 
-func TestNoiseBelowTheThresholdDoesNotSummonAnyone(t *testing.T) {
+func TestTheCountIsKeptWhateverItAmountsTo(t *testing.T) {
 	a := canvas(20, 10, color.RGBA{R: 0, G: 0, B: 0, A: 255})
 	b := canvas(20, 10, color.RGBA{R: 0, G: 0, B: 0, A: 255})
 	b.Set(3, 3, color.RGBA{R: 255, G: 255, B: 255, A: 255})
 	b.Set(4, 3, color.RGBA{R: 255, G: 255, B: 255, A: 255})
 
-	got := freshness.Compare(a, b, 5)
-	if got.State != freshness.Current {
-		t.Errorf("state = %q, want current — two pixels under a threshold of five", got.State)
-	}
-	// The count is kept even when nothing is raised: it is what makes the
-	// threshold judgeable rather than guessed.
+	got := movement.Compare(a, b)
+	// The count is what makes the project's threshold judgeable rather than
+	// guessed — the conclusion is derived against it at read time (ADR 0021).
 	if got.Pixels != 2 {
 		t.Errorf("pixels = %d, want 2", got.Pixels)
-	}
-}
-
-func TestOnePixelPastTheThresholdIsEnough(t *testing.T) {
-	a := canvas(20, 10, color.RGBA{A: 255})
-	b := canvas(20, 10, color.RGBA{A: 255})
-	for i := 0; i < 6; i++ {
-		b.Set(i, 0, color.RGBA{R: 255, G: 255, B: 255, A: 255})
-	}
-
-	got := freshness.Compare(a, b, 5)
-	if got.State != freshness.ToReReview {
-		t.Errorf("state = %q, want to-re-review — six pixels over a threshold of five", got.State)
 	}
 }
 
@@ -94,10 +75,7 @@ func TestEveryPixelIsCountedEvenOnceTheAnswerIsSettled(t *testing.T) {
 	a := canvas(400, 400, color.RGBA{A: 255})
 	b := canvas(400, 400, color.RGBA{R: 255, G: 255, B: 255, A: 255})
 
-	got := freshness.Compare(a, b, 10)
-	if got.State != freshness.ToReReview {
-		t.Fatalf("state = %q, want to-re-review", got.State)
-	}
+	got := movement.Compare(a, b)
 	if got.Pixels != 400*400 {
 		t.Errorf("pixels = %d, want %d — the whole image differs", got.Pixels, 400*400)
 	}
@@ -119,8 +97,8 @@ func TestTheFastPathAndTheSlowPathAgree(t *testing.T) {
 	// One pixel inside the tolerance, which neither path may count.
 	b.Set(59, 39, color.RGBA{R: 32, G: 58, B: 90, A: 255})
 
-	fast := freshness.Compare(a, b, 0)
-	slow := freshness.Compare(slowOnly{a}, slowOnly{b}, 0)
+	fast := movement.Compare(a, b)
+	slow := movement.Compare(slowOnly{a}, slowOnly{b})
 	if fast.Pixels != slow.Pixels {
 		t.Errorf("fast path counted %d, slow path counted %d", fast.Pixels, slow.Pixels)
 	}
@@ -133,10 +111,7 @@ func TestImagesOfDifferentShapesAreNotCompared(t *testing.T) {
 	a := canvas(20, 10, color.RGBA{A: 255})
 	b := canvas(20, 11, color.RGBA{A: 255})
 
-	got := freshness.Compare(a, b, 0)
-	if got.State != freshness.ToReReview {
-		t.Errorf("state = %q, want to-re-review", got.State)
-	}
+	got := movement.Compare(a, b)
 	if got.Pixels != -1 {
 		t.Errorf("pixels = %d, want -1 — no pixel reading is possible", got.Pixels)
 	}
@@ -153,8 +128,8 @@ func TestAnImageIsComparedWhateverItsOrigin(t *testing.T) {
 		}
 	}
 
-	got := freshness.Compare(a, shifted, 0)
-	if got.State != freshness.Current {
-		t.Errorf("state = %q, want current — the same picture, drawn elsewhere", got.State)
+	got := movement.Compare(a, shifted)
+	if got.Pixels != 0 {
+		t.Errorf("pixels = %d, want 0 — the same picture, drawn elsewhere", got.Pixels)
 	}
 }

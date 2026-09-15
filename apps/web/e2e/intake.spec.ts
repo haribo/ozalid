@@ -8,6 +8,7 @@
  */
 import { expect, test } from '@playwright/test'
 import { createHash } from 'node:crypto'
+import { suiteCategory } from './fixture'
 
 const API = process.env.OZALID_API ?? 'http://localhost:8091'
 const PROJECT = process.env.OZALID_E2E_PROJECT ?? 'e2e'
@@ -26,7 +27,7 @@ test('a client is told what to upload, uploads it, and is accepted', async ({ pa
   const created = await api(`/projects/${PROJECT}/cases`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ title: `frugal — ${Date.now()}` }),
+    body: JSON.stringify({ title: `frugal — ${Date.now()}`, categoryId: await suiteCategory() }),
   })
   const kase = (await created.json()) as { id: string }
 
@@ -78,4 +79,68 @@ test('a client is told what to upload, uploads it, and is accepted', async ({ pa
   //    no bytes move at all.
   const again = await api(`/projects/${PROJECT}/editions`, manifest)
   expect(again.status).toBe(201)
+})
+
+test('a case must name a category, and one from another project is not found', async () => {
+  // A case with no category is a case the catalogue cannot show: it lists the
+  // cases of a named category and nothing else. One reached production that
+  // way, held four captures, and rendered as `rien ici pour le moment` (#115).
+  const refused = await api(`/projects/${PROJECT}/cases`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: `nowhere — ${Date.now()}` }),
+  })
+  expect(refused.status).toBe(400)
+
+  // Not found rather than refused: a category of another project does not
+  // exist for this caller, and a 403 would confirm that it exists somewhere.
+  const elsewhere = await api(`/projects/${PROJECT}/cases`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: `elsewhere — ${Date.now()}`, categoryId: 'nobody-has-this' }),
+  })
+  expect(elsewhere.status).toBe(404)
+
+  // And the case that names one of this project's categories is filed there.
+  const filed = await api(`/projects/${PROJECT}/cases`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: `filed — ${Date.now()}`, categoryId: await suiteCategory() }),
+  })
+  expect(filed.status).toBe(201)
+})
+
+test('a manifest carrying the same capture twice is refused, naming it (#182)', async ({
+  page,
+}) => {
+  // Before the fix this hit the storage's unique key and answered a bare
+  // 500 — the client-side collision took an elimination round to trace.
+  const created = await api(`/projects/${PROJECT}/cases`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: `twice — ${Date.now()}`, categoryId: await suiteCategory() }),
+  })
+  const kase = (await created.json()) as { id: string }
+
+  await page.setContent(
+    `<!doctype html><body style="margin:0;width:80px;height:40px;background:#123456">`,
+  )
+  const bytes = await page.screenshot({ clip: { x: 0, y: 0, width: 80, height: 40 } })
+  const hash = `sha256:${createHash('sha256').update(bytes).digest('hex')}`
+  await api(`/projects/${PROJECT}/blobs/${hash}`, { method: 'PUT', body: new Uint8Array(bytes) })
+
+  const step = {
+    name: 'opens the door',
+    captures: [{ variant: { theme: 'dark' }, hash, provenance: { environmentId: 'ci' } }],
+  }
+  const refused = await api(`/projects/${PROJECT}/editions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ cases: [{ id: kase.id, steps: [step, step] }] }),
+  })
+  expect(refused.status).toBe(409)
+  const problem = (await refused.json()) as { type: string; detail: string }
+  expect(problem.type).toContain('duplicate-capture')
+  expect(problem.detail).toContain('opens the door')
+  expect(problem.detail).toContain('dark')
 })

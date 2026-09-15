@@ -55,9 +55,9 @@ func (r *Repository) ProjectBySlug(ctx context.Context, slug string) (catalogue.
 	return toProject(row), nil
 }
 
-func (r *Repository) CreateCase(ctx context.Context, projectID string, categoryID *string, title string, description *string) (catalogue.Case, error) {
+func (r *Repository) CreateCase(ctx context.Context, projectID string, categoryID string, title string, description *string) (catalogue.Case, error) {
 	row, err := r.q.CreateCase(ctx, sqlcgen.CreateCaseParams{
-		ProjectID: projectID, CategoryID: categoryID, Title: title, Description: description,
+		ProjectID: projectID, CategoryID: &categoryID, Title: title, Description: description,
 	})
 	if err != nil {
 		return catalogue.Case{}, translate("creating the case", err)
@@ -115,7 +115,15 @@ func (r *Repository) CaseByID(ctx context.Context, slug, id string) (catalogue.C
 	if err != nil {
 		return catalogue.Case{}, translate("reading the case", err)
 	}
-	return toCase(row), nil
+	out := toCase(row)
+	// The holder rides along (ADR 0005): occupancy shown, never stored in
+	// the state.
+	held, err := r.holderOf(ctx, r.q, row.ID)
+	if err != nil {
+		return catalogue.Case{}, err
+	}
+	out.Held = held
+	return out, nil
 }
 
 func (r *Repository) ListCases(ctx context.Context, projectID string, state, categoryID *string) ([]catalogue.Case, error) {
@@ -132,7 +140,42 @@ func (r *Repository) ListCases(ctx context.Context, projectID string, state, cat
 	return out, nil
 }
 
-func (r *Repository) UpdateCase(ctx context.Context, slug, id, title string, description, categoryID *string) (catalogue.Case, error) {
+// UpdateCase writes what the patch names and leaves the rest as it stands. The
+// row is read first because the statement writes every column: overwriting the
+// lot let a patch carrying a title alone null the category, and the case left
+// the tree without a word (#229).
+func (r *Repository) UpdateCase(ctx context.Context, slug, id string, patch app.CasePatch) (catalogue.Case, error) {
+	current, err := r.q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: id, Slug: slug})
+	if err != nil {
+		return catalogue.Case{}, translate("reading the case", err)
+	}
+
+	title, description, categoryID := current.Title, current.Description, current.CategoryID
+	if patch.Title != nil {
+		title = *patch.Title
+	}
+	if patch.Description != nil {
+		// The empty string is how the patch says "clear it": the generated body
+		// gives a pointer, and Go cannot tell an absent field from a null one.
+		if *patch.Description == "" {
+			description = nil
+		} else {
+			description = patch.Description
+		}
+	}
+	if patch.CategoryID != nil {
+		// The new category must be one of this project's. Not found rather than
+		// refused: another project's category does not exist for this caller
+		// (#71, #115).
+		if _, err := r.q.GetCategoryInProject(ctx, sqlcgen.GetCategoryInProjectParams{ID: *patch.CategoryID, Slug: slug}); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return catalogue.Case{}, catalogue.ErrCategoryUnknown
+			}
+			return catalogue.Case{}, translate("reading the new category", err)
+		}
+		categoryID = patch.CategoryID
+	}
+
 	row, err := r.q.UpdateCaseDetails(ctx, sqlcgen.UpdateCaseDetailsParams{
 		ID: id, Title: title, Description: description, CategoryID: categoryID, Slug: slug,
 	})
@@ -140,6 +183,40 @@ func (r *Repository) UpdateCase(ctx context.Context, slug, id, title string, des
 		return catalogue.Case{}, translate("updating the case", err)
 	}
 	return toCase(row), nil
+}
+
+// CaseHistory reads a case's transitions, oldest first (#94).
+//
+// The project is part of the lookup, so a case from elsewhere has no history
+// here rather than one somebody may not see (#71).
+func (r *Repository) CaseHistory(ctx context.Context, slug, id string) ([]catalogue.Transition, error) {
+	kase, err := r.q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: id, Slug: slug})
+	if err != nil {
+		return nil, translate("reading the case", err)
+	}
+	rows, err := r.q.CaseHistory(ctx, &kase.ID)
+	if err != nil {
+		return nil, translate("reading the journal", err)
+	}
+
+	out := make([]catalogue.Transition, 0, len(rows))
+	for _, row := range rows {
+		transition := catalogue.Transition{
+			At:    row.At.Time,
+			Cause: row.Cause,
+			Actor: catalogue.TransitionActor{
+				ID: row.ActorID, Kind: row.ActorKind, Name: row.ActorName,
+			},
+		}
+		if row.FromState != nil {
+			transition.FromState = *row.FromState
+		}
+		if row.ToState != nil {
+			transition.ToState = *row.ToState
+		}
+		out = append(out, transition)
+	}
+	return out, nil
 }
 
 func (r *Repository) ArchiveCase(ctx context.Context, slug, id string) (bool, error) {
@@ -156,6 +233,53 @@ func (r *Repository) CreateCategory(ctx context.Context, projectID string, paren
 	})
 	if err != nil {
 		return catalogue.Category{}, translate("creating the category", err)
+	}
+	return toCategory(row), nil
+}
+
+// UpdateCategory renames, re-parents or reorders a node in one write (#179).
+//
+// The move is refused when it would make the node its own ancestor — the
+// ancestors of the target parent are walked before anything is written — and
+// a sibling name collision surfaces as the conflict it is.
+func (r *Repository) UpdateCategory(ctx context.Context, slug, id string, patch app.CategoryPatch) (catalogue.Category, error) {
+	current, err := r.q.GetCategoryInProject(ctx, sqlcgen.GetCategoryInProjectParams{ID: id, Slug: slug})
+	if err != nil {
+		return catalogue.Category{}, translate("reading the category", err)
+	}
+
+	name, parentID, position := current.Name, current.ParentID, current.Position
+	if patch.Name != nil {
+		name = *patch.Name
+	}
+	if patch.Position != nil {
+		position = *patch.Position
+	}
+	if patch.Parent != nil {
+		parentID = patch.Parent.ID
+		if parentID != nil {
+			// The new parent must be of the same project, and not descend
+			// from the node being moved.
+			if _, err := r.q.GetCategoryInProject(ctx, sqlcgen.GetCategoryInProjectParams{ID: *parentID, Slug: slug}); err != nil {
+				return catalogue.Category{}, translate("reading the new parent", err)
+			}
+			ancestors, err := r.q.CategoryAncestors(ctx, *parentID)
+			if err != nil {
+				return catalogue.Category{}, translate("walking the ancestors", err)
+			}
+			for _, ancestor := range ancestors {
+				if ancestor == id {
+					return catalogue.Category{}, catalogue.ErrCategoryCycle
+				}
+			}
+		}
+	}
+
+	row, err := r.q.UpdateCategory(ctx, sqlcgen.UpdateCategoryParams{
+		ID: id, Name: name, ParentID: parentID, Position: position,
+	})
+	if err != nil {
+		return catalogue.Category{}, translate("updating the category", err)
 	}
 	return toCategory(row), nil
 }
@@ -243,8 +367,8 @@ func (r *Repository) CategoryTree(ctx context.Context, projectID string) ([]cata
 			Cases: catalogue.StateCounts{
 				NotInstrumented: row.NotInstrumented,
 				ToReview:        row.ToReview,
-				ToFix:           row.ToFix,
-				Reviewed:        row.Reviewed,
+				Refused:         row.Refused,
+				Accepted:        row.Accepted,
 			},
 		}
 		if row.LastActivity.Valid {
@@ -272,10 +396,7 @@ func (r *Repository) SummariseCases(ctx context.Context, projectID string, categ
 				State:     review.CaseState(row.State),
 				CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
 			},
-			Captures: catalogue.CaptureCounts{
-				Total: row.Captures, Validated: row.Validated,
-				Commented: row.Commented, ToJudge: row.ToJudge,
-			},
+			Captures: countsOf(ctx, r, row),
 		}
 		if row.ArchivedAt.Valid {
 			at := row.ArchivedAt.Time
@@ -288,6 +409,32 @@ func (r *Repository) SummariseCases(ctx context.Context, projectID string, categ
 		out = append(out, summary)
 	}
 	return out, nil
+}
+
+// countsOf derives one case's capture counts with the one rule the domain
+// owns (ADR 0012, ADR 0021) — a handful of reads per case, and no second
+// copy of the computation living in SQL. Moved counts with to-judge: the
+// reviewer is needed either way. A read failure counts as nothing rather
+// than failing the whole listing.
+func countsOf(ctx context.Context, r *Repository, row sqlcgen.CasesWithCaptureCountsRow) catalogue.CaptureCounts {
+	counts := catalogue.CaptureCounts{Total: row.Captures}
+	facts, err := r.factsOf(ctx, r.q, sqlcgen.Case{
+		ID: row.ID, ProjectID: row.ProjectID,
+	})
+	if err != nil {
+		return counts
+	}
+	for _, status := range review.Compute(facts).Verdicts {
+		switch status {
+		case review.CaptureAccepted:
+			counts.Accepted++
+		case review.CaptureRefused:
+			counts.Refused++
+		default:
+			counts.ToJudge++
+		}
+	}
+	return counts
 }
 
 func (r *Repository) Axes(ctx context.Context, projectID string) ([]catalogue.Axis, error) {

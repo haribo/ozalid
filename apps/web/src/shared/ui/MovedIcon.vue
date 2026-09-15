@@ -3,13 +3,13 @@
  * A capture that has moved since it was approved.
  *
  * A status like any other, so it wears the disc (frontend ADR 0003) — but its
- * own glyph. Freshness is an overlay, not a verdict (product.md §3.3): a capture
+ * own glyph. Movement keeps a shape of its own (product.md §3.3): a capture
  * can be *validated* and *moved* at once, and borrowing a verdict's check or
  * speech bubble would have one mark overwrite the other.
  */
 withDefaults(defineProps<{ size?: number; label?: string }>(), {
   size: 13,
-  label: 'a bougé depuis sa validation',
+  label: 'moved since it was validated',
 })
 </script>
 
@@ -32,8 +32,10 @@ withDefaults(defineProps<{ size?: number; label?: string }>(), {
       aria-hidden="true"
     >
       <title>{{ label }}</title>
-      <path d="M3.4 6h9.2M10.6 3.8l2 2.2-2 2.2" />
-      <path d="M12.6 10h-9.2M5.4 7.8l-2 2.2 2 2.2" />
+      <!-- Two frames that no longer coincide: the approved image and the
+           incoming one (#209). -->
+      <rect x="2.6" y="2.6" width="7.6" height="7.6" rx="1" />
+      <rect x="5.8" y="5.8" width="7.6" height="7.6" rx="1" />
     </svg>
   </span>
 </template>

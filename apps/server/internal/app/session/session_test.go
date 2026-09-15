@@ -3,6 +3,7 @@ package session_test
 import (
 	"context"
 	"errors"
+	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"testing"
 
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
@@ -20,6 +21,16 @@ func (r refusingRepo) SaveReview(
 	return session.Result{}, nil
 }
 
+func (r refusingRepo) ClaimCase(context.Context, string, string, actor.Actor, bool) (review.Hold, error) {
+	r.t.Error("the session reached the repository, want it refused first")
+	return review.Hold{}, nil
+}
+
+func (r refusingRepo) ReleaseCase(context.Context, string, string, actor.Actor) error {
+	r.t.Error("the session reached the repository, want it refused first")
+	return nil
+}
+
 // recordingRepo remembers what the service handed it.
 type recordingRepo struct{ got session.Save }
 
@@ -30,11 +41,19 @@ func (r *recordingRepo) SaveReview(
 	return session.Result{}, nil
 }
 
+func (r *recordingRepo) ClaimCase(context.Context, string, string, actor.Actor, bool) (review.Hold, error) {
+	return review.Hold{}, nil
+}
+
+func (r *recordingRepo) ReleaseCase(context.Context, string, string, actor.Actor) error {
+	return nil
+}
+
 func TestACommentWithNothingWrittenInItIsRefused(t *testing.T) {
 	svc := session.New(refusingRepo{t})
 
 	_, err := svc.Save(context.Background(), "atlas", "case", actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Comments: []session.NewComment{{StepID: "s1", Kind: "defect", Body: "  \n ", VariantIDs: []string{"v1"}}},
+		Comments: []session.NewComment{{StepID: "s1", Body: "  \n ", VariantIDs: []string{"v1"}}},
 	})
 	if !errors.Is(err, session.ErrEmptyBody) {
 		t.Errorf("err = %v, want ErrEmptyBody", err)
@@ -47,21 +66,10 @@ func TestACommentCoveringNoVariantIsRefused(t *testing.T) {
 	svc := session.New(refusingRepo{t})
 
 	_, err := svc.Save(context.Background(), "atlas", "case", actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Comments: []session.NewComment{{StepID: "s1", Kind: "defect", Body: "misaligned", VariantIDs: nil}},
+		Comments: []session.NewComment{{StepID: "s1", Body: "misaligned", VariantIDs: nil}},
 	})
 	if !errors.Is(err, session.ErrNoVariant) {
 		t.Errorf("err = %v, want ErrNoVariant", err)
-	}
-}
-
-func TestAKindTheProductDoesNotKnowIsRefused(t *testing.T) {
-	svc := session.New(refusingRepo{t})
-
-	_, err := svc.Save(context.Background(), "atlas", "case", actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Comments: []session.NewComment{{StepID: "s1", Kind: "wish", Body: "…", VariantIDs: []string{"v1"}}},
-	})
-	if !errors.Is(err, session.ErrUnknownKind) {
-		t.Errorf("err = %v, want ErrUnknownKind", err)
 	}
 }
 
@@ -71,8 +79,8 @@ func TestOneUnusableCommentRefusesTheWholeSession(t *testing.T) {
 
 	_, err := svc.Save(context.Background(), "atlas", "case", actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Comments: []session.NewComment{
-			{StepID: "s1", Kind: "defect", Body: "fine", VariantIDs: []string{"v1"}},
-			{StepID: "s2", Kind: "defect", Body: "", VariantIDs: []string{"v1"}},
+			{StepID: "s1", Body: "fine", VariantIDs: []string{"v1"}},
+			{StepID: "s2", Body: "", VariantIDs: []string{"v1"}},
 		},
 	})
 	if err == nil {
@@ -86,7 +94,7 @@ func TestSurroundingSpaceIsTrimmedBeforeStoring(t *testing.T) {
 
 	if _, err := svc.Save(context.Background(), "atlas", "case", actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
 		Comments: []session.NewComment{
-			{StepID: "s1", Kind: "improvement", Body: "  the label is cramped  ", VariantIDs: []string{"v1"}},
+			{StepID: "s1", Body: "  the label is cramped  ", VariantIDs: []string{"v1"}},
 		},
 	}); err != nil {
 		t.Fatalf("saving: %v", err)

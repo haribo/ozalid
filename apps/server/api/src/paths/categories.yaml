@@ -9,7 +9,6 @@ get:
   security:
     - serviceToken: []
     - session: []
-    - session: []
   summary: Read the catalogue tree
   tags: [categories]
   responses:
@@ -32,7 +31,6 @@ post:
   operationId: createCategory
   security:
     - serviceToken: []
-    - session: []
     - session: []
   summary: Add a node to the tree
   tags: [categories]

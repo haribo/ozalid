@@ -9,7 +9,6 @@ get:
   security:
     - serviceToken: []
     - session: []
-    - session: []
   summary: Read the project's rendering axes, in their declared order
   tags: [projects]
   responses:
@@ -32,7 +31,6 @@ put:
   operationId: orderAxes
   security:
     - serviceToken: []
-    - session: []
     - session: []
   summary: Declare the order the axes read in
   description: |

@@ -18,7 +18,7 @@ import (
 // the content addresses — and only then is anything written. A failure at any
 // point rolls the lot back, so a half-written edition never exists.
 func (r *Repository) WriteEdition(
-	ctx context.Context, projectSlug string, m contract.Manifest, fresh map[appintake.Square]appintake.Verdict,
+	ctx context.Context, projectSlug string, m contract.Manifest, fresh map[appintake.ReferenceKey]appintake.Verdict,
 ) (appintake.Result, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -86,13 +86,18 @@ func (r *Repository) WriteEdition(
 	result := appintake.Result{EditionID: edition.ID, Cases: len(m.Cases)}
 
 	for _, mc := range m.Cases {
+		kept := make([]string, 0, len(mc.Steps))
 		for position, ms := range mc.Steps {
+			// Matched by name, moved rather than renamed: the step row is what
+			// captures, verdicts and comments hang from across editions, and
+			// renaming it reattached history to the wrong screen (#132).
 			step, err := q.UpsertStep(ctx, sqlcgen.UpsertStepParams{
 				CaseID: known[mc.ID].ID, Name: ms.Name, Position: int32(position),
 			})
 			if err != nil {
 				return appintake.Result{}, translate("recording a step", err)
 			}
+			kept = append(kept, step.ID)
 
 			for _, mcap := range ms.Captures {
 				variantID, err := variants.resolve(ctx, q, mcap.Variant)
@@ -104,27 +109,23 @@ func (r *Repository) WriteEdition(
 					return appintake.Result{}, fmt.Errorf("encoding the provenance: %w", err)
 				}
 				// The comparison already ran, keyed on what the manifest says
-				// rather than on ids it never sees. A square nobody has
+				// rather than on ids it never sees. A capture nobody has
 				// approved is absent from the map, and stays silent.
-				verdict := fresh[appintake.Square{
+				verdict := fresh[appintake.ReferenceKey{
 					CaseID:        mc.ID,
 					StepPosition:  position,
 					VariantLabel:  contract.VariantLabel(mcap.Variant, variants.order),
 					EnvironmentID: mcap.Provenance.EnvironmentID,
 				}]
-				var freshness *string
 				var moved *int32
-				if verdict.State != "" {
-					freshness = ptr(verdict.State)
-					if verdict.Pixels != nil {
-						n := int32(*verdict.Pixels)
-						moved = &n
-					}
+				if verdict.Pixels != nil {
+					n := int32(*verdict.Pixels)
+					moved = &n
 				}
 				if _, err := q.CreateCapture(ctx, sqlcgen.CreateCaptureParams{
 					EditionID: edition.ID, StepID: step.ID, VariantID: variantID,
 					BlobHash: mcap.Hash, Provenance: provenance,
-					Freshness: freshness, MovedPixels: moved,
+					MovedPixels: moved,
 				}); err != nil {
 					return appintake.Result{}, translate("recording a capture", err)
 				}
@@ -132,11 +133,11 @@ func (r *Repository) WriteEdition(
 			}
 		}
 
-		// Steps the manifest no longer carries are gone from the flow. Their
-		// captures go with them; the comments anchored to them do too, which is
-		// why a step keeps its identity as long as it keeps its position.
-		if err := q.DeleteStepsBeyond(ctx, sqlcgen.DeleteStepsBeyondParams{
-			CaseID: known[mc.ID].ID, Position: int32(len(mc.Steps)),
+		// A step out of the manifest stays while any capture references it —
+		// it holds the evidence of earlier editions. Only a step nothing ever
+		// captured goes.
+		if err := q.PruneCapturelessSteps(ctx, sqlcgen.PruneCapturelessStepsParams{
+			CaseID: known[mc.ID].ID, Kept: kept,
 		}); err != nil {
 			return appintake.Result{}, translate("pruning vanished steps", err)
 		}
@@ -156,14 +157,39 @@ func (r *Repository) WriteEdition(
 		}
 	}
 
-	// A case advances onto the edition that just landed -- unless a reviewer is
-	// sitting on it. `to-review` means somebody is looking, and moving the
-	// bytes under them would have them judge one image and approve another
-	// (product.md §7).
-	if _, err := q.AdvanceCurrentEdition(ctx, sqlcgen.AdvanceCurrentEditionParams{
-		EditionID: &edition.ID, CaseIds: caseIDs(m),
-	}); err != nil {
-		return appintake.Result{}, translate("pointing the cases at the edition", err)
+	// Nothing to advance: the displayed edition is derived (ADR 0024) — a
+	// held case keeps the bytes its lock stamped, everyone else reads the
+	// latest the moment it lands.
+
+	// A new edition brings new video bytes, and nobody has judged them: the
+	// cases it carries recordings for return to the reviewer (ADR 0023).
+	// Deliberately narrow — a full recompute here would also raise `moved`
+	// to the case, which stays with the capture (ADR 0021).
+	for _, c := range m.Cases {
+		if len(c.Recordings) == 0 {
+			continue
+		}
+		from := review.CaseState(known[c.ID].State)
+		if from != review.CaseAccepted && from != review.CaseRefused {
+			continue
+		}
+		if err := q.SetCaseState(ctx, sqlcgen.SetCaseStateParams{
+			ID: c.ID, State: string(review.CaseToReview),
+		}); err != nil {
+			return appintake.Result{}, translate("reopening the case for its video", err)
+		}
+		inputs, err := json.Marshal(map[string]any{"edition": edition.ID, "recordings": len(c.Recordings)})
+		if err != nil {
+			return appintake.Result{}, fmt.Errorf("encoding the transition inputs: %w", err)
+		}
+		if err := q.RecordTransition(ctx, sqlcgen.RecordTransitionParams{
+			ProjectID: project.ID, CaseID: &c.ID,
+			FromState: ptr(string(from)), ToState: ptr(string(review.CaseToReview)),
+			Cause: "recording-arrived", ActorID: "intake", ActorKind: "machine",
+			Inputs: inputs, RuleVersion: 1,
+		}); err != nil {
+			return appintake.Result{}, translate("journalling the transition", err)
+		}
 	}
 
 	// The evidence has arrived, so the cases that had none leave the edge of

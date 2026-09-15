@@ -72,9 +72,9 @@ async function upload(bytes: Buffer): Promise<string> {
 }
 
 const STEPS = [
-  'demande la réinitialisation',
-  'ouvre le lien reçu par e-mail',
-  'arrive sur son compte',
+  'asks for the reset',
+  'opens the link received by e-mail',
+  'arrives on their account',
 ]
 const LIGHT = { viewport: 'desktop', theme: 'light' }
 const DARK = { viewport: 'desktop', theme: 'dark' }
@@ -97,6 +97,27 @@ function manifest(caseId: string, first: string, second: string) {
 }
 
 /**
+ * The branch every seeded case hangs from, made once and reused.
+ *
+ * A case belongs to exactly one category and the catalogue lists the cases of a
+ * named one, so a case filed nowhere is a case no screen can show (#115).
+ */
+export async function suiteCategory(): Promise<string> {
+  const tree = (await (await call(`/projects/${PROJECT}/categories`)).json()) as {
+    id: string
+    name: string
+    parentId: string | null
+  }[]
+  const found = tree.find((c) => c.name === 'e2e' && !c.parentId)
+  if (found) return found.id
+  return (
+    (await (await call(`/projects/${PROJECT}/categories`, post({ name: 'e2e' }))).json()) as {
+      id: string
+    }
+  ).id
+}
+
+/**
  * One case in the suite's project, with three steps and two variants, taken in
  * once.
  *
@@ -107,13 +128,46 @@ export async function seed(page: Page): Promise<Seeded> {
   const kase = (await (
     await call(
       `/projects/${PROJECT}/cases`,
-      post({ title: `réinitialiser un mot de passe oublié — ${Date.now()}` }),
+      post({
+        title: `reset a forgotten password — ${Date.now()}`,
+        categoryId: await suiteCategory(),
+      }),
     )
   ).json()) as { id: string }
 
   const still = await upload(await screen(page, 0))
   await call(`/projects/${PROJECT}/editions`, manifest(kase.id, still, still))
   return { slug: PROJECT, caseId: kase.id }
+}
+
+/** An edition identical to the seed, plus one flow video per variant. The
+ * video bytes carry the clock: a recording is never byte-stable (ADR 0013),
+ * and two pushes must bring two recordings. */
+export async function pushRecordings(page: Page, seeded: Seeded): Promise<void> {
+  const still = await upload(await screen(page, 0))
+  const videoLight = await upload(Buffer.from(`webm light ${seeded.caseId} ${Date.now()}`))
+  const videoDark = await upload(Buffer.from(`webm dark ${seeded.caseId} ${Date.now()}`))
+  await call(
+    `/projects/${seeded.slug}/editions`,
+    post({
+      cases: [
+        {
+          id: seeded.caseId,
+          steps: STEPS.map((name) => ({
+            name,
+            captures: [
+              { variant: LIGHT, hash: still, provenance: { environmentId: 'ci' } },
+              { variant: DARK, hash: still, provenance: { environmentId: 'ci' } },
+            ],
+          })),
+          recordings: [
+            { variant: LIGHT, hash: videoLight },
+            { variant: DARK, hash: videoDark },
+          ],
+        },
+      ],
+    }),
+  )
 }
 
 /** A second edition where the call to action slid on the dark variant only. */
@@ -132,7 +186,7 @@ export async function commentOnStep(
   const grid = (await (
     await call(`/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)
   ).json()) as {
-    steps: { id: string; cells: { variantId: string }[] }[]
+    steps: { id: string; captures: { variantId: string }[] }[]
   }
   const step = grid.steps[stepIndex]
   await call(
@@ -141,28 +195,79 @@ export async function commentOnStep(
       comments: [
         {
           stepId: step.id,
-          kind: 'defect',
           body,
-          variantIds: step.cells.map((c) => c.variantId),
+          variantIds: step.captures.map((c) => c.variantId),
         },
       ],
     }),
   )
 }
 
-/** Validate every square, the way a reviewer who had nothing to say would. */
-export async function validateEverything(seeded: Seeded): Promise<void> {
+/** Accept every capture, the way a reviewer who had nothing to say would. */
+export async function acceptEverything(seeded: Seeded): Promise<void> {
   const grid = (await (
     await call(`/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)
   ).json()) as {
-    steps: { id: string; cells: { variantId: string }[] }[]
+    steps: { id: string; captures: { variantId: string }[] }[]
   }
   await call(
     `/projects/${seeded.slug}/cases/${seeded.caseId}/reviews`,
     post({
-      validated: grid.steps.flatMap((s) =>
-        s.cells.map((c) => ({ stepId: s.id, variantId: c.variantId })),
+      accepted: grid.steps.flatMap((s) =>
+        s.captures.map((c) => ({ stepId: s.id, variantId: c.variantId })),
       ),
     }),
   )
+}
+
+/**
+ * Two cases under a category of their own, taken in by **one** run (#205).
+ *
+ * The queue is what a category holds, so a walk tested against the suite's
+ * shared branch would walk every other test's leftovers. A branch per walk
+ * keeps the assertion about this walk.
+ *
+ * One edition covering both cases, never one each: a grid read without a lock
+ * shows the project's latest edition (ADR 0024), so two pushes would leave the
+ * first case showing nothing.
+ */
+export async function seedWalk(
+  page: Page,
+): Promise<{ slug: string; categoryId: string; cases: { id: string; title: string }[] }> {
+  const stamp = Date.now()
+  const branch = (await (
+    await call(
+      `/projects/${PROJECT}/categories`,
+      post({ name: `walk ${stamp}`, parentId: await suiteCategory() }),
+    )
+  ).json()) as { id: string }
+
+  const titles = [`a first flow — ${stamp}`, `a second flow — ${stamp}`]
+  const cases: { id: string; title: string }[] = []
+  for (const title of titles) {
+    const kase = (await (
+      await call(`/projects/${PROJECT}/cases`, post({ title, categoryId: branch.id }))
+    ).json()) as { id: string }
+    cases.push({ id: kase.id, title })
+  }
+
+  const still = await upload(await screen(page, 0))
+  await call(
+    `/projects/${PROJECT}/editions`,
+    post({
+      cases: cases.map((kase) => ({
+        id: kase.id,
+        steps: [
+          {
+            name: 'opens the form',
+            captures: [
+              { variant: LIGHT, hash: still, provenance: { environmentId: 'ci' } },
+              { variant: DARK, hash: still, provenance: { environmentId: 'ci' } },
+            ],
+          },
+        ],
+      })),
+    }),
+  )
+  return { slug: PROJECT, categoryId: branch.id, cases }
 }

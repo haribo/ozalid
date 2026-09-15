@@ -3,26 +3,85 @@
  * One case: what it is, the evidence it is judged from, and — when a capture is
  * open — the carousel where judging happens.
  */
-import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { api, type components } from '@/shared/api'
-import { MissingIcon, MovedIcon, StatePill } from '@/shared/ui'
-import { formatMoment, hasMoved, type CaseState } from '@/shared/lib'
+import { StatePill } from '@/shared/ui'
+import { formatMoment, type CaseState } from '@/shared/lib'
 import { useReview } from '@/features/review'
 import { useSession } from '@/features/session'
 import { CaseGrid } from '@/widgets/case-grid'
-import { CaptureCarousel } from '@/widgets/capture-carousel'
+import { ReviewCarousel } from '@/widgets/capture-carousel'
 import { CommentRecap } from '@/widgets/comment-recap'
 
 type Case = components['schemas']['Case']
 
 const route = useRoute()
+const router = useRouter()
 const slug = computed(() => String(route.params.slug))
 const caseId = computed(() => String(route.params.caseId))
 
 const kase = ref<Case | null>(null)
+type Category = components['schemas']['Category']
+const categories = ref<Category[]>([])
 const loading = ref(true)
-const open = ref<{ stepId: string; variantId: string } | null>(null)
+
+/** The way back: the case's ancestors, root first — the same trail the
+ * catalogue draws, ancestors only. The title right below says the current
+ * page, so repeating it in the trail would be noise (#190). */
+const trail = computed(() => {
+  const out: Category[] = []
+  let id = kase.value?.categoryId ?? null
+  while (id) {
+    const node = categories.value.find((c) => c.id === id)
+    if (!node) break
+    out.unshift(node)
+    id = node.parentId ?? null
+  }
+  return out
+})
+
+// Which capture is open is the route's to say, not a ref's: an open capture
+// has an address, so a colleague can be sent to the exact capture (#125). The
+// two routes share this component, which is what keeps the instance — and a
+// verdict held through an expired session (#70) — alive across open and close.
+const open = computed(() =>
+  route.params.stepId && route.params.variantId
+    ? { stepId: String(route.params.stepId), variantId: String(route.params.variantId) }
+    : null,
+)
+
+/** The recording view: same carousel, addressed by variant (ADR 0023). */
+const openRecording = computed(() =>
+  route.path.includes('/recordings/') && route.params.variantId
+    ? String(route.params.variantId)
+    : null,
+)
+
+const caseUrl = computed(() => `/projects/${slug.value}/cases/${caseId.value}`)
+
+function openCapture(stepId: string, variantId: string) {
+  void router.push(`${caseUrl.value}/steps/${stepId}/variants/${variantId}`)
+}
+
+function openRecordingView(variantId: string) {
+  void router.push(`${caseUrl.value}/recordings/${variantId}`)
+}
+
+function moveToRecording(variantId: string) {
+  void router.replace(`${caseUrl.value}/recordings/${variantId}`)
+}
+
+/** Arrow keys walk, they do not stack: replace, so back means the grid. */
+function moveTo(stepId: string, variantId: string) {
+  void router.replace(`${caseUrl.value}/steps/${stepId}/variants/${variantId}`)
+}
+
+/** Push rather than back(): a link opened straight onto a capture has no
+ * page behind it to go back to. */
+function closeCarousel() {
+  void router.push(caseUrl.value)
+}
 
 const review = useReview(
   () => slug.value,
@@ -41,7 +100,6 @@ watch(
   caseId,
   async (id) => {
     loading.value = true
-    open.value = null
 
     const detail = await api.GET('/projects/{slug}/cases/{caseId}', {
       params: { path: { slug: slug.value, caseId: id } },
@@ -52,48 +110,42 @@ watch(
       return
     }
     kase.value = detail.data
+    const tree = await api.GET('/projects/{slug}/categories', {
+      params: { path: { slug: slug.value } },
+    })
+    categories.value = tree.error ? [] : tree.data
+    // Opening the case is claiming it (ADR 0005, #95): a fresh claim, so
+    // the hold stamps what is current now (ADR 0024) — before the first
+    // read, or the grid would show what a previous hold pinned. The
+    // interval is the heartbeat, and leaving the page lets go.
+    await review.claim(true)
     await review.load()
     loading.value = false
   },
   { immediate: true },
 )
 
-/** How the review stands, in one line — an information, not a gate.
- *
- * `missing` counts the holes: a case is meant to carry a capture for every
- * variant its own run declared, and a gap is a failed run rather than a
- * deliberate absence (ADR 0016). Counting it here is what keeps it from being
- * discovered months later by whoever trusted the gauge. */
-const tally = computed(() => {
-  const grid = review.grid.value
-  const cells = grid?.steps.flatMap((s) => s.cells) ?? []
-  const count = (status: string) => cells.filter((c) => c.status === status).length
-  const expected = (grid?.steps.length ?? 0) * (grid?.variants.length ?? 0)
-  return {
-    validated: count('validated'),
-    commented: count('to-fix'),
-    toJudge: count('to-review'),
-    missing: Math.max(0, expected - cells.length),
-    // Counted like the holes, and for the same reason: a reviewer should not
-    // have to scan the grid to learn there is work waiting.
-    moved: cells.filter((c) => hasMoved(c.freshness)).length,
-  }
+const HEARTBEAT_MS = 30_000
+let heartbeat: ReturnType<typeof setInterval> | undefined
+
+/** Leaving is letting go — including by closing the tab or a hard
+ * navigation, where Vue never unmounts: keepalive lets the release outlive
+ * the page (ADR 0005). */
+function releaseOnLeave() {
+  void fetch(`/api/projects/${slug.value}/cases/${caseId.value}/lock`, {
+    method: 'DELETE',
+    keepalive: true,
+  })
+}
+onMounted(() => {
+  heartbeat = setInterval(() => void review.claim(), HEARTBEAT_MS)
+  window.addEventListener('pagehide', releaseOnLeave)
 })
-
-async function onValidate(stepId: string, variantId: string) {
-  await review.validate(stepId, variantId)
-  await refreshCase()
-}
-
-async function onComment(input: Parameters<typeof review.comment>[0]) {
-  await review.comment(input)
-  await refreshCase()
-}
-
-async function onJudge(commentId: string, accept: boolean, remark: string) {
-  await review.judge(commentId, accept, remark)
-  await refreshCase()
-}
+onBeforeUnmount(() => {
+  clearInterval(heartbeat)
+  window.removeEventListener('pagehide', releaseOnLeave)
+  void review.release()
+})
 
 /** The case's own state is recomputed by the server on every move, so it is
  * read back rather than guessed here (ADR 0012). */
@@ -107,86 +159,98 @@ async function refreshCase() {
 
 <template>
   <div class="mx-auto max-w-6xl px-6 py-8">
-    <p v-if="review.error.value" class="font-mono text-[12px] text-red-700 dark:text-red-400">
+    <p v-if="review.error.value" class="font-mono text-mono text-red-700 dark:text-red-400">
       {{ review.error.value }}
     </p>
-    <p v-else-if="loading" class="font-mono text-[12px] text-slate-500">chargement…</p>
+    <p v-else-if="loading" class="font-mono text-mono text-slate-500">loading…</p>
 
     <template v-else-if="kase">
-      <h1 class="mb-2.5 text-[21px] font-semibold">{{ kase.title }}</h1>
+      <nav
+        aria-label="breadcrumb"
+        class="mb-3 flex flex-wrap gap-x-1.5 font-mono text-mono text-slate-500 dark:text-slate-400"
+      >
+        <RouterLink :to="`/projects/${slug}`" class="text-indigo-700 dark:text-indigo-300">
+          {{ slug }}
+        </RouterLink>
+        <template v-for="node in trail" :key="node.id">
+          <span aria-hidden="true">›</span>
+          <RouterLink
+            :to="`/projects/${slug}/categories/${node.id}`"
+            class="text-indigo-700 dark:text-indigo-300"
+          >
+            {{ node.name }}
+          </RouterLink>
+        </template>
+      </nav>
+
+      <h1 class="mb-2.5 text-display font-semibold">{{ kase.title }}</h1>
 
       <div
-        class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-[11px] text-slate-500 dark:text-slate-400"
+        class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-mono text-slate-500 dark:text-slate-400"
       >
         <StatePill :state="kase.state as CaseState" />
         <span>#{{ kase.id }}</span>
         <template v-if="review.grid.value?.editionId">
           <span>·</span>
-          <span>édition du {{ formatMoment(review.grid.value.takenAt) }}</span>
+          <span>edition of {{ formatMoment(review.grid.value.takenAt) }}</span>
+          <span
+            v-if="review.lockedBy.value"
+            class="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 dark:border-slate-600 dark:bg-slate-900"
+          >
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.3"
+              aria-hidden="true"
+            >
+              <path d="M1.5 8s2.4-4.2 6.5-4.2S14.5 8 14.5 8s-2.4 4.2-6.5 4.2S1.5 8 1.5 8z" />
+              <circle cx="8" cy="8" r="2" />
+            </svg>
+            held by {{ review.lockedBy.value.name }}
+            <template v-if="review.lockedBy.value.since">
+              · since {{ formatMoment(review.lockedBy.value.since) }}</template
+            >
+          </span>
           <template v-if="review.grid.value.revision">
             <span>·</span>
             <span>rev {{ review.grid.value.revision }}</span>
           </template>
         </template>
-        <template v-if="tally.validated + tally.commented + tally.toJudge > 0">
-          <span>·</span>
-          <span>
-            {{ tally.validated }} validée{{ tally.validated > 1 ? 's' : '' }}
-            <template v-if="tally.commented">
-              · {{ tally.commented }} commentée{{ tally.commented > 1 ? 's' : '' }}</template
-            >
-            <template v-if="tally.toJudge"> · {{ tally.toJudge }} à juger</template>
-          </span>
-        </template>
-        <span
-          v-if="tally.moved > 0"
-          class="inline-flex items-center gap-1.5 rounded border border-indigo-500 bg-indigo-50 px-1.5 py-0.5 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-950/60 dark:text-indigo-300"
-        >
-          <MovedIcon :size="10" />
-          {{ tally.moved }} capture{{ tally.moved > 1 ? 's' : '' }}
-          {{ tally.moved > 1 ? 'ont' : 'a' }}
-          bougé
-        </span>
-        <span
-          v-if="tally.missing > 0"
-          class="inline-flex items-center gap-1.5 rounded border border-red-600 bg-red-50 px-1.5 py-0.5 text-red-700 dark:border-red-500 dark:bg-red-950/60 dark:text-red-400"
-        >
-          <MissingIcon :size="10" />
-          {{ tally.missing }} capture{{ tally.missing > 1 ? 's' : '' }} manquante{{
-            tally.missing > 1 ? 's' : ''
-          }}
-        </span>
       </div>
 
-      <CaptureCarousel
-        v-if="open && review.grid.value"
+      <!-- Over the page, not in it: the page stays mounted underneath with
+           everything it holds, and the capture gets the window (#125). -->
+      <ReviewCarousel
+        v-if="open || openRecording"
         :slug="slug"
-        :grid="review.grid.value"
-        :comments="review.comments.value"
-        :step-id="open.stepId"
-        :variant-id="open.variantId"
-        :busy="review.saving.value"
-        class="mb-5"
-        @close="open = null"
-        @move="(stepId, variantId) => (open = { stepId, variantId })"
-        @validate="onValidate"
-        @comment="onComment"
-        @judge="onJudge"
+        :review="review"
+        :step-id="open?.stepId ?? ''"
+        :variant-id="open?.variantId ?? openRecording ?? ''"
+        :recording="openRecording !== null"
+        class="fixed inset-0 z-40"
+        @close="closeCarousel"
+        @move="moveTo"
+        @move-recording="moveToRecording"
+        @changed="refreshCase"
       />
 
       <CaseGrid
         v-if="review.grid.value"
         :slug="slug"
         :grid="review.grid.value"
-        :open-cell="open"
-        @open="(stepId, variantId) => (open = { stepId, variantId })"
+        :open-capture="open"
+        @open="openCapture"
+        @open-recording="openRecordingView"
       />
 
       <CommentRecap
         v-if="review.grid.value"
         :grid="review.grid.value"
         :comments="review.comments.value"
-        @open="(stepId, variantId) => (open = { stepId, variantId })"
+        @open="openCapture"
       />
     </template>
   </div>

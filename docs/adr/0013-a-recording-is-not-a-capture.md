@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted — 2026-08-20
+Accepted — 2026-08-20 — the "never a source of state" clause is superseded by
+[ADR 0023](0023-a-recording-is-judged.md); "never compared" stands.
 
 Amends `docs/design/product.md` § 2, which defined the flow recording as a
 capture, and § 3.3, which carried a `to-re-watch` freshness value.

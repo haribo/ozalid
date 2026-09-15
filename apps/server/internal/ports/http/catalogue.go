@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"errors"
+	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"net/http"
 
 	app "github.com/haribo/ozalid/apps/server/internal/app/catalogue"
@@ -120,6 +121,20 @@ func (s *Server) CreateCase(ctx context.Context, request openapi.CreateCaseReque
 				problem("invalid-case", "A case needs a title", http.StatusBadRequest, ""),
 			),
 		}, nil
+	case errors.Is(err, catalogue.ErrCategoryRequired):
+		return openapi.CreateCase400ApplicationProblemPlusJSONResponse{
+			BadRequestApplicationProblemPlusJSONResponse: openapi.BadRequestApplicationProblemPlusJSONResponse(
+				problem("invalid-case", "A case needs a category", http.StatusBadRequest,
+					"The catalogue lists the cases of a named category, so a case filed nowhere is a case no screen can show."),
+			),
+		}, nil
+	// Not found rather than refused: a category of another project does not
+	// exist for this caller, and a refusal would confirm that it exists
+	// somewhere (#71, #115).
+	case errors.Is(err, app.ErrNotFound):
+		return openapi.CreateCase404ApplicationProblemPlusJSONResponse{
+			NotFoundApplicationProblemPlusJSONResponse: notFound("category"),
+		}, nil
 	case err != nil:
 		return nil, err
 	}
@@ -203,7 +218,11 @@ func (s *Server) UpdateCase(ctx context.Context, request openapi.UpdateCaseReque
 			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
 		}, nil
 	}
-	updated, err := s.catalogue.UpdateCase(ctx, request.Slug, request.CaseId, request.Body.Title, request.Body.Description, request.Body.CategoryId)
+	updated, err := s.catalogue.UpdateCase(ctx, request.Slug, request.CaseId, app.CasePatch{
+		Title:       request.Body.Title,
+		Description: request.Body.Description,
+		CategoryID:  request.Body.CategoryId,
+	})
 	switch {
 	case errors.Is(err, catalogue.ErrTitleRequired):
 		return openapi.UpdateCase400ApplicationProblemPlusJSONResponse{
@@ -211,12 +230,69 @@ func (s *Server) UpdateCase(ctx context.Context, request openapi.UpdateCaseReque
 				problem("invalid-case", "A case needs a title", http.StatusBadRequest, ""),
 			),
 		}, nil
+	case errors.Is(err, catalogue.ErrCategoryRequired):
+		return openapi.UpdateCase400ApplicationProblemPlusJSONResponse{
+			BadRequestApplicationProblemPlusJSONResponse: openapi.BadRequestApplicationProblemPlusJSONResponse(
+				problem("invalid-case", "A case needs a category", http.StatusBadRequest,
+					"The catalogue lists the cases of a named category, so a case filed nowhere is a case no screen can show."),
+			),
+		}, nil
+	case errors.Is(err, catalogue.ErrCategoryUnknown):
+		return openapi.UpdateCase404ApplicationProblemPlusJSONResponse{
+			NotFoundApplicationProblemPlusJSONResponse: notFound("category"),
+		}, nil
 	case errors.Is(err, app.ErrNotFound):
 		return openapi.UpdateCase404ApplicationProblemPlusJSONResponse{NotFoundApplicationProblemPlusJSONResponse: notFound("case")}, nil
 	case err != nil:
 		return nil, err
 	}
 	return openapi.UpdateCase200JSONResponse(toAPICase(updated)), nil
+}
+
+// GetCaseHistory answers how a case reached the state it is in (#94).
+func (s *Server) GetCaseHistory(ctx context.Context, request openapi.GetCaseHistoryRequestObject) (openapi.GetCaseHistoryResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.ReadProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.GetCaseHistory401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.GetCaseHistory403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
+	history, err := s.catalogue.CaseHistory(ctx, request.Slug, request.CaseId)
+	if errors.Is(err, app.ErrNotFound) {
+		return openapi.GetCaseHistory404ApplicationProblemPlusJSONResponse{
+			NotFoundApplicationProblemPlusJSONResponse: notFound("case"),
+		}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]openapi.Transition, 0, len(history))
+	for _, t := range history {
+		transition := openapi.Transition{
+			At:    t.At,
+			Cause: t.Cause,
+			Actor: openapi.Actor{
+				Id:   t.Actor.ID,
+				Kind: openapi.ActorKind(t.Actor.Kind),
+				Name: nonEmptyPtr(t.Actor.Name),
+			},
+		}
+		if t.FromState != "" {
+			from := openapi.CaseState(t.FromState)
+			transition.FromState = &from
+		}
+		if t.ToState != "" {
+			to := openapi.CaseState(t.ToState)
+			transition.ToState = &to
+		}
+		out = append(out, transition)
+	}
+	return openapi.GetCaseHistory200JSONResponse(out), nil
 }
 
 // ArchiveCase takes a case out of the catalogue without destroying it.
@@ -351,6 +427,62 @@ func (s *Server) DeleteCategory(ctx context.Context, request openapi.DeleteCateg
 	return openapi.DeleteCategory204Response{}, nil
 }
 
+// UpdateCategory renames, re-parents or reorders a node (#179): a language
+// fix no longer costs delete + recreate + re-parenting the subtree.
+func (s *Server) UpdateCategory(ctx context.Context, request openapi.UpdateCategoryRequestObject) (openapi.UpdateCategoryResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.WriteProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.UpdateCategory401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.UpdateCategory403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
+
+	var patch app.CategoryPatch
+	patch.Name = request.Body.Name
+	if request.Body.Position != nil {
+		position := int32(*request.Body.Position)
+		patch.Position = &position
+	}
+	if request.Body.ParentId != nil {
+		// The empty string moves the node to the root; an id moves it under
+		// that category (#179).
+		if *request.Body.ParentId == "" {
+			patch.Parent = &app.CategoryParent{}
+		} else {
+			patch.Parent = &app.CategoryParent{ID: request.Body.ParentId}
+		}
+	}
+
+	updated, err := s.catalogue.UpdateCategory(ctx, request.Slug, request.CategoryId, patch)
+	switch {
+	case errors.Is(err, catalogue.ErrNameRequired):
+		return openapi.UpdateCategory409ApplicationProblemPlusJSONResponse(
+			problem("name-required", "A category needs a name", http.StatusConflict, ""),
+		), nil
+	case errors.Is(err, catalogue.ErrCategoryCycle):
+		return openapi.UpdateCategory409ApplicationProblemPlusJSONResponse(
+			problem("category-cycle", "A category cannot become its own ancestor", http.StatusConflict,
+				"The move would put the node inside its own subtree."),
+		), nil
+	case errors.Is(err, app.ErrConflict):
+		return openapi.UpdateCategory409ApplicationProblemPlusJSONResponse(
+			problem("duplicate-name", "A sibling already bears the name", http.StatusConflict,
+				"Siblings cannot share a name, at the root included."),
+		), nil
+	case errors.Is(err, app.ErrNotFound):
+		return openapi.UpdateCategory404ApplicationProblemPlusJSONResponse{
+			NotFoundApplicationProblemPlusJSONResponse: notFound("category"),
+		}, nil
+	case err != nil:
+		return nil, err
+	}
+	return openapi.UpdateCategory200JSONResponse(toAPICategory(updated)), nil
+}
+
 func notFound(what string) openapi.NotFoundApplicationProblemPlusJSONResponse {
 	return openapi.NotFoundApplicationProblemPlusJSONResponse(
 		problem(what+"-not-found", "No such "+what, http.StatusNotFound, ""),
@@ -380,7 +512,15 @@ func toAPICase(c catalogue.Case) openapi.Case {
 		Archived:    c.Archived(),
 		CreatedAt:   c.CreatedAt,
 		UpdatedAt:   c.UpdatedAt,
+		Held:        toAPIHold(c.Held),
 	}
+}
+
+func toAPIHold(h *review.Held) *openapi.Hold {
+	if h == nil {
+		return nil
+	}
+	return &openapi.Hold{By: h.By, Name: h.Name, Since: h.Since}
 }
 
 func toAPICategory(c catalogue.Category) openapi.Category {
@@ -399,8 +539,8 @@ func toAPINode(n catalogue.CategoryNode) openapi.Category {
 	out.Cases = openapi.StateCounts{
 		NotInstrumented: int(n.Cases.NotInstrumented),
 		ToReview:        int(n.Cases.ToReview),
-		ToFix:           int(n.Cases.ToFix),
-		Reviewed:        int(n.Cases.Reviewed),
+		Refused:         int(n.Cases.Refused),
+		Accepted:        int(n.Cases.Accepted),
 	}
 	out.LastActivity = n.LastActivity
 	return out
@@ -409,10 +549,10 @@ func toAPINode(n catalogue.CategoryNode) openapi.Category {
 func toAPISummary(s catalogue.CaseSummary) openapi.Case {
 	out := toAPICase(s.Case)
 	out.Captures = &openapi.CaptureCounts{
-		Total:     int(s.Captures.Total),
-		Validated: int(s.Captures.Validated),
-		Commented: int(s.Captures.Commented),
-		ToJudge:   int(s.Captures.ToJudge),
+		Total:    int(s.Captures.Total),
+		Accepted: int(s.Captures.Accepted),
+		Refused:  int(s.Captures.Refused),
+		ToJudge:  int(s.Captures.ToJudge),
 	}
 	out.LastEdition = s.LastEdition
 	return out

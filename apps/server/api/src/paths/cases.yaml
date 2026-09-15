@@ -9,7 +9,6 @@ get:
   security:
     - serviceToken: []
     - session: []
-    - session: []
   summary: List the catalogue
   description: |
     Filters on the stored state, without scanning — which is why the state is
@@ -43,7 +42,6 @@ post:
   operationId: createCase
   security:
     - serviceToken: []
-    - session: []
     - session: []
   summary: Open a case and receive its id
   description: |

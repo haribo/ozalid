@@ -1,19 +1,37 @@
 ReviewSave:
   type: object
   properties:
-    validated:
+    accepted:
       type: array
-      description: The squares the reviewer looked at with nothing to say.
+      description: The captures the reviewer looked at with nothing to say.
       items:
-        $ref: "#/CellRef"
+        $ref: "#/CaptureRef"
     comments:
       type: array
-      description: What the reviewer wrote during the sitting.
+      description: The remarks of this sitting's refusals (ADR 0020).
       items:
         $ref: "#/NewComment"
+    unaccepted:
+      type: array
+      description: |
+        Captures whose acceptance the reviewer takes back — a misclick, or a
+        second look. The verdict is a toggle until the review ends (#156); the
+        journal keeps both moves.
+      items:
+        $ref: "#/CaptureRef"
+    unrefused:
+      type: array
+      description: |
+        Captures whose draft refusal the reviewer takes back: their own remarks
+        with no issue attached are withdrawn with it (ADR 0020).
+      items:
+        $ref: "#/CaptureRef"
 
-CellRef:
+CaptureRef:
   type: object
+  description: |
+    Names one capture by its step and variant — the address a verdict is
+    written at, distinct from ADR 0017's *reference* (the approved bytes).
   required: [stepId, variantId]
   properties:
     stepId: { type: string }
@@ -21,15 +39,9 @@ CellRef:
 
 NewComment:
   type: object
-  required: [stepId, kind, body, variantIds]
+  required: [stepId, body, variantIds]
   properties:
     stepId: { type: string }
-    kind:
-      type: string
-      enum: [defect, improvement]
-      description: |
-        What it is. The kind is written on the comment, where it is exact and
-        where the issue is written from — it never colours the case's state.
     body: { type: string, minLength: 1 }
     variantIds:
       type: array
@@ -52,17 +64,17 @@ ReviewOutcome:
       type: array
       description: The status of every capture the case has, after the save.
       items:
-        $ref: "#/CellVerdict"
+        $ref: "#/CaptureVerdict"
 
-CellVerdict:
+CaptureVerdict:
   allOf:
-    - $ref: "#/CellRef"
+    - $ref: "#/CaptureRef"
     - type: object
       required: [status]
       properties:
         status:
           type: string
-          enum: [to-review, to-fix, validated]
+          enum: [to-review, refused, accepted, moved]
 
 IssueRef:
   type: object
@@ -79,22 +91,60 @@ IssueRef:
         Shown next to the comment. ozalid never refreshes it, so it is whatever
         the client said at the time.
 
+IssueTracking:
+  type: object
+  required: [id, issueId, state]
+  properties:
+    id:
+      type: string
+      description: The ref's own id — what `delivery` and `judgment` name.
+    issueId: { type: string }
+    url: { type: string, format: uri }
+    title:
+      type: string
+      description: What the book reads once attached; the comment's text was the draft.
+    state:
+      type: string
+      description: accepted, not validated — validated is the vocabulary of captures (#170).
+      enum: [tracked, to-review, refused, accepted]
+    lastRefusal:
+      type: string
+      description: |
+        The remark of the latest standing refusal on this ref, if any. A
+        refusal speaks only while it stands (#212): taken back, or answered
+        by a redelivery, it leaves this field — the journal keeps it.
+    refusals:
+      type: array
+      description: |
+        Every standing refusal of the current round, each naming the capture
+        it was given on (ADR 0022, #212). Empty when nothing stands.
+      items:
+        $ref: '#/Refusal'
+
+Refusal:
+  type: object
+  required: [remark]
+  properties:
+    variantId:
+      type: string
+      description: The capture the refusal landed on. Absent on ref-level history from before ADR 0022.
+    remark:
+      type: string
+      description: What the dev has to read.
+
 CommentState:
   type: string
-  enum: [to-track, tracked, to-review, refused, validated, discarded]
+  enum: [to-track, tracked, to-review, refused, accepted, discarded]
   description: |
-    Where the comment stands. `validated` and `discarded` are the only terminal
+    Where the comment stands. `accepted` and `discarded` are the only terminal
     states; a refusal returns to `to-review` on the next delivery.
 
 Comment:
   type: object
-  required: [id, stepId, kind, body, state, variantIds, authorId, createdAt, judgments]
+  required: [id, stepId, body, state, variantIds, authorId, createdAt, judgments]
   properties:
     id: { type: string }
     stepId: { type: string }
-    kind:
-      type: string
-      enum: [defect, improvement]
     body:
       type: string
       description: What the reviewer wrote, in their words. It survives the issue title.
@@ -105,6 +155,14 @@ Comment:
       items: { type: string }
     issue:
       $ref: "#/IssueRef"
+      description: The first ref, kept for old readers. The table reads `issues`.
+    issues:
+      type: array
+      description: |
+        One row per attached issue, each on its own delivered-and-judged round
+        (#138). The comment's own state derives from these.
+      items:
+        $ref: "#/IssueTracking"
     discardReason:
       type: string
       description: Mandatory when discarded, and kept forever with its author.
@@ -120,9 +178,17 @@ Judgment:
   type: object
   required: [verdict, actorId, at]
   properties:
+    variantId:
+      type: string
+      description: |
+        The capture the judgment landed on (ADR 0022). Absent on history from
+        before, and on ref-level moves.
     verdict:
       type: string
-      enum: [accepted, refused]
+      description: >-
+        taken-back is a reviewer reconsidering an acceptance: unvalidating a
+        capture whose validation derived from the settled reference (#167).
+      enum: [accepted, refused, taken-back]
     remark:
       type: string
       description: Mandatory on a refusal. It is what the dev has to read.

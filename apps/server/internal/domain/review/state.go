@@ -6,6 +6,8 @@
 // (ADR 0002, backend ADR 0001).
 package review
 
+import "time"
+
 // CaseState answers one question: who holds the ball (ADR 0012).
 type CaseState string
 
@@ -14,11 +16,12 @@ const (
 	CaseNotInstrumented CaseState = "not-instrumented"
 	// CaseToReview has something waiting for the reviewer's judgment.
 	CaseToReview CaseState = "to-review"
-	// CaseToFix has nothing awaiting the reviewer and at least one comment
-	// awaiting the dev.
-	CaseToFix CaseState = "to-fix"
-	// CaseReviewed has no open comment. The only clean state.
-	CaseReviewed CaseState = "reviewed"
+	// CaseRefused has nothing awaiting the reviewer and at least one comment
+	// awaiting the dev — a refusal is where every open comment comes from
+	// (ADR 0021).
+	CaseRefused CaseState = "refused"
+	// CaseAccepted has no open comment. The only clean state.
+	CaseAccepted CaseState = "accepted"
 )
 
 // CommentState carries the detail the case state deliberately omits.
@@ -29,12 +32,29 @@ const (
 	CommentTracked   CommentState = "tracked"
 	CommentToReview  CommentState = "to-review"
 	CommentRefused   CommentState = "refused"
-	CommentValidated CommentState = "validated"
+	CommentAccepted  CommentState = "accepted"
 	CommentDiscarded CommentState = "discarded"
 )
 
 // Open reports whether the comment still counts against its case. Validated and
 // discarded are the only terminal states.
 func (s CommentState) Open() bool {
-	return s != CommentValidated && s != CommentDiscarded
+	return s != CommentAccepted && s != CommentDiscarded
 }
+
+// Hold says who holds a case and since when (ADR 0005): occupancy, never a
+// state.
+type Hold struct {
+	By    string
+	Name  string
+	Since time.Time
+}
+
+// Held is the refusal a held case gives every reviewer but its holder.
+type Held struct {
+	By    string
+	Name  string
+	Since time.Time
+}
+
+func (h *Held) Error() string { return "review: held by " + h.By }

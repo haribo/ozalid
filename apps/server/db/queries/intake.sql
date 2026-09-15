@@ -21,14 +21,22 @@ RETURNING *;
 
 -- Steps are reconciled per case: the manifest gives the order, and re-pushing
 -- the same step keeps its identity so the comments anchored to it survive.
+-- A step is matched by its name, and moved rather than renamed: the row is
+-- the cross-edition identity that captures, verdicts and comments hang from,
+-- and renaming it reattached history to the wrong screen (#132).
 -- name: UpsertStep :one
 INSERT INTO steps (case_id, name, position)
 VALUES ($1, $2, $3)
-ON CONFLICT (case_id, position) DO UPDATE SET name = EXCLUDED.name
+ON CONFLICT (case_id, name) DO UPDATE SET position = EXCLUDED.position
 RETURNING *;
 
--- name: DeleteStepsBeyond :exec
-DELETE FROM steps WHERE case_id = $1 AND position >= $2;
+-- A step out of the manifest stays while anything references it: it holds the
+-- evidence of earlier editions. Only a step nothing ever captured goes.
+-- name: PruneCapturelessSteps :exec
+DELETE FROM steps s
+WHERE s.case_id = $1
+  AND NOT (s.id = ANY(@kept::text[]))
+  AND NOT EXISTS (SELECT 1 FROM captures c WHERE c.step_id = s.id);
 
 -- name: UpsertBlob :exec
 INSERT INTO blobs (hash, size_bytes)
@@ -38,11 +46,12 @@ ON CONFLICT (hash) DO NOTHING;
 -- name: BlobExists :one
 SELECT EXISTS (SELECT 1 FROM blobs WHERE hash = $1);
 
--- A capture is born with its freshness: it is computed once, against what was
--- approved, and the row never changes again.
+-- A capture is born with its measurement: moved_pixels is computed once at
+-- intake against what was approved, and the row never changes again. The
+-- conclusion — moved or not — is derived at read time (ADR 0021).
 -- name: CreateCapture :one
-INSERT INTO captures (edition_id, step_id, variant_id, blob_hash, provenance, freshness, moved_pixels)
-VALUES ($1, $2, $3, $4, $5, @freshness, @moved_pixels)
+INSERT INTO captures (edition_id, step_id, variant_id, blob_hash, provenance, moved_pixels)
+VALUES ($1, $2, $3, $4, $5, @moved_pixels)
 RETURNING *;
 
 -- name: CreateRecording :one
@@ -94,17 +103,6 @@ SELECT * FROM variants WHERE project_id = $1;
 -- name: RelabelVariant :exec
 UPDATE variants SET label = $2 WHERE id = $1;
 
--- A new edition does not yank the ground from under a reviewer: a case sitting
--- at `to-review` keeps pointing at what its reviewer is judging, and advances
--- once that review ends (product.md §7). A case that points nowhere always
--- advances -- there was nothing to protect.
--- name: AdvanceCurrentEdition :many
-UPDATE cases
-SET current_edition_id = @edition_id, updated_at = now()
-WHERE id = ANY(@case_ids::text[])
-  AND (current_edition_id IS NULL OR state <> 'to-review')
-RETURNING id;
-
 -- name: ProjectThreshold :one
 SELECT pixel_threshold FROM projects WHERE slug = $1;
 
@@ -119,3 +117,6 @@ JOIN steps s ON s.id = r.step_id
 JOIN variants v ON v.id = r.variant_id
 WHERE r.case_id = ANY($1::text[]);
 
+
+-- name: PixelThresholdByProject :one
+SELECT pixel_threshold FROM projects WHERE id = $1;

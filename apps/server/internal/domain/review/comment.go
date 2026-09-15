@@ -41,6 +41,11 @@ const (
 	MoveAccept Move = "accept"
 	// MoveRefuse sends it back, with a remark.
 	MoveRefuse Move = "refuse"
+	// MoveUnjudge takes a judgment back — an acceptance or a refusal: the
+	// reviewer reconsiders, and the ref returns to their court (#167, #171).
+	// It exists on refs only — a comment never settles or reopens on its own,
+	// it derives from its refs.
+	MoveUnjudge Move = "unjudge"
 )
 
 // allowed is the whole machine, in one table. Reading it is reading the rules.
@@ -57,16 +62,25 @@ var allowed = map[Move]map[CommentState]CommentState{
 		CommentRefused:  CommentDiscarded,
 	},
 	MoveDeliver: {
+		// A draft loops in the branch without an issue (#175): delivering it
+		// is the machine's claim that the latest edition answers the remark.
+		CommentToTrack: CommentToReview,
 		CommentTracked: CommentToReview,
 		// A refusal is not a way to die: the dev reworks and delivers again,
 		// as many rounds as it takes (ADR 0012).
 		CommentRefused: CommentToReview,
 	},
 	MoveAccept: {
-		CommentToReview: CommentValidated,
+		CommentToReview: CommentAccepted,
 	},
 	MoveRefuse: {
 		CommentToReview: CommentRefused,
+	},
+	// Both judgments on a ref-less remark are reconsiderable, symmetrically
+	// with the refs' own machine (#175, ADR 0020).
+	MoveUnjudge: {
+		CommentAccepted: CommentToReview,
+		CommentRefused:  CommentToReview,
 	},
 }
 
@@ -76,7 +90,7 @@ var allowed = map[Move]map[CommentState]CommentState{
 // mandatory where they apply, and the check happens here rather than in a
 // handler so no caller can skip it.
 func Transition(from CommentState, move Move, reason string) (CommentState, error) {
-	if !from.Open() {
+	if !from.Open() && move != MoveUnjudge {
 		return from, ErrNotOpen
 	}
 
@@ -96,4 +110,77 @@ func Transition(from CommentState, move Move, reason string) (CommentState, erro
 		return from, ErrMoveNotAllowed
 	}
 	return to, nil
+}
+
+// RefState is the lifecycle of one issue reference. The moves a comment used
+// to take alone — delivered, judged — happen here now: one comment may carry
+// several issues, each on its own round (#138).
+type RefState string
+
+const (
+	RefTracked  RefState = "tracked"
+	RefToReview RefState = "to-review"
+	RefRefused  RefState = "refused"
+	// RefAccepted is the reviewer's yes on this ref. Named for the act:
+	// validated is the vocabulary of captures, and nothing else (#170).
+	RefAccepted RefState = "accepted"
+)
+
+// refMoves is the ref's whole machine, shaped like the comment's.
+var refMoves = map[Move]map[RefState]RefState{
+	MoveDeliver: {
+		RefTracked: RefToReview,
+		// A refusal is not a way to die: the dev reworks and delivers again,
+		// as many rounds as it takes (ADR 0012).
+		RefRefused: RefToReview,
+	},
+	MoveAccept: {RefToReview: RefAccepted},
+	MoveRefuse: {RefToReview: RefRefused},
+	// Both judgments can be reconsidered, symmetrically: the ref returns to
+	// the reviewer's court (#167, #171).
+	MoveUnjudge: {RefAccepted: RefToReview, RefRefused: RefToReview},
+}
+
+// TransitionRef reports what a move does to one issue ref, or why it cannot.
+func TransitionRef(from RefState, move Move, remark string) (RefState, error) {
+	if from == RefAccepted && move != MoveUnjudge {
+		return from, ErrNotOpen
+	}
+	if move == MoveRefuse && remark == "" {
+		return from, ErrRemarkRequired
+	}
+	to, ok := refMoves[move][from]
+	if !ok {
+		return from, ErrMoveNotAllowed
+	}
+	return to, nil
+}
+
+// DeriveComment reads a comment's state off its refs. The comment no longer
+// moves on its own once refs exist: the finest open ref decides, so nothing
+// reads settled while anything is undelivered (#138).
+//
+// Discarded is not derived — it is said, with a reason, and it stands.
+func DeriveComment(current CommentState, refs []RefState) CommentState {
+	if current == CommentDiscarded {
+		return current
+	}
+	if len(refs) == 0 {
+		return CommentToTrack
+	}
+	derived := CommentAccepted
+	for _, r := range refs {
+		switch r {
+		case RefToReview:
+			// The reviewer's court beats everything: work is waiting on them.
+			return CommentToReview
+		case RefRefused:
+			derived = CommentRefused
+		case RefTracked:
+			if derived != CommentRefused {
+				derived = CommentTracked
+			}
+		}
+	}
+	return derived
 }

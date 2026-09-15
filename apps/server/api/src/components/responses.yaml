@@ -5,6 +5,15 @@ BadRequest:
       schema:
         $ref: "./problem.yaml"
 
+Held:
+  description: |
+    Somebody else holds this case (ADR 0005, #95): a held case takes no
+    verdict but its holder's. The detail names them.
+  content:
+    application/problem+json:
+      schema:
+        $ref: "./problem.yaml"
+
 NotFound:
   description: No such resource.
   content:

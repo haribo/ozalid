@@ -36,7 +36,7 @@ NewProject:
 
 CaseState:
   type: string
-  enum: [not-instrumented, to-review, to-fix, reviewed]
+  enum: [not-instrumented, to-review, refused, accepted]
   description: |
     Who holds the ball. Computed by the server from the case's comments; no
     endpoint accepts it as an argument.
@@ -52,6 +52,10 @@ Case:
     categoryId: { type: string, nullable: true }
     title: { type: string }
     description: { type: string, nullable: true }
+    held:
+      description: Present while a reviewer holds the case (ADR 0005, #95).
+      allOf:
+        - $ref: "#/Hold"
     state:
       $ref: "#/CaseState"
     archived:
@@ -68,19 +72,81 @@ Case:
 
 NewCase:
   type: object
-  required: [title]
+  # A case belongs to exactly one category (`product.md` §Category). Optional
+  # here, it produced cases sitting outside every branch of the tree, which the
+  # catalogue cannot show — it lists the cases of a named category and nothing
+  # else. Found on a production instance, not by reading the schema (#115).
+  required: [title, categoryId]
   properties:
     title: { type: string, minLength: 1 }
     description: { type: string }
-    categoryId: { type: string }
+    categoryId: { type: string, minLength: 1 }
+
+Hold:
+  type: object
+  required: [by, name, since]
+  description: Who holds the case, and since when. Occupancy, never a state (ADR 0005).
+  properties:
+    by: { type: string }
+    name: { type: string }
+    since: { type: string, format: date-time }
 
 CaseUpdate:
   type: object
-  required: [title]
+  # A merge patch: an absent field is left as it stands. Overwriting the whole
+  # row made a patch carrying only a title empty the category, which filed the
+  # case nowhere — the state `NewCase` refuses at creation (#115, #229).
   properties:
     title: { type: string, minLength: 1 }
-    description: { type: string, nullable: true }
-    categoryId: { type: string, nullable: true }
+    description:
+      type: string
+      description: Absent leaves it alone; the empty string clears it.
+    categoryId:
+      type: string
+      minLength: 1
+      description: |
+        Another category of the same project. Absent leaves it alone, and
+        there is no way to remove it: a case belongs to exactly one.
+
+Transition:
+  type: object
+  # What the journal recorded, minus what only the server may read: `inputs`
+  # and `rule_version` are the regression oracle (ADR 0002), and a reader who
+  # receives them is a reader invited to compute on them (#94).
+  required: [at, cause, actor]
+  properties:
+    at: { type: string, format: date-time }
+    fromState:
+      $ref: "#/CaseState"
+    toState:
+      $ref: "#/CaseState"
+    cause:
+      type: string
+      description: |
+        The fact that caused the change, in the server's own words —
+        `edition-accepted`, `review-saved`, `comment-discarded`. Not an enum:
+        the vocabulary grows with the moves the product records, and a client
+        that switches on it would break on the next one.
+    actor:
+      $ref: "#/Actor"
+
+Actor:
+  type: object
+  # Who caused it, and of what kind: a person or a program. That distinction is
+  # derived from how the caller authenticated and is why the journal is worth
+  # keeping (ADR 0018).
+  required: [id, kind]
+  properties:
+    id: { type: string }
+    kind:
+      type: string
+      enum: [human, machine]
+    name:
+      type: string
+      description: |
+        Absent when the account is gone or was never named — rows written
+        before identity existed keep whatever they named, and history is not
+        rewritten to look answered.
 
 Category:
   type: object
@@ -99,7 +165,7 @@ Category:
 
 StateCounts:
   type: object
-  required: [notInstrumented, toReview, toFix, reviewed]
+  required: [notInstrumented, toReview, refused, accepted]
   description: |
     How many cases sit in each state under this node, across its **whole
     descendance** — not just its direct children. A branch in trouble has to be
@@ -107,19 +173,19 @@ StateCounts:
   properties:
     notInstrumented: { type: integer }
     toReview: { type: integer }
-    toFix: { type: integer }
-    reviewed: { type: integer }
+    refused: { type: integer }
+    accepted: { type: integer }
 
 CaptureCounts:
   type: object
-  required: [total, validated, commented, toJudge]
+  required: [total, accepted, refused, toJudge]
   description: |
     How this case's captures stand at the edition it points at. A capture with
     no verdict yet counts as still to judge.
   properties:
     total: { type: integer }
-    validated: { type: integer }
-    commented: { type: integer }
+    accepted: { type: integer }
+    refused: { type: integer }
     toJudge: { type: integer }
 
 NewCategory:
@@ -151,7 +217,9 @@ Account:
     email: { type: string, format: email }
     isAdmin:
       type: boolean
-      description: Manages accounts and creates projects; reaches no content.
+      description: |
+        Manages accounts, creates projects, and reaches every one of them
+        (`product.md` §8.2).
     deactivatedAt:
       type: string
       format: date-time

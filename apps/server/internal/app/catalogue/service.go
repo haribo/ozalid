@@ -41,10 +41,16 @@ func (s *Service) ProjectBySlug(ctx context.Context, slug string) (catalogue.Pro
 //
 // The client stores that id and sends it on every subsequent edition; it never
 // invents one (ADR 0014).
-func (s *Service) CreateCase(ctx context.Context, projectID string, categoryID *string, title string, description *string) (catalogue.Case, error) {
+func (s *Service) CreateCase(ctx context.Context, projectID string, categoryID string, title string, description *string) (catalogue.Case, error) {
 	cleaned, err := catalogue.CleanTitle(title)
 	if err != nil {
 		return catalogue.Case{}, err
+	}
+	// An empty one is a malformed request, not a category nobody has: the two
+	// deserve different answers, and only the repository can tell whether a
+	// named category exists (#115).
+	if strings.TrimSpace(categoryID) == "" {
+		return catalogue.Case{}, catalogue.ErrCategoryRequired
 	}
 	return s.repo.CreateCase(ctx, projectID, categoryID, cleaned, description)
 }
@@ -76,12 +82,23 @@ func (s *Service) ListCases(ctx context.Context, projectID string, state, catego
 
 // UpdateCase changes what is mutable about a case. Its id and its state are
 // not part of that.
-func (s *Service) UpdateCase(ctx context.Context, slug, id, title string, description, categoryID *string) (catalogue.Case, error) {
-	cleaned, err := catalogue.CleanTitle(title)
-	if err != nil {
-		return catalogue.Case{}, err
+//
+// The patch merges: only what it names is written, so a caller editing one
+// field cannot empty the others (#229).
+func (s *Service) UpdateCase(ctx context.Context, slug, id string, patch CasePatch) (catalogue.Case, error) {
+	if patch.Title != nil {
+		cleaned, err := catalogue.CleanTitle(*patch.Title)
+		if err != nil {
+			return catalogue.Case{}, err
+		}
+		patch.Title = &cleaned
 	}
-	return s.repo.UpdateCase(ctx, slug, id, cleaned, description, categoryID)
+	// An empty one is a malformed request, not a category nobody has, exactly
+	// as at creation (#115).
+	if patch.CategoryID != nil && strings.TrimSpace(*patch.CategoryID) == "" {
+		return catalogue.Case{}, catalogue.ErrCategoryRequired
+	}
+	return s.repo.UpdateCase(ctx, slug, id, patch)
 }
 
 // ArchiveCase takes a case out of the catalogue without destroying it: its
@@ -95,6 +112,15 @@ func (s *Service) ArchiveCase(ctx context.Context, slug, id string) error {
 		return catalogue.ErrCaseAlreadyArchived
 	}
 	return nil
+}
+
+// CaseHistory reads how a case reached the state it is in (#94,
+// product.md §9).
+//
+// A read, and only a read: the journal says how the state got here, it does
+// not get to disagree about where it is (ADR 0002).
+func (s *Service) CaseHistory(ctx context.Context, slug, id string) ([]catalogue.Transition, error) {
+	return s.repo.CaseHistory(ctx, slug, id)
 }
 
 // CreateCategory adds a node to the tree.
@@ -153,6 +179,19 @@ func (s *Service) OrderAxes(ctx context.Context, projectID string, order []strin
 // listing draws its rows without asking a second question per row.
 func (s *Service) SummariseCases(ctx context.Context, projectID string, categoryID *string) ([]catalogue.CaseSummary, error) {
 	return s.repo.SummariseCases(ctx, projectID, categoryID)
+}
+
+// UpdateCategory renames, re-parents or reorders a node — a language fix no
+// longer costs delete + recreate + re-parenting the subtree (#179).
+func (s *Service) UpdateCategory(ctx context.Context, slug, id string, patch CategoryPatch) (catalogue.Category, error) {
+	if patch.Name != nil {
+		cleaned := strings.TrimSpace(*patch.Name)
+		if cleaned == "" {
+			return catalogue.Category{}, catalogue.ErrNameRequired
+		}
+		patch.Name = &cleaned
+	}
+	return s.repo.UpdateCategory(ctx, slug, id, patch)
 }
 
 // DeleteCategory removes an empty node.

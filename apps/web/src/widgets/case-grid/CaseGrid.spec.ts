@@ -19,9 +19,9 @@ function grid(over: Partial<Grid> = {}): Grid {
         id: 's1',
         name: 'opens the form',
         position: 0,
-        cells: [
-          { id: 'cap1', variantId: 'v1', hash: 'sha256:aaa', status: 'validated' },
-          { id: 'cap2', variantId: 'v2', hash: 'sha256:bbb', status: 'to-fix' },
+        captures: [
+          { id: 'cap1', variantId: 'v1', hash: 'sha256:aaa', status: 'accepted' },
+          { id: 'cap2', variantId: 'v2', hash: 'sha256:bbb', status: 'refused' },
         ],
       },
       // Not every variant exists at every step.
@@ -29,7 +29,7 @@ function grid(over: Partial<Grid> = {}): Grid {
         id: 's2',
         name: 'submits',
         position: 1,
-        cells: [{ id: 'cap3', variantId: 'v1', hash: 'sha256:ccc', status: 'to-review' }],
+        captures: [{ id: 'cap3', variantId: 'v1', hash: 'sha256:ccc', status: 'to-review' }],
       },
     ],
     recordings: [],
@@ -37,45 +37,25 @@ function grid(over: Partial<Grid> = {}): Grid {
   }
 }
 
-// The grid's own cells. Assertions must be scoped to them: the legend under the
+// The grid's own captures. Assertions must be scoped to them: the legend under the
 // table carries every word, so a check against the whole component would pass
-// whatever the cells say.
-const cells = (w: ReturnType<typeof mount>) => w.findAll('tbody td')
+// whatever the captures say.
+const captures = (w: ReturnType<typeof mount>) => w.findAll('tbody td')
 
-// One square that has moved, from a chosen verdict.
-const oneMoved = (status: 'validated' | 'to-fix') => ({
+// One capture at a chosen derived status (ADR 0021): moved is a status now,
+// not an overlay riding another one.
+const oneAt = (status: 'accepted' | 'refused' | 'moved') => ({
   steps: [
     {
       id: 's1',
       name: 'opens the form',
       position: 0,
-      cells: [
+      captures: [
         {
           id: 'cap4',
           variantId: 'v1',
           hash: 'sha256:aaa',
           status,
-          freshness: 'to-re-review' as const,
-        },
-      ],
-    },
-  ],
-})
-
-// One validated square, at a chosen freshness.
-const oneValidated = (freshness: 'current' | 'to-re-review') => ({
-  steps: [
-    {
-      id: 's1',
-      name: 'opens the form',
-      position: 0,
-      cells: [
-        {
-          id: 'cap5',
-          variantId: 'v1',
-          hash: 'sha256:aaa',
-          status: 'validated' as const,
-          freshness,
         },
       ],
     },
@@ -83,10 +63,23 @@ const oneValidated = (freshness: 'current' | 'to-re-review') => ({
 })
 
 describe('CaseGrid', () => {
+  it('counts each status beside its glyph in the legend (#220)', () => {
+    // The default grid: one accepted, one refused, one to-review, and the
+    // hole at s2/v2 counts as missing. A zero shows no number.
+    const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
+    const legend = w.findAll('div').at(-1)!
+    expect(legend.text()).toContain('to review1')
+    expect(legend.text()).toContain('accepted1')
+    expect(legend.text()).toContain('refused1')
+    expect(legend.text()).toContain('missing1')
+    expect(legend.text()).toContain('moved')
+    expect(legend.text()).not.toContain('moved1')
+  })
+
   it('says so plainly when a case has never been captured', () => {
     // Not being instrumented is a legitimate state, not an error (ADR 0012).
     const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid({ steps: [], variants: [] }) } })
-    expect(w.text()).toContain('aucune capture')
+    expect(w.text()).toContain('no capture')
     expect(w.find('table').exists()).toBe(false)
   })
 
@@ -103,20 +96,20 @@ describe('CaseGrid', () => {
     expect(w.find('img').attributes('src')).toBe('/api/projects/atlas/captures/cap1')
   })
 
-  it('says where the review stands on each square', () => {
-    // Read from the cells, never from the component: the legend below repeats
+  it('says where the review stands on each capture', () => {
+    // Read from the captures, never from the component: the legend below repeats
     // every word, and a check that cannot fail is not a check.
     const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
     // The accessible name sits on the disc, and the glyph inside it is
     // decorative — one mark, one name.
-    const marks = cells(w).map((c) => c.findAll('[role="img"]')[0]?.attributes('aria-label'))
+    const marks = captures(w).map((c) => c.findAll('[role="img"]')[0]?.attributes('aria-label'))
     expect(marks).toEqual([
-      'validée',
-      'commentée',
-      // A square nobody has judged carries no mark at all — bare is the
+      'accepted',
+      'refused',
+      // A capture nobody has judged carries no mark at all — bare is the
       // reading, and it is the only one that leaves every pixel visible.
       undefined,
-      'manquante',
+      'missing',
     ])
   })
 
@@ -131,7 +124,7 @@ describe('CaseGrid', () => {
 
   it('marks the capture currently open, so returning to the grid finds it', () => {
     const w = mount(CaseGrid, {
-      props: { slug: 'atlas', grid: grid(), openCell: { stepId: 's1', variantId: 'v2' } },
+      props: { slug: 'atlas', grid: grid(), openCapture: { stepId: 's1', variantId: 'v2' } },
     })
     const marked = w.findAll('button').filter((b) => b.classes().includes('ring-2'))
     expect(marked).toHaveLength(1)
@@ -156,13 +149,13 @@ describe('CaseGrid', () => {
     // A case is meant to be complete: a step missing a variant its siblings
     // carry is a failed run, and drawing it neutrally would hide it (ADR 0016).
     const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
-    const hole = cells(w)[3]
+    const hole = captures(w)[3]
     expect(hole.find('img').exists()).toBe(false)
-    expect(hole.find('[aria-label="manquante"]').exists()).toBe(true)
+    expect(hole.find('[aria-label="missing"]').exists()).toBe(true)
     expect(hole.find('.border-dashed').exists()).toBe(true)
   })
 
-  it('rings each capture with its own verdict, and tints no cell behind it', () => {
+  it('rings each capture with its own verdict, and tints no capture behind it', () => {
     // The colour belongs to the capture, not to the ground around it: this
     // interface frames someone else's product.
     const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
@@ -171,8 +164,8 @@ describe('CaseGrid', () => {
     expect(frames[1].classes().join(' ')).toContain('border-amber-600')
     expect(frames[2].classes().join(' ')).toContain('border-slate-300')
 
-    expect(cells(w).some((c) => c.classes().join(' ').includes('bg-emerald'))).toBe(false)
-    expect(cells(w).some((c) => c.classes().join(' ').includes('bg-amber'))).toBe(false)
+    expect(captures(w).some((c) => c.classes().join(' ').includes('bg-emerald'))).toBe(false)
+    expect(captures(w).some((c) => c.classes().join(' ').includes('bg-amber'))).toBe(false)
   })
 
   it('steps a judged capture back, and leaves what needs eyes at full strength', () => {
@@ -183,52 +176,88 @@ describe('CaseGrid', () => {
     expect(images[2].classes()).not.toContain('opacity-40') // still to judge
   })
 
-  it('leaves the recording without a verdict ring, since nothing judges it', () => {
-    // A recording is not comparable, so it carries no state (ADR 0013).
+  it('opens the recording in the carousel instead of downloading it (#226)', () => {
+    // The video is judged in front of its own pixels (ADR 0023); the cell
+    // itself keeps no verdict ring — the walk carries the pair.
     const w = mount(CaseGrid, {
       props: {
         slug: 'atlas',
-        grid: grid({ recordings: [{ id: 'rec1', variantId: 'v1', hash: 'sha256:vid' }] }),
+        grid: grid({
+          recordings: [{ id: 'rec1', variantId: 'v1', hash: 'sha256:vid', status: 'to-review' }],
+        }),
       },
     })
-    const link = w.find('a[href="/api/projects/atlas/recordings/rec1"]')
-    const classes = link.classes().join(' ')
+    expect(w.find('a[href^="/api/"]').exists()).toBe(false)
+    const cell = w.find('[aria-label^="watch the recording"]')
+    cell.trigger('click')
+    expect(w.emitted('openRecording')?.[0]).toEqual(['v1'])
+    const classes = cell.classes().join(' ')
     expect(classes).not.toContain('emerald')
-    expect(classes).not.toContain('amber')
+  })
+
+  it('lets a judged recording wear its verdict disc (#234)', () => {
+    const w = mount(CaseGrid, {
+      props: {
+        slug: 'atlas',
+        grid: grid({
+          recordings: [
+            { id: 'rec1', variantId: 'v1', hash: 'sha256:vid', status: 'accepted' },
+            {
+              id: 'rec2',
+              variantId: 'v2',
+              hash: 'sha256:vid2',
+              status: 'refused',
+              refusal: 'the flow stutters',
+            },
+          ],
+        }),
+      },
+    })
+    const cells = w.findAll('[aria-label^="watch the recording"]')
+    expect(cells[0].classes().join(' ')).toContain('emerald')
+    expect(cells[1].classes().join(' ')).toContain('amber')
+    // The disc sits beside its own cell, not in the legend: read it from
+    // the cell's wrapper.
+    const rows = w.findAll('span.relative')
+    const marksOf = (label: string) =>
+      rows
+        .filter((r) =>
+          r.find(`[aria-label="watch the recording — ${label} in the carousel"]`).exists(),
+        )
+        .map((r) => r.find('[role="img"]').attributes('aria-label'))
+    expect(marksOf('desktop·light')).toEqual(['accepted'])
+    expect(marksOf('mobile·dark')).toEqual(['refused'])
   })
 
   it('renders a capture that moved as one to judge, carrying why it came back', () => {
     // For the only question the grid asks, it has not been validated — not the
     // bytes on display (frontend ADR 0003).
     const w = mount(CaseGrid, {
-      props: { slug: 'atlas', grid: grid(oneValidated('to-re-review')) },
+      props: { slug: 'atlas', grid: grid(oneAt('moved')) },
     })
-    const cell = cells(w)[0]
+    const capture = captures(w)[0]
 
-    expect(cell.find('img').classes()).not.toContain('opacity-40')
-    expect(cell.find('[aria-label="a bougé"]').exists()).toBe(true)
+    expect(capture.find('img').classes()).not.toContain('opacity-40')
+    expect(capture.find('[aria-label="moved"]').exists()).toBe(true)
     // The verdict it used to carry is exactly what the grid no longer reports.
-    expect(cell.find('[aria-label="validée"]').exists()).toBe(false)
-    expect(cell.find('button').classes().join(' ')).not.toContain('emerald')
+    expect(capture.find('[aria-label="accepted"]').exists()).toBe(false)
+    expect(capture.find('button').classes().join(' ')).not.toContain('emerald')
   })
 
-  it('reads a moved capture the same whatever verdict it used to carry', () => {
-    // Validated-and-moved and commented-and-moved are one cell: what separated
-    // them is what the grid stopped reporting (frontend ADR 0003).
-    const fromValidated = mount(CaseGrid, {
-      props: { slug: 'atlas', grid: grid(oneMoved('validated')) },
-    })
-    const fromCommented = mount(CaseGrid, {
-      props: { slug: 'atlas', grid: grid(oneMoved('to-fix')) },
-    })
-    expect(cells(fromValidated)[0].html()).toBe(cells(fromCommented)[0].html())
+  it('never draws the moved mark on an accepted capture', () => {
+    // The regression this epic exists for (#194): accepted means the pixels
+    // on display are the pixels that were approved — one status, one mark.
+    const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid(oneAt('accepted')) } })
+    const capture = captures(w)[0]
+    expect(capture.find('[aria-label="moved"]').exists()).toBe(false)
+    expect(capture.find('[aria-label="accepted"]').exists()).toBe(true)
   })
 
-  it('says nothing about freshness when there is nothing to compare against', () => {
+  it('says nothing about movement when there is nothing to compare against', () => {
     // Absent is a third answer, not "unchanged" (ADR 0017).
     const w = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
-    for (const cell of cells(w)) {
-      expect(cell.find('[aria-label="a bougé"]').exists()).toBe(false)
+    for (const capture of captures(w)) {
+      expect(capture.find('[aria-label="moved"]').exists()).toBe(false)
     }
   })
 
@@ -241,29 +270,32 @@ describe('CaseGrid', () => {
     }
   })
 
-  it('gives freshness its own shape, never a state icon', () => {
+  it('gives movement its own shape, never a state icon', () => {
     const w = mount(CaseGrid, {
-      props: { slug: 'atlas', grid: grid(oneValidated('to-re-review')) },
+      props: { slug: 'atlas', grid: grid(oneAt('moved')) },
     })
-    const cell = cells(w)[0]
-    const mark = cell.find('[role="img"]')
-    expect(mark.attributes('aria-label')).toBe('a bougé')
-    // Two arrows on the disc, not a check: a capture can be validated and moved
-    // at once, and one mark must not be mistakable for the other.
-    expect(mark.findAll('path')).toHaveLength(2)
+    const capture = captures(w)[0]
+    const mark = capture.find('[role="img"]')
+    expect(mark.attributes('aria-label')).toBe('moved')
+    // Two offset frames on the disc, not a check (#209): a capture can be
+    // validated and moved at once, and one mark must not be mistakable for
+    // the other.
+    expect(mark.findAll('rect')).toHaveLength(2)
     expect(mark.classes()).toContain('rounded-full')
   })
 
   it('only shows the recording row when a recording exists', () => {
     const without = mount(CaseGrid, { props: { slug: 'atlas', grid: grid() } })
-    expect(without.text()).not.toContain('enregistrement')
+    expect(without.text()).not.toContain('recording')
 
     const withOne = mount(CaseGrid, {
       props: {
         slug: 'atlas',
-        grid: grid({ recordings: [{ id: 'cap7', variantId: 'v1', hash: 'sha256:vid' }] }),
+        grid: grid({
+          recordings: [{ id: 'cap7', variantId: 'v1', hash: 'sha256:vid', status: 'to-review' }],
+        }),
       },
     })
-    expect(withOne.text()).toContain('enregistrement')
+    expect(withOne.text()).toContain('recording')
   })
 })

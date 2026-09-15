@@ -90,6 +90,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What a token can learn about itself
+         * @description A program holding an `ozp_` token asks whose key it is and which project it
+         *     opens — and fails fast with a clear 401 when the token is retired or the
+         *     account deactivated, instead of discovering it on its first real call
+         *     (#180). `/me` stays the person's mirror; this is the machine's.
+         */
+        get: operations["whoIsTheToken"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -607,12 +630,43 @@ export interface paths {
          * The video a recording holds
          * @description Read through the recording, for the same reason a capture's image is
          *     (`product.md` §8.1). A recording is a supporting exhibit: never
-         *     byte-compared, never a source of state (ADR 0013).
+         *     byte-compared, judged, never byte-compared (ADR 0013, ADR 0023).
          */
         get: operations["getRecordingVideo"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{slug}/recordings/{recordingId}/judgment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                recordingId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Render a verdict on the recording on screen
+         * @description A recording is judged (ADR 0023): the verdict lands on exactly these
+         *     bytes — one edition, one variant. A refusal carries its mandatory remark
+         *     (ADR 0020). A new edition brings new bytes and a new `to-review`
+         *     recording.
+         */
+        post: operations["judgeRecording"];
+        /**
+         * Take the recording's verdict back
+         * @description Symmetric with giving it (ADR 0023): the recording returns to the
+         *     reviewer, the history keeps the move.
+         */
+        delete: operations["unjudgeRecording"];
         options?: never;
         head?: never;
         patch?: never;
@@ -638,8 +692,75 @@ export interface paths {
         /**
          * Change what is mutable about a case
          * @description Its id and its state are not part of that.
+         *
+         *     A merge patch: a field the body does not carry is left untouched. The
+         *     empty string clears a description; nothing clears a category, since a
+         *     case belongs to exactly one (#229).
          */
         patch: operations["updateCase"];
+        trace?: never;
+    };
+    "/projects/{slug}/cases/{caseId}/lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hold the case, or keep holding it
+         * @description Claiming is also the heartbeat (ADR 0005, #95): the same call takes a free
+         *     or expired lock and renews the caller's own. Somebody else's live hold
+         *     answers 423, naming them. Occupancy is never a state — the case reads the
+         *     same before and after.
+         */
+        post: operations["claimCase"];
+        /**
+         * Let the case go
+         * @description Releasing a lock nobody holds, or somebody else's, changes nothing
+         *     (ADR 0005).
+         */
+        delete: operations["releaseCase"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{slug}/cases/{caseId}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Read how a case reached the state it is in
+         * @description The transition journal (`product.md` §9): every recorded change of state on
+         *     this case, oldest first, each naming what caused it and who.
+         *
+         *     It answers *what happened on this case, in order, caused by whom*. It is
+         *     **not** an audit export (`product.md` §10) and it is not a second source of
+         *     truth for the state: the state is stored and computed by the server
+         *     (ADR 0002), and the journal says how it got there without getting to
+         *     disagree about where it is.
+         *
+         *     A case nobody has ever moved answers an empty history, not an error.
+         */
+        get: operations["getCaseHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/projects/{slug}/cases/{caseId}/captures": {
@@ -655,7 +776,7 @@ export interface paths {
         /**
          * Read the evidence a case is judged from
          * @description The grid: steps in order, the variants that exist, and the capture sitting
-         *     at each cell. A cell with no capture is simply absent — not every variant
+         *     at each step and variant. A missing one is simply absent — not every variant
          *     exists at every step.
          *
          *     Defaults to the project's most recent edition. A specific one can be asked
@@ -696,6 +817,31 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/projects/{slug}/comments/{commentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: components["parameters"]["Slug"];
+                commentId: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit a draft remark
+         * @description The author reworking their own draft (ADR 0020): text and covered
+         *     variants, while no issue is attached. Once tracked, the issue's title
+         *     speaks in the remark's place and editing is refused.
+         */
+        patch: operations["editComment"];
         trace?: never;
     };
     "/projects/{slug}/comments/{commentId}/reference": {
@@ -770,6 +916,9 @@ export interface paths {
          *
          *     They may ask without having implemented everything else on the case: one
          *     issue can depend on the verdict given on another.
+         *
+         *     A comment may carry several issue refs (#138): `issueId` names the one
+         *     delivered. It may be omitted while the comment carries exactly one.
          */
         post: operations["deliverComment"];
         delete?: never;
@@ -797,7 +946,14 @@ export interface paths {
          *     kept, so three round trips on one comment stay visible.
          */
         post: operations["judgeComment"];
-        delete?: never;
+        /**
+         * Take a judgment back
+         * @description The reviewer reconsiders an acceptance or a refusal: the ref returns to
+         *     to-review, and the capture it covers with it (#167, #171). The take-back
+         *     joins the judgment history as `taken-back` — who reconsidered, and when,
+         *     is information exactly like the judgment was.
+         */
+        delete: operations["unjudgeComment"];
         options?: never;
         head?: never;
         patch?: never;
@@ -817,7 +973,7 @@ export interface paths {
         put?: never;
         /**
          * Save what one review session decided
-         * @description One save carries everything the sitting produced: the squares looked at with
+         * @description One save carries everything the sitting produced: the captures looked at with
          *     nothing to say, and the comments written on the rest. Splitting it would
          *     leave a case half-judged between two calls.
          *
@@ -881,6 +1037,47 @@ export interface paths {
         delete: operations["deleteCategory"];
         options?: never;
         head?: never;
+        /**
+         * Rename or move a node
+         * @description Rename, re-parent and reorder in one call — a language fix no longer costs
+         *     delete + recreate + re-parenting every case of the subtree (#179).
+         *
+         *     `parentId` present moves the node: another category's id, or the empty
+         *     string for the root. A move that would make a node its own ancestor is
+         *     refused, as is a sibling name collision.
+         */
+        patch: operations["updateCategory"];
+        trace?: never;
+    };
+    "/projects/{slug}/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Read the captures awaiting the reviewer
+         * @description The queue (`product.md` §3.6): every capture reading `to-review` or
+         *     `moved`, in the order a reviewer walks it — by case in catalogue order,
+         *     then by step position, then by variant label.
+         *
+         *     `categoryId` scopes it to that category and every one beneath it, at
+         *     unrestricted depth (ADR 0014). Without it, the whole project. A project
+         *     with nothing awaiting a verdict answers an empty queue, never an error.
+         *
+         *     Read-only, and computed at request time from stored facts: a capture's
+         *     status is derived, never stored (ADR 0021), and nothing enqueues or
+         *     dequeues (ADR 0002).
+         */
+        get: operations["getReviewQueue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -910,7 +1107,10 @@ export interface components {
             name: string;
             /** Format: email */
             email: string;
-            /** @description Manages accounts and creates projects; reaches no content. */
+            /**
+             * @description Manages accounts, creates projects, and reaches every one of them
+             *     (`product.md` §8.2).
+             */
             isAdmin: boolean;
             /**
              * Format: date-time
@@ -975,15 +1175,22 @@ export interface components {
          *     endpoint accepts it as an argument.
          * @enum {string}
          */
-        CaseState: "not-instrumented" | "to-review" | "to-fix" | "reviewed";
+        CaseState: "not-instrumented" | "to-review" | "refused" | "accepted";
+        /** @description Who holds the case, and since when. Occupancy, never a state (ADR 0005). */
+        Hold: {
+            by: string;
+            name: string;
+            /** Format: date-time */
+            since: string;
+        };
         /**
          * @description How this case's captures stand at the edition it points at. A capture with
          *     no verdict yet counts as still to judge.
          */
         CaptureCounts: {
             total: number;
-            validated: number;
-            commented: number;
+            accepted: number;
+            refused: number;
             toJudge: number;
         };
         Case: {
@@ -993,6 +1200,8 @@ export interface components {
             categoryId?: string | null;
             title: string;
             description?: string | null;
+            /** @description Present while a reviewer holds the case (ADR 0005, */
+            held?: components["schemas"]["Hold"];
             state: components["schemas"]["CaseState"];
             /** @description An archived case leaves the catalogue but stays readable. */
             archived: boolean;
@@ -1007,7 +1216,7 @@ export interface components {
         NewCase: {
             title: string;
             description?: string;
-            categoryId?: string;
+            categoryId: string;
         };
         /**
          * @description A combination of axis values, such as `{"theme":"dark","viewport":"mobile"}`.
@@ -1163,8 +1372,8 @@ export interface components {
         StateCounts: {
             notInstrumented: number;
             toReview: number;
-            toFix: number;
-            reviewed: number;
+            refused: number;
+            accepted: number;
         };
         Category: {
             id: string;
@@ -1182,9 +1391,39 @@ export interface components {
             position: number;
         };
         CaseUpdate: {
-            title: string;
-            description?: string | null;
-            categoryId?: string | null;
+            title?: string;
+            /** @description Absent leaves it alone; the empty string clears it. */
+            description?: string;
+            /**
+             * @description Another category of the same project. Absent leaves it alone, and
+             *     there is no way to remove it: a case belongs to exactly one.
+             */
+            categoryId?: string;
+        };
+        Actor: {
+            id: string;
+            /** @enum {string} */
+            kind: "human" | "machine";
+            /**
+             * @description Absent when the account is gone or was never named — rows written
+             *     before identity existed keep whatever they named, and history is not
+             *     rewritten to look answered.
+             */
+            name?: string;
+        };
+        Transition: {
+            /** Format: date-time */
+            at: string;
+            fromState?: components["schemas"]["CaseState"];
+            toState?: components["schemas"]["CaseState"];
+            /**
+             * @description The fact that caused the change, in the server's own words —
+             *     `edition-accepted`, `review-saved`, `comment-discarded`. Not an enum:
+             *     the vocabulary grows with the moves the product records, and a client
+             *     that switches on it would break on the next one.
+             */
+            cause: string;
+            actor: components["schemas"]["Actor"];
         };
         GridVariant: {
             id: string;
@@ -1194,11 +1433,15 @@ export interface components {
                 [key: string]: string;
             };
         };
-        GridCell: {
+        GridCapture: {
             /**
              * @description The capture. Fetch its image at
              *     `/projects/{slug}/captures/{captureId}` — the hash names no project and
              *     cannot be authorised (`product.md` §8.1).
+             *
+             *     It names **these bytes at this edition**: the same step and variant,
+             *     re-captured by the next run, is a different capture with a different
+             *     id. Quoting one elsewhere quotes a moment, not a screen.
              */
             id: string;
             variantId: string;
@@ -1208,22 +1451,16 @@ export interface components {
              */
             hash: string;
             /**
-             * @description Where this square stands. Computed by the server from the comments
-             *     covering it — never set by a caller (ADR 0012).
-             * @enum {string}
-             */
-            status: "to-review" | "to-fix" | "validated";
-            /**
-             * @description Whether this capture still shows what a reviewer approved, computed once
-             *     when it arrived. **Absent means nothing to compare against** — nobody has
-             *     approved this square in this capture's environment — which is not the
-             *     same as unchanged (ADR 0017).
+             * @description Where this capture stands — derived at read time from the stored
+             *     facts, never set by a caller and never stored (ADR 0012, ADR 0021).
+             *     `moved`: accepted, and the image has since changed beyond the
+             *     project's noise threshold.
              *
              *     Freshness is an overlay, never a state: a `reviewed` case whose captures
              *     move stays `reviewed` until its reviewer says otherwise.
              * @enum {string}
              */
-            freshness?: "current" | "to-re-review";
+            status: "to-review" | "refused" | "accepted" | "moved";
             /**
              * @description How many pixels differed by more than the fixed per-channel tolerance.
              *     Recorded so a project can judge its threshold rather than guess it.
@@ -1239,13 +1476,21 @@ export interface components {
             name: string;
             position: number;
             /** @description One entry per variant that has a capture at this step. */
-            cells: components["schemas"]["GridCell"][];
+            captures: components["schemas"]["GridCapture"][];
         };
         GridRecording: {
             /** @description Fetch the video at `/projects/{slug}/recordings/{recordingId}`. */
             id: string;
             variantId: string;
             hash: string;
+            /**
+             * @description Where the judgment on exactly these bytes stands (ADR 0023). A new
+             *     edition brings new bytes and a new `to-review` recording.
+             * @enum {string}
+             */
+            status: "to-review" | "accepted" | "refused";
+            /** @description The standing refusal's remark, absent otherwise. */
+            refusal?: string;
         };
         Grid: {
             caseId: string;
@@ -1264,11 +1509,11 @@ export interface components {
             recordings: components["schemas"]["GridRecording"][];
         };
         /**
-         * @description Where the comment stands. `validated` and `discarded` are the only terminal
+         * @description Where the comment stands. `accepted` and `discarded` are the only terminal
          *     states; a refusal returns to `to-review` on the next delivery.
          * @enum {string}
          */
-        CommentState: "to-track" | "tracked" | "to-review" | "refused" | "validated" | "discarded";
+        CommentState: "to-track" | "tracked" | "to-review" | "refused" | "accepted" | "discarded";
         /**
          * @description An opaque reference to an issue somewhere else. Supplied by the client and
          *     never read back: ozalid holds no tracker credential (ADR 0003).
@@ -1283,9 +1528,48 @@ export interface components {
              */
             title?: string;
         };
+        Refusal: {
+            /** @description The capture the refusal landed on. Absent on ref-level history from before ADR 0022. */
+            variantId?: string;
+            /** @description What the dev has to read. */
+            remark: string;
+        };
+        IssueTracking: {
+            /** @description The ref's own id — what `delivery` and `judgment` name. */
+            id: string;
+            issueId: string;
+            /** Format: uri */
+            url?: string;
+            /** @description What the book reads once attached; the comment's text was the draft. */
+            title?: string;
+            /**
+             * @description accepted, not validated — validated is the vocabulary of captures (#170).
+             * @enum {string}
+             */
+            state: "tracked" | "to-review" | "refused" | "accepted";
+            /**
+             * @description The remark of the latest standing refusal on this ref, if any. A
+             *     refusal speaks only while it stands (#212): taken back, or answered
+             *     by a redelivery, it leaves this field — the journal keeps it.
+             */
+            lastRefusal?: string;
+            /**
+             * @description Every standing refusal of the current round, each naming the capture
+             *     it was given on (ADR 0022, #212). Empty when nothing stands.
+             */
+            refusals?: components["schemas"]["Refusal"][];
+        };
         Judgment: {
-            /** @enum {string} */
-            verdict: "accepted" | "refused";
+            /**
+             * @description The capture the judgment landed on (ADR 0022). Absent on history from
+             *     before, and on ref-level moves.
+             */
+            variantId?: string;
+            /**
+             * @description taken-back is a reviewer reconsidering an acceptance: unvalidating a capture whose validation derived from the settled reference (#167).
+             * @enum {string}
+             */
+            verdict: "accepted" | "refused" | "taken-back";
             /** @description Mandatory on a refusal. It is what the dev has to read. */
             remark?: string;
             actorId: string;
@@ -1295,13 +1579,17 @@ export interface components {
         Comment: {
             id: string;
             stepId: string;
-            /** @enum {string} */
-            kind: "defect" | "improvement";
             /** @description What the reviewer wrote, in their words. It survives the issue title. */
             body: string;
             state: components["schemas"]["CommentState"];
             variantIds: string[];
+            /** @description The first ref, kept for old readers. The table reads `issues`. */
             issue?: components["schemas"]["IssueRef"];
+            /**
+             * @description One row per attached issue, each on its own delivered-and-judged round
+             *     (#138). The comment's own state derives from these.
+             */
+            issues?: components["schemas"]["IssueTracking"][];
             /** @description Mandatory when discarded, and kept forever with its author. */
             discardReason?: string;
             authorId: string;
@@ -1314,18 +1602,16 @@ export interface components {
             commentState: components["schemas"]["CommentState"];
             caseState: components["schemas"]["CaseState"];
         };
-        CellRef: {
+        /**
+         * @description Names one capture by its step and variant — the address a verdict is
+         *     written at, distinct from ADR 0017's *reference* (the approved bytes).
+         */
+        CaptureRef: {
             stepId: string;
             variantId: string;
         };
         NewComment: {
             stepId: string;
-            /**
-             * @description What it is. The kind is written on the comment, where it is exact and
-             *     where the issue is written from — it never colours the case's state.
-             * @enum {string}
-             */
-            kind: "defect" | "improvement";
             body: string;
             /**
              * @description The variants it applies to. One defect spanning four variants is **one**
@@ -1334,21 +1620,57 @@ export interface components {
             variantIds: string[];
         };
         ReviewSave: {
-            /** @description The squares the reviewer looked at with nothing to say. */
-            validated?: components["schemas"]["CellRef"][];
-            /** @description What the reviewer wrote during the sitting. */
+            /** @description The captures the reviewer looked at with nothing to say. */
+            accepted?: components["schemas"]["CaptureRef"][];
+            /** @description The remarks of this sitting's refusals (ADR 0020). */
             comments?: components["schemas"]["NewComment"][];
+            /**
+             * @description Captures whose acceptance the reviewer takes back — a misclick, or a
+             *     second look. The verdict is a toggle until the review ends (#156); the
+             *     journal keeps both moves.
+             */
+            unaccepted?: components["schemas"]["CaptureRef"][];
+            /**
+             * @description Captures whose draft refusal the reviewer takes back: their own remarks
+             *     with no issue attached are withdrawn with it (ADR 0020).
+             */
+            unrefused?: components["schemas"]["CaptureRef"][];
         };
-        CellVerdict: components["schemas"]["CellRef"] & {
+        CaptureVerdict: components["schemas"]["CaptureRef"] & {
             /** @enum {string} */
-            status: "to-review" | "to-fix" | "validated";
+            status: "to-review" | "refused" | "accepted" | "moved";
         };
         ReviewOutcome: {
             state: components["schemas"]["CaseState"];
             /** @description How many comments the session added. */
             comments: number;
             /** @description The status of every capture the case has, after the save. */
-            verdicts: components["schemas"]["CellVerdict"][];
+            verdicts: components["schemas"]["CaptureVerdict"][];
+        };
+        QueueEntry: {
+            caseId: string;
+            caseTitle: string;
+            /** @description Where the case is filed. Absent only for a case filed nowhere, which creation has refused since */
+            categoryId?: string;
+            stepId: string;
+            stepName: string;
+            stepPosition: number;
+            variant: components["schemas"]["GridVariant"];
+            /**
+             * @description The capture awaiting a verdict. Its `status` reads `to-review` or
+             *     `moved` — the two that await the reviewer, and nothing on the entry
+             *     repeats what that status already says (`product.md` §3.6).
+             */
+            capture: components["schemas"]["GridCapture"];
+        };
+        ReviewQueue: {
+            /**
+             * @description In walking order: by case in catalogue order, then by step position,
+             *     then by variant label (`product.md` §3.6). A flat list, because the
+             *     reviewer walks one capture at a time; the grouping by case is the
+             *     order, not a nesting.
+             */
+            entries: components["schemas"]["QueueEntry"][];
         };
     };
     responses: {
@@ -1381,6 +1703,18 @@ export interface components {
         };
         /** @description No such resource. */
         NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["problem"];
+            };
+        };
+        /**
+         * @description Somebody else holds this case (ADR 0005, #95): a held case takes no
+         *     verdict but its holder's. The detail names them.
+         */
+        Held: {
             headers: {
                 [name: string]: unknown;
             };
@@ -1531,6 +1865,35 @@ export interface operations {
             };
         };
     };
+    whoIsTheToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whose key this is. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        serviceAccountId: string;
+                        /** @description The service account's label. */
+                        name: string;
+                        project: {
+                            slug: string;
+                            name: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
     whoAmI: {
         parameters: {
             query?: never;
@@ -1550,7 +1913,10 @@ export interface operations {
                         id: string;
                         name: string;
                         email: string;
-                        /** @description Manages accounts and creates projects; reaches no content. */
+                        /**
+                         * @description Manages accounts, creates projects, and reaches every one of them
+                         *     (`product.md` §8.2).
+                         */
                         isAdmin: boolean;
                     };
                 };
@@ -2327,18 +2693,91 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The video. */
+            /**
+             * @description The video, served as what its first bytes say it is (#226): a browser
+             *     streams a `video/*` answer inline instead of downloading it. Unknown
+             *     bytes fall back to `application/octet-stream`.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
+                    "video/webm": string;
+                    "video/mp4": string;
                     "application/octet-stream": string;
                 };
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    judgeRecording: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                recordingId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    accept: boolean;
+                    /** @description Mandatory on a refusal. It is what the dev has to read. */
+                    remark?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The judgment is recorded; the case state follows. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        caseState: components["schemas"]["CaseState"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            423: components["responses"]["Held"];
+        };
+    };
+    unjudgeRecording: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                recordingId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The take-back is recorded; the case state follows. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        caseState: components["schemas"]["CaseState"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            423: components["responses"]["Held"];
         };
     };
     getCase: {
@@ -2398,6 +2837,93 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    claimCase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description Opening the page (true) re-stamps the hold onto the latest
+                     *     edition; the heartbeat (false, the default) keeps the bytes.
+                     */
+                    fresh?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The caller holds the case. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Hold"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            423: components["responses"]["Held"];
+        };
+    };
+    releaseCase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller no longer holds the case. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getCaseHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The transitions, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transition"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     getCaseCaptures: {
         parameters: {
             query?: {
@@ -2450,6 +2976,33 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    editComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: components["parameters"]["Slug"];
+                commentId: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    body: string;
+                    variantIds: string[];
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["MoveApplied"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["MoveRefused"];
         };
     };
     trackComment: {
@@ -2512,9 +3065,20 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description The ref delivered — its `id` in the comment's `issues` list.
+                     *     Mandatory once the comment carries more than one.
+                     */
+                    issueId?: string;
+                };
+            };
+        };
         responses: {
             200: components["responses"]["MoveApplied"];
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
@@ -2535,8 +3099,19 @@ export interface operations {
             content: {
                 "application/json": {
                     accept: boolean;
+                    /**
+                     * @description The capture on screen: a judgment always lands on one
+                     *     variant (ADR 0022). Accepting releases it from the remark's
+                     *     coverage; refusing opens a partial round for what remains.
+                     */
+                    variantId: string;
                     /** @description Mandatory when refusing. It is what the dev has to read. */
                     remark?: string;
+                    /**
+                     * @description The ref judged — its `id` in the comment's `issues` list.
+                     *     Mandatory once the comment carries more than one (#138).
+                     */
+                    issueId?: string;
                 };
             };
         };
@@ -2547,6 +3122,44 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["MoveRefused"];
+            423: components["responses"]["Held"];
+        };
+    };
+    unjudgeComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: components["parameters"]["Slug"];
+                commentId: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description The ref unjudged — its `id` in the comment's `issues` list.
+                     *     Mandatory once the comment carries more than one (#138).
+                     */
+                    issueId?: string;
+                    /**
+                     * @description The capture on screen. Taking an acceptance back restores
+                     *     this variant's coverage (ADR 0022); absent, the take-back
+                     *     is ref-level — a refusal returning to to-review.
+                     */
+                    variantId?: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["MoveApplied"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["MoveRefused"];
+            423: components["responses"]["Held"];
         };
     };
     saveReview: {
@@ -2578,6 +3191,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            423: components["responses"]["Held"];
         };
     };
     archiveCase: {
@@ -2644,6 +3258,77 @@ export interface operations {
                     "application/problem+json": components["schemas"]["problem"];
                 };
             };
+        };
+    };
+    updateCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                categoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    /** @description Another category's id, or the empty string for the root. Absent = unchanged. */
+                    parentId?: string;
+                    position?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The category, as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Category"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description A sibling already bears the name, or the move would make the node its own ancestor. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["problem"];
+                };
+            };
+        };
+    };
+    getReviewQueue: {
+        parameters: {
+            query?: {
+                categoryId?: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The captures awaiting the reviewer, in walking order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewQueue"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
 }

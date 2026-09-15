@@ -38,16 +38,20 @@ Two things follow, and they define the product:
 | **Step** | A named business moment inside a case ("submits the form"). Ordered. |
 | **Axis** | A rendering dimension the project declares — `theme`, `viewport`, `locale`, or anything else. ozalid ships no built-in list. |
 | **Variant** | A combination of axis values. An axis the client does not supply is simply absent from the combination. |
-| **Capture** | One image: a given step, in a given variant, at a given edition. Comparable, hashed, referenced. **PNG**: a lossy format re-encodes the same screen into different pixels, which makes "has it changed?" unanswerable ([§3.3](#33-freshness-is-the-evidence-still-the-evidence-that-was-judged)). Intake refuses anything else. |
-| **Recording** | The flow video. Optional, viewable, **never** compared byte-wise and never a source of state ([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md)). |
+| **Capture** | One image: a given step, in a given variant, at a given edition. Comparable, hashed, referenced. **PNG**: a lossy format re-encodes the same screen into different pixels, which makes "has it changed?" unanswerable ([§3.3](#33-movement-is-the-evidence-still-the-evidence-that-was-judged)). Intake refuses anything else. |
+| **Recording** | The flow video. Optional, viewable, **judged per edition** — and **never** compared byte-wise ([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md), [ADR 0023](../adr/0023-a-recording-is-judged.md)). |
 | **Edition** | One accepted intake of a run. Immutable once accepted. |
-| **Comment** | A reviewer's report against a step and a set of variants. A durable entity with its own lifecycle ([§6](#6-comments)). Formerly called a *problem*. |
-| **Verdict** | The stored status of one capture: `to-review`, `to-fix`, `validated`. Computed by the server from the comments covering it. |
+| **Comment** | A reviewer's report against **a capture and the sibling captures of the variants it covers**. The capture, not the step, is the anchor: steps have no identity of their own, and their names are labels. A comment shows the image it was written about for as long as it lives. Its text is the reviewer's **draft**: it is what the issues are written from, and once a ref is attached the book reads the issue's title. A durable entity with its own lifecycle ([§6](#6-comments)). Formerly called a *problem*. |
+| **Verdict** | The status of one capture: `to-review`, `refused`, `accepted`, `moved`. **Derived at read time** from the stored facts — never stored, never received (ADR 0021). |
 | **Reference** | The capture bytes a given capture was last approved against. What "has it changed?" is measured from. |
 
-Grammar convention, inherited and kept: **"to + verb" means pending, a past
-participle means done**. `to review` is work waiting; `reviewed` is work
-finished.
+Grammar convention, sharpened by
+[ADR 0021](../adr/0021-a-status-says-where-the-next-action-happens.md): **a
+status says where the next action happens**. "to + verb" means ozalid is
+waiting for something done inside it; a past participle means it is done
+inside, and whatever comes next happens outside. `to-review` is work waiting
+here; `refused` and `accepted` are conclusions given here — what follows a
+refusal happens at the dev's, outside.
 
 ## 3. Case state
 
@@ -66,40 +70,66 @@ the comments ([ADR 0012](../adr/0012-case-carries-the-ball-comment-carries-the-d
 | --- | --- | --- |
 | `not-instrumented` | No capture and no verdict. Outside the funnel. | nobody |
 | `to-review` | Something is waiting for the reviewer's judgment. | reviewer |
-| `to-fix` | Nothing awaits the reviewer, and at least one comment awaits the dev. | dev |
-| `reviewed` | No open comment. The only clean state. | nobody |
+| `refused` | Nothing awaits the reviewer, and at least one comment awaits the dev. | dev |
+| `accepted` | No open comment. The only clean state. | nobody |
 
-`to-review` outranks `to-fix` when both apply: a verdict can cancel work in
-progress, so it comes first.
+`to-review` outranks `refused` when both apply: a verdict can cancel work in
+progress, so it comes first. A case and its captures share one vocabulary
+(ADR 0021): `to-fix` and `reviewed` were the same facts under other words.
 
-Each capture also carries a **stored status** — `to-review`, `to-fix`,
-`validated` — recomputed by the server whenever a comment covering it changes.
-Recording a comment and recomputing the captures it covers happen in one
-operation; nothing else writes that status.
+Each capture also carries a status — `to-review`, `refused`, `accepted`,
+`moved` — **derived at read time** from the stored facts: who accepted it and
+when, the remarks covering it, the references. Only facts are stored; the
+computation never reads its own output (ADR 0021, the root cause behind #154
+and #167). Rules of the derivation:
+
+- `moved` applies to a capture that is otherwise `accepted` and whose image
+  changed; an open comment outranks it — the reason that capture waits is
+  already known. `moved` does **not** rise to the case: the case reads
+  `to-review`.
+- A `refused` capture receiving a new image returns to `to-review`: the
+  pixels on display are ones nobody has judged. The refusal's **comment**
+  keeps its own cycle — §7's "returning to to-review is requested by the
+  dev" governs the comment, whose judgment still waits for a delivery.
+- `missing` stays the completeness axis
+  ([ADR 0016](../adr/0016-a-case-is-complete-or-it-says-so.md)), never folded
+  into the status.
 
 ### 3.2 Occupancy (is someone working on it right now)
 
 Independent of the cycle state, and that separation is the point: when a
-reviewer opens a case that sits at `to-fix`, it must still read `to-fix`
+reviewer opens a case that sits at `refused`, it must still read `refused`
 afterwards.
 
 - `free`, or `held by <user> since <timestamp>`.
 - A held case is read-only for everyone else ([ADR 0005](../adr/0005-exclusive-case-locking.md)).
 - Locks expire: the session sends a heartbeat, and a lock whose heartbeat has
   gone silent for longer than the configured window is released automatically.
+- The lock is claimed when the reviewer opens the case, renewed by a
+  30-second heartbeat while the page stays open, and released on leaving — or
+  on its own once the heartbeat has been silent for the **expiry window**
+  (default two minutes, `OZALID_LOCK_WINDOW`; long enough to read a crowded
+  grid mid-thought, short enough that a closed laptop frees the case within
+  minutes). Read-only means **no verdict but the holder's**: `SaveReview`,
+  comment and recording judgments answer `423` naming the holder; the dev's
+  moves — tracking, delivering, discarding — are not verdicts and never
+  blocked (§7 already keeps the bytes still under a reviewer). Verified by
+  `TestAHeldCaseRefusesAnotherReviewersVerdict`,
+  `TestASilentLockExpiresOnItsOwn` and the two-reviewers e2e "a held case
+  reads the same and refuses the verdict".
 
-### 3.3 Freshness (is the evidence still the evidence that was judged)
+### 3.3 Movement (is the evidence still the evidence that was judged)
 
-Computed at intake, per capture, against that capture's reference:
-
-- `current` — the bytes the reviewer approved are still the bytes on display.
-- `to-re-review` — the capture moved. The changed cells are marked
-  individually; the reviewer re-passes those, not the whole case.
+What was an overlay called *freshness* is the `moved` status since ADR 0021:
+one derived status per capture, no second field. The comparison still runs at
+intake, per capture, against that capture's reference; what it stores is the
+**measurement** (`moved_pixels`) — the conclusion depends on a threshold that
+can change, and is derived at read time.
 
 A reference belongs to an environment
 ([ADR 0017](../adr/0017-a-reference-belongs-to-an-environment.md)). A capture is
 compared only against a reference produced by the same environment; where there
-is none, the square is unjudged there rather than moved — nobody has approved
+is none, the capture is unjudged there rather than moved — nobody has approved
 those bytes on that machine.
 
 A capture counts as moved when its hash differs **and** a bounded pixel
@@ -124,11 +154,21 @@ Captures whose dimensions differ are moved without being compared: there is no
 pixel-to-pixel reading of two images that are not the same shape.
 
 Recordings are never compared: encoding is not deterministic, so a video can
-never prove anything about its own freshness
-([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md)).
+never prove anything about its own movement
+([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md)). They are judged
+instead ([ADR 0023](../adr/0023-a-recording-is-judged.md)): the verdict lands
+on the recording on screen — one edition, one variant — with `to-review`,
+`accepted` and `refused` derived from stored judgment facts, a mandatory
+remark on refusal, and symmetric take-backs. A new edition brings new bytes
+and a new `to-review` recording: what was accepted is exactly what was
+watched. The recording counts in the case derivation like a capture — an
+unjudged one keeps the case `to-review`, a refused one hands it to the dev.
+Verified by `TestARecordingIsJudgedAndTheCaseFollows` and
+`TestANewEditionResetsTheRecordingToReview`.
 
-Freshness is an **overlay**, not a state. A `reviewed` case whose captures move
-is still `reviewed` until the reviewer says otherwise.
+Movement stays at the capture: an `accepted` case whose captures move is
+still `accepted` until the reviewer says otherwise — the `moved` captures
+carry the mark, not the case (ADR 0021).
 
 ### 3.4 Completeness (is all the evidence there)
 
@@ -146,14 +186,15 @@ A hole is not a capture. It carries no verdict, cannot be judged, and is shown
 as an anomaly rather than as an absence — a run failed, and saying "no capture"
 where a capture was expected hides that.
 
-Like freshness, completeness is an **overlay**, not a state. A case whose
-reviewer approved every capture that exists is `reviewed` *and* incomplete: two
+Like movement, completeness never folds into the cycle state. A case whose
+reviewer approved every capture that exists is `accepted` *and* incomplete: two
 true facts, neither hiding the other. Forcing the hole into the cycle state
 would hand the ball to a reviewer who can do nothing about it.
 
-Recordings are outside this: they are optional by construction
+Recordings are outside completeness: they are optional by construction
 ([ADR 0013](../adr/0013-a-recording-is-not-a-capture.md)), so a case without
-one is complete.
+one is complete — but a case **with** one is judged with it
+([ADR 0023](../adr/0023-a-recording-is-judged.md)).
 
 ### 3.5 Transitions
 
@@ -171,15 +212,156 @@ Facts that trigger a recomputation:
 | --- | --- |
 | A review is saved (capture verdicts + comments) | any cycle transition |
 | A comment is linked to an issue | comment → `tracked` |
-| A comment is discarded with a reason | may clear the last blocker → `reviewed` |
+| A comment is discarded with a reason | may clear the last blocker → `accepted` |
 | The dev asks for a judgment on a delivered comment | comment → `to-review`, case → `to-review` |
-| A delivery is accepted or refused | comment → `validated` or `refused` |
-| An edition is accepted | freshness only — never the cycle state |
+| A delivery is accepted or refused | comment → `accepted` or `refused` |
+| An edition is accepted | capture movement only — never the cycle state |
+
+**The verdict pair** (ADR 0020, ADR 0022, #170, #171, #208). Reviewing is
+giving one of two verdicts — **accept** or **refuse** — and the pair always
+judges **the capture on screen**, bare or under a delivered fix: a fix can
+work on one variant and not the other, so no act ever spans variants. A
+mixed state — one variant accepted, its sibling still delivered — is
+legitimate and the zone shows the scope plainly. Verified by the carousel
+spec "the pair judges this variant only" and the partial-round e2e. The pair is one segmented control, always visible; the filled
+half is the state; a capture reads `to-review`, `accepted` or `refused` —
+`validated` left the product. Space plays accept. Clicking the filled half
+takes the verdict back — a misclick, or a second look — and switching
+verdicts is one gesture, never a trip through "not judged": refusing an
+accepted capture takes the acceptance back in the same write. The journal
+keeps every move, and the reference stamped at acceptance stays: movement is
+history, not a verdict. Verified by `TestAcceptingIsAToggle`,
+`TestSwitchingVerdictsIsOneGesture`.
+
+**Taking an acceptance back applies whatever made the capture accepted**
+(#167). An explicit acceptance is deleted. An acceptance derived from a
+settled reference takes the judgment back instead: the reference returns to
+to-review, and the capture with it. The take-back joins the judgment history —
+who reconsidered, and when, is information exactly like the judgment was.
+Verified by `TestUnacceptTakesASettledJudgmentBack`.
+
+**Both judgments are reconsiderable, symmetrically** (#171): a refusal on a
+delivered fix is taken back exactly like an acceptance — the reference
+returns to to-review, the history keeps the move. Verified by
+`TestARefusalCanBeTakenBack` and the domain's `TestUnjudgeReopensAJudgedRef`.
+
+**Refusing writes the remark** (ADR 0020). A remark exists only inside a
+refusal and blocks the case until settled. The refuse sheet opens under the
+image — the capture shrinks, it is never covered — and asks the remark
+(mandatory) and, on a bare capture only, the variants it covers; a fix's
+issue already owns its variants. Cancel is a no-op, whatever verdict already
+stood. The comment carries no kind: qualifying into fix or feature belongs to
+whoever writes the issues. Verified by the e2e spec "refusing writes the
+remark and the capture stays on screen".
+
+**A draft remark is the reviewer's own** (ADR 0020). While no issue is
+attached, the remark shows as a card under the pair — click it to edit, text
+and variants alike. Taking a draft refusal back withdraws the remark: it never
+counted anywhere. Once tracked, the issue's title speaks in its place and the
+draft can no longer be edited or withdrawn. Verified by
+`TestADraftRefusalWithdrawsItsRemark` and `TestADraftRemarkIsEditable`.
+
+**The carousel never marks the capture**: no veil, no disc — the verdict
+lives in the bar, and the grid keeps its marks. One issue at a time in the
+zone: the capture's other references live in the recap.
+
+**The carousel names what it shows.** The object on screen carries its id,
+copyable in one gesture: a capture worth judging is a capture worth quoting
+somewhere else — a ticket, a thread, a request against the API. Where that id
+sits in the bar is interface, not design. Verified by
+`names the capture on screen`, `names the recording in the recording view`,
+`copies the id it shows` and `names nothing when there is nothing on screen`.
+
+A capture covered by a comment whose **every open ref is delivered** reads
+`to-review`: the ball is the reviewer's, and the grid says so. It reads
+`refused` only while some ref still sits with the dev — tracked or refused —
+and a dev-side claim on the same capture outranks a delivered one, exactly as for
+the comment itself. Decided when two delivered issues showed beside the dev's
+amber bubble (#150).
 
 Returning to `to-review` is **requested by the dev**, never inferred from
 captures moving: images also move for a refactor or a dependency bump, and
 summoning the reviewer for that is noise. The dev may ask without having
 implemented everything — one issue can depend on the verdict given on another.
+
+### 3.6 The review queue
+
+A case is one flow, but the work rarely arrives one flow at a time: a run
+re-captures broadly, and the reviewer faces ten cases carrying two captures
+each. The **queue** is that work, read as one list instead of ten screens. It
+changes nothing about what a verdict is or where it is given — the carousel
+stays the one place a capture is judged (§3.5).
+
+**What it holds.** Every capture whose status reads `to-review` or `moved`.
+Those two are the whole of what awaits the reviewer (§3.1); there is no third
+source and no word outside that vocabulary. A delivered fix reads `to-review`
+like any unjudged capture — what makes it a fix lives on its comment (§6), not
+on the queue entry.
+
+**Its reach is contextual.** The queue covers the category being read and every
+category beneath it; read at the project root, that is the whole project. The
+catalogue is one screen at every depth, so a queue scoped to the project would
+advertise the project's 42 while the reader stands in a category holding 12 — a
+count that lies. One rule at every depth, the root being the case where nothing
+is excluded. *Rejected: a project-wide queue offered at every depth.*
+
+**Its order is by case, then by step position, then by variant label.** A case
+is finished before the next begins: the flow is the unit of meaning, and the
+reviewer keeps one context for the length of a case. *Rejected: ordering by age
+across cases, which empties the oldest debt first but changes flow context on
+every capture.*
+
+**Leaving it is a consequence, never an action.** The queue is computed at read
+time from stored statuses; it is not a stored list. Nothing enqueues and nothing
+dequeues, and no endpoint takes it as an argument
+([ADR 0002](../adr/0002-server-owns-the-review-lifecycle.md)). A capture leaves
+when the verdict it was waiting for is recorded.
+
+**A held case is walked, not skipped.** Occupancy is its own axis (§3.2): the
+walk claims the case it enters — a fresh claim, before reading its captures, so
+the hold stamps what is current ([ADR 0024](../adr/0024-the-pin-follows-the-lock.md))
+— and releases it on leaving. A claim answering `423` means the case is
+read-only for this pass: the reviewer sees what is there and moves on, which is
+what a held case already promises everyone but its holder (§3.2). *Rejected:
+hiding a held case from the queue. The queue is computed server-side at read
+time and a holder can appear a second later, so the skip would be stale on
+arrival and the count the catalogue advertises would stop matching what the walk
+opens.*
+
+**A queue entry carries no marker of its own.** The carousel already shows a
+capture's status — the empty verdict pair for `to-review`, the stage badge for
+`moved`. A second word for the same fact is what one vocabulary exists to
+remove (ADR 0021). Crossing into the next case is said by the case name
+changing, at title size; nothing annotates a change already on screen.
+
+**The walk says when it is over.** Judging the last capture and walking on
+ends the sitting rather than leaving the reviewer standing on a capture they
+have just judged. The screen says what the sitting came to — how many captures
+were judged, across how many cases, under which scope — and offers the two ways
+out: back to where the walk was started, or the project's whole queue.
+
+That tally is **read back from the server**, never counted in the browser. A
+verdict is sent as it is made and nothing accumulates client-side (§3.5), so a
+number the screen kept for itself would be the one thing on it nobody could
+check — and a reload mid-walk would make it lie. The entries the walk began
+with are compared against the statuses those captures now carry: what left the
+queue was judged, and its status says where it went. *Rejected: counting the
+verdicts as they are made, which is fewer requests and a number the server
+never confirmed.*
+
+A walk left before its end says so rather than claiming the book is clean: the
+screen names what is still waiting. Verified by
+`says the sitting is over, with what the server says it came to`,
+`does not claim nothing waits when something still does` and the e2e
+"the walk says it is over, and what the sitting came to".
+
+**The interface says capture.** Never *square*, never *cell*: those are grid
+vocabulary, and the product names the thing a **capture** (§2).
+
+Verified by `TestTheQueueHoldsWhatAwaitsTheReviewer`,
+`TestTheQueueReachesUnderTheCategoryItIsReadFrom`,
+`TestTheQueueOrdersByCaseThenStep` and the e2e "a reviewer walks a project's
+queue across cases" (#204, #205).
 
 ## 4. Capture storage
 
@@ -224,23 +406,79 @@ A comment is a durable entity, not a scratch note
 ([ADR 0006](../adr/0006-problems-are-durable-entities.md)). It was called a
 *problem* until 2026-08-20.
 
-- Fields: kind (`defect` | `improvement`), text, the step it anchors to, the
-  variants it appears on, its state, and its history.
+- Fields: the remark's text, **the anchoring captures (one per covered
+  variant)**, its state, and its history. A comment carries no kind
+  (ADR 0020): qualifying into fix or feature belongs to whoever writes the
+  issues. A comment is born from a **refusal** and blocks its case until
+  settled — a non-blocking remark does not exist.
+- A comment carries **one or more issue refs**, each with its own
+  delivered-and-judged cycle (`tracked → to-review → accepted | refused`, a
+  refusal redelivered as many rounds as it takes).
+- **Resolution is per variant — coverage shrinks**
+  ([ADR 0022](../adr/0022-a-judgment-lands-on-the-capture-on-screen.md),
+  #208). Accepting a delivered fix on a variant releases that variant from
+  the remark's coverage, records an explicit acceptance and stamps its
+  reference; the ref and the comment settle when the coverage empties — the
+  last accepted variant closes the round. Refusing on a variant opens a
+  **partial round**: the ref returns to the dev for the remaining coverage,
+  released variants stay released. Take-backs restore coverage variant by
+  variant. Verified by `TestAcceptingAFixReleasesOneVariant`,
+  `TestRefusingAFixKeepsTheRemainingCoverage`,
+  `TestTheLastAcceptedVariantSettlesTheRemark`,
+  `TestUnjudgingOneVariantRestoresItsCoverage`. The comment's own state
+  derives from its refs — the finest open ref decides — and the comment closes
+  when its last ref does.
+- The recap under the grid is a **summary and carries no action**: judging
+  happens in the carousel, in front of the capture (frontend ADR 0003). An
+  undelivered ref stays visible there, dimmed. The step and variant a
+  comment displays under are read from its anchoring capture, never stored
+  beside it.
+- The recap says each verdict **once, in its variant's column** (#213). A
+  block — an issue or a bare remark, with its standing refusals — puts at
+  most one mark per variant column: `✓` where the acceptance landed (read
+  from the judgment history, so rounds judged before ADR 0022 read the
+  same), `·` where the claim waits, nothing where the variant is not
+  covered. A standing refusal **is** its remark (ADR 0020): it renders as
+  its own line, the text beside the `✗` in the refused variant's column,
+  and the issue line never carries a `✗` — no information appears twice. No
+  state column, no counter — an aggregate state cannot say "three accepted,
+  one refused". Verified by the CommentRecap specs "one mark per variant
+  and per block" and "two standing refusals are two anchored lines".
+- A refusal's remark is exposed **only while the refusal stands** (#212):
+  taken back, or answered by a redelivery, it leaves the read model — the
+  journal keeps everything. A standing refusal names its variant. Verified
+  by `TestATakenBackRefusalSaysNothing` and
+  `TestStandingRefusalsNameTheirVariants`.
+- A step is matched **by name** at intake and never renamed: a new name at an
+  old position is a new step, and the old one keeps its identity — its
+  captures, its verdicts, its comments. Position is layout. Decided when one
+  step inserted mid-flow put a comment under the wrong screen (#132).
 - One real defect spanning four variants is **one** comment with four variants
   checked — never four comments.
-- The **kind stays on the comment**. It is what the issue is written from, and
-  it never colours the case's state
-  ([ADR 0012](../adr/0012-case-carries-the-ball-comment-carries-the-detail.md)).
+- While no issue is attached, the remark is the reviewer's **own draft**: it
+  can be edited — text and variants — and taking the draft refusal back
+  withdraws it (ADR 0020, the explicit exception to "nothing is deleted").
+  Once tracked, the issue's title speaks in its place.
+- **A draft remark loops in the branch without an issue** (#175). `delivery`
+  works on a draft: the comment moves `to-track → to-review`, the case
+  advances onto the latest edition — the dev-machine claims "this edition
+  answers your remark" at push time, API only, the book stays the reviewer's.
+  The context line reads `fix delivered` and the remark's own words — no
+  number. Accepting **settles** the remark (history kept, unlike a withdrawn
+  draft); refusing sends it back with a remark, redeliverable; both judgments
+  are reconsiderable, exactly as for refs. Tracking stays the triage's
+  choice, never an automatism. Verified by
+  `TestADraftRemarkLoopsWithoutAnIssue`.
 
 ### 6.1 Lifecycle
 
 | State | Meaning | Terminal |
 | --- | --- | --- |
-| `to-track` | Reported, no issue attached | no |
+| `to-track` | Reported, no issue attached — deliverable as-is (#175) | no |
 | `tracked` | Carries an external issue reference | no |
 | `to-review` | The dev delivered and asked for a judgment | no |
 | `refused` | Refused, with a mandatory remark | no — returns to `to-review` on the next delivery |
-| `validated` | Accepted | yes |
+| `accepted` | Accepted | yes |
 | `discarded` | Set aside, with a mandatory reason | yes |
 
 A refusal is **not** a way to die. The dev reworks, delivers again, and the
@@ -270,12 +508,30 @@ parser's.
 Intake is governed by a **per-project policy** ([ADR 0007](../adr/0007-run-intake-policy.md)):
 
 - `strict` — intake is refused outright while any case sits outside
-  `{reviewed, to-fix, not-instrumented}` — that is, while any case is
+  `{accepted, refused, not-instrumented}` — that is, while any case is
   `to-review`. The refusal lists the blocking cases. This keeps pressure on
   finishing reviews, at the cost of blocking the whole project on one
   unfinished review.
-- `per-case` — intake is always accepted and stored; each case keeps pointing
-  at the edition its reviewer is judging, and advances when that review ends.
+- `per-case` — intake is always accepted and stored; a case shows the edition
+  its **holder** is judging
+  ([ADR 0024](../adr/0024-the-pin-follows-the-lock.md)): a live lock pins the
+  bytes stamped at claim, and a case nobody holds reads at the latest edition
+  **that captured it** — nothing to advance, nothing to catch up. A run need
+  not cover the whole book, and one that skips a case changes nothing about
+  it: the case keeps its state and keeps showing the run that did capture it,
+  rather than going blank while the catalogue still counts it
+  ([ADR 0025](../adr/0025-a-case-reads-at-an-edition-that-captured-it.md)).
+  Verified by `TestACaseReadsAtTheLastEditionThatCoversIt` and
+  `TestClaimingACaseTheLastRunSkippedPinsWhatDidCaptureIt`. **A delivery advances
+  the case at once**: judging a fix means reading the bytes that claim to fix
+  it, so `deliver` re-stamps the live lock onto the latest edition even
+  mid-review (#142). The pin only protects what is still being judged of the
+  current sweep — accepted captures keep their verdicts, and a capture that
+  changed under one comes back marked `moved`, as always. When a review
+  settles, the state re-derives against the latest edition, ignoring the
+  saver's own lock. Verified by `TestAFreeCaseReadsAtTheLatestEdition`,
+  `TestAHeldCaseKeepsItsBytesUntilTheLockDies` and
+  `TestADeliveryAdvancesTheCaseOntoItsEdition`.
 
 Running the test suite is never gated. Only intake is.
 
@@ -349,7 +605,7 @@ case, and therefore one project, which is what turns "may this person see these
 pixels?" into a question with an answer. The hash stays what a client computes
 before uploading; it stops being what a reader fetches with.
 
-### 8.2 The administrator manages accounts, not content
+### 8.2 The administrator runs the instance, and reaches all of it
 
 There is no open sign-up: accounts are made by whoever runs the instance. Since
 clients speak to the API and nothing else
@@ -362,23 +618,26 @@ That power is a single flag on a user, not a hierarchy.
 An administrator **creates and deactivates accounts, creates a project, and
 names its members** — all of them, not only the first.
 
-An administrator **cannot read or write the content of a project they are not a
-member of**.
+An administrator **reads and writes every project**, whether or not they were
+ever added to one. Membership is what decides for everybody else.
 
-The second line is the one that matters. On an instance carrying several
-projects, an administrator who could read every review book would see every
-team's work — their product's captures, the remarks they exchange. Separating
-administration from access to content is what lets the running of the instance
-be handed to someone without handing them everything.
+This was the other way round until somebody ran the instance. An administrator
+created a project, opened it, and was refused — which is what the rule said, and
+nobody creates a project meaning never to enter it. The friction was the rule
+working, and the rule was not worth the friction.
 
-When an administrator does need to see a project, they are added to it as a
-member. That leaves a trace, which is exactly what an exceptional access should
-do.
+**Reading and writing, not reading alone.** A half-measure gives an
+administrator screens where everything shows and every button fails, which is
+worse than either whole answer and useless to one who is also a reviewer.
 
-Granting a membership is not reading content, so the two lines do not collide:
-an administrator who adds somebody to a project learns that the project exists
-and who is on it, which they knew already, and learns nothing about what is
-inside it.
+What this gives up is worth naming, because it does not come back cheaply:
+
+- **The running of the instance can no longer be handed to somebody without
+  also handing them every team's work.** On an instance carrying several teams,
+  that was the whole point of keeping the two apart.
+- **An administrator reading a project leaves no trace.** They used to have to
+  be added to it, and being a member was visible to the team. Reads are not
+  journalled; only writes are, and those name their actor as they always did.
 
 **A member does not manage the membership of their own project.** Delegating it
 would be a fourth thing to model — who may grant, whether they may grant more
@@ -412,7 +671,7 @@ enters through the API, no path writes state behind it.**
 
 ```
 POST   /projects/:p/editions                  intake a run (manifest + blobs)
-GET    /projects/:p/cases?state=…&freshness=…  filter on stored state, no scan
+GET    /projects/:p/cases?state=…            filter on the case state, no scan
 GET    /projects/:p/cases/:id                 case detail, captures, comments
 POST   /projects/:p/cases                     create a case, returns its id
 PATCH  /projects/:p/cases/:id                 title, description, category
@@ -472,6 +731,8 @@ To settle before implementation starts. The technology stack, listed here until
 3. **Non-fingerprintable steps** — some screens have no deterministic frame
    (animations, timers). The predecessor kept a per-project exemption list;
    confirm that model.
-4. **Lock expiry window** — a concrete duration for [§3.2](#32-occupancy-is-someone-working-on-it-right-now).
+4. **Lock expiry window** — answered: two minutes of heartbeat silence,
+   configurable (`OZALID_LOCK_WINDOW`), see
+   [§3.2](#32-occupancy-is-someone-working-on-it-right-now).
 5. **Retention ceiling** — content addressing makes history cheap, not free.
    Decide whether editions are pruned beyond some horizon, and on what rule.

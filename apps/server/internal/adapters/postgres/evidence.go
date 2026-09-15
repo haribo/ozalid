@@ -11,8 +11,66 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres/sqlcgen"
 	appcat "github.com/haribo/ozalid/apps/server/internal/app/catalogue"
 	"github.com/haribo/ozalid/apps/server/internal/app/evidence"
+	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"github.com/haribo/ozalid/internal/contract"
 )
+
+// ReviewQueue returns the captures awaiting the reviewer, in walking order
+// (product.md §3.6).
+//
+// Two steps, and the first is what keeps it cheap. A capture's status is
+// derived at read time and sits in no column (ADR 0021), so there is nothing
+// to filter captures on — but the case's state is stored, and a case reads
+// `to-review` as soon as one of its captures does or has moved. Reading those
+// cases off `cases_state_idx` narrows the work to a superset; deriving them
+// with the one rule the domain owns turns it into the answer. Copying that
+// derivation into SQL would be a second implementation of it (#204).
+func (r *Repository) ReviewQueue(ctx context.Context, slug string, categoryID *string) ([]evidence.QueueEntry, error) {
+	project, err := r.q.GetProjectBySlug(ctx, slug)
+	if err != nil {
+		return nil, translate("reading the project", err)
+	}
+	candidates, err := r.q.CasesAwaitingReview(ctx, sqlcgen.CasesAwaitingReviewParams{
+		ProjectID: project.ID, CategoryID: categoryID,
+	})
+	if err != nil {
+		return nil, translate("reading the cases awaiting review", err)
+	}
+
+	queue := make([]evidence.QueueEntry, 0, len(candidates))
+	for _, kase := range candidates {
+		// The grid comes ordered by step position then variant label, which is
+		// the walking order, and it carries the derived statuses already.
+		grid, err := r.CaseGrid(ctx, slug, kase.ID, nil)
+		if err != nil {
+			// A queue that swallows a read failure drops work off a reviewer's
+			// list without a word. It fails loudly instead.
+			return nil, err
+		}
+		variants := make(map[string]evidence.Variant, len(grid.Variants))
+		for _, v := range grid.Variants {
+			variants[v.ID] = v
+		}
+
+		for _, step := range grid.Steps {
+			for _, capture := range step.Captures {
+				// The two statuses that await the reviewer, and no third
+				// source. A case reading `to-review` because a comment or a
+				// recording awaits, with no capture in either status,
+				// contributes nothing.
+				if capture.Status != string(review.CaptureToReview) && capture.Status != string(review.CaptureMoved) {
+					continue
+				}
+				queue = append(queue, evidence.QueueEntry{
+					CaseID: kase.ID, CaseTitle: kase.Title, CategoryID: kase.CategoryID,
+					StepID: step.ID, StepName: step.Name, StepPos: step.Position,
+					Variant: variants[capture.VariantID], Capture: capture,
+				})
+			}
+		}
+	}
+	return queue, nil
+}
 
 // CaseGrid reads one case's evidence at one edition.
 func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionID *string) (evidence.Grid, error) {
@@ -48,7 +106,16 @@ func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionI
 		return evidence.Grid{}, translate("reading the evidence", err)
 	}
 
-	// One flat result set becomes steps and their cells. The variants are
+	// Statuses are derived here, never read from storage (ADR 0021): the same
+	// facts, the same rule, at the edition this grid displays.
+	shown := edition.ID
+	facts, err := factsOfAt(ctx, r.q, kase, &shown)
+	if err != nil {
+		return evidence.Grid{}, err
+	}
+	verdicts := review.Compute(facts).Verdicts
+
+	// One flat result set becomes steps and their captures. The variants are
 	// collected as they appear, so the grid only mentions those that exist.
 	variants := map[string]evidence.Variant{}
 	var steps []evidence.Step
@@ -64,19 +131,15 @@ func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionI
 			byStep[row.StepID] = idx
 		}
 
-		// A step with no capture at this edition still exists: the left join
-		// gives it a row with no variant.
-		if row.VariantID == nil {
-			continue
-		}
-
-		if _, known := variants[*row.VariantID]; !known {
+		// Every row carries a capture now: a step the displayed edition never
+		// captured is absent from the view rather than drawn as missing (#137).
+		if _, known := variants[row.VariantID]; !known {
 			values := map[string]string{}
 			if err := json.Unmarshal(row.VariantValues, &values); err != nil {
 				return evidence.Grid{}, fmt.Errorf("decoding a variant: %w", err)
 			}
-			variants[*row.VariantID] = evidence.Variant{
-				ID: *row.VariantID, Label: *row.VariantLabel, Values: values,
+			variants[row.VariantID] = evidence.Variant{
+				ID: row.VariantID, Label: row.VariantLabel, Values: values,
 			}
 		}
 
@@ -87,18 +150,16 @@ func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionI
 			}
 		}
 
-		cell := evidence.Cell{
-			ID: *row.CaptureID, VariantID: *row.VariantID, Hash: *row.BlobHash,
-			Status: row.Status, Provenance: provenance,
-		}
-		if row.Freshness != nil {
-			cell.Freshness = *row.Freshness
+		capture := evidence.Capture{
+			ID: row.CaptureID, VariantID: row.VariantID, Hash: row.BlobHash,
+			Status:     string(verdicts[review.Capture{StepID: row.StepID, VariantID: row.VariantID}]),
+			Provenance: provenance,
 		}
 		if row.MovedPixels != nil {
 			moved := int(*row.MovedPixels)
-			cell.MovedPixels = &moved
+			capture.MovedPixels = &moved
 		}
-		steps[idx].Cells = append(steps[idx].Cells, cell)
+		steps[idx].Captures = append(steps[idx].Captures, capture)
 	}
 
 	grid.Steps = steps
@@ -110,24 +171,50 @@ func (r *Repository) CaseGrid(ctx context.Context, slug, caseID string, editionI
 	if err != nil {
 		return evidence.Grid{}, translate("reading the recordings", err)
 	}
+	judged, err := r.q.LastRecordingJudgments(ctx, sqlcgen.LastRecordingJudgmentsParams{
+		CaseID: caseID, EditionID: edition.ID,
+	})
+	if err != nil {
+		return evidence.Grid{}, translate("reading the recording judgments", err)
+	}
+	lastByRecording := map[string]sqlcgen.LastRecordingJudgmentsRow{}
+	for _, row := range judged {
+		lastByRecording[row.RecordingID] = row
+	}
 	for _, rec := range recordings {
-		grid.Recordings = append(grid.Recordings, evidence.Recording{
+		out := evidence.Recording{
 			ID: rec.RecordingID, VariantID: rec.VariantID, Hash: rec.BlobHash,
-		})
+			Status: "to-review",
+		}
+		if last, ok := lastByRecording[rec.RecordingID]; ok && last.Verdict != "taken-back" {
+			out.Status = last.Verdict
+			if last.Verdict == "refused" && last.Remark != nil {
+				out.Refusal = *last.Remark
+			}
+		}
+		grid.Recordings = append(grid.Recordings, out)
 	}
 
 	return grid, nil
 }
 
-// resolveEdition picks the edition to read against: the one asked for, then the
-// one the case is being judged against, then the project's most recent.
+// resolveEdition picks the edition to read against: the one asked for, then
+// the live lock's stamped one, then the project's most recent (ADR 0024).
 //
-// The case's own pointer comes before the latest edition on purpose. A run
-// landing mid-review must not change what the reviewer is looking at, or they
-// would judge one set of bytes and approve another (product.md §7).
+// The holder's pin comes before the latest edition on purpose. A run landing
+// mid-review must not change what the reviewer is looking at, or they would
+// judge one set of bytes and approve another (product.md §7) — and a case
+// nobody holds always reads at the latest.
 func (r *Repository) resolveEdition(ctx context.Context, kase sqlcgen.Case, editionID *string) (sqlcgen.Edition, error) {
 	if editionID == nil {
-		editionID = kase.CurrentEditionID
+		row, err := r.q.ReadCaseLock(ctx, sqlcgen.ReadCaseLockParams{
+			CaseID: kase.ID, WindowSeconds: r.window(),
+		})
+		if err == nil {
+			editionID = row.EditionID
+		} else if !isNoRows(err) {
+			return sqlcgen.Edition{}, translate("reading the lock", err)
+		}
 	}
 	if editionID != nil {
 		edition, err := r.q.EditionByID(ctx, sqlcgen.EditionByIDParams{
@@ -142,12 +229,16 @@ func (r *Repository) resolveEdition(ctx context.Context, kase sqlcgen.Case, edit
 		return edition, nil
 	}
 
-	edition, err := r.q.LatestEdition(ctx, kase.ProjectID)
+	// Nobody is holding it, so it reads at the last run that captured **this
+	// case** — not the project's latest, which blanked every case a partial
+	// run skipped while their state still said the reviewer was needed
+	// (#253, ADR 0025).
+	edition, err := r.q.LatestEditionForCase(ctx, kase.ID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return sqlcgen.Edition{}, evidence.ErrNoEdition
 	}
 	if err != nil {
-		return sqlcgen.Edition{}, translate("reading the latest edition", err)
+		return sqlcgen.Edition{}, translate("reading the case's latest edition", err)
 	}
 	return edition, nil
 }

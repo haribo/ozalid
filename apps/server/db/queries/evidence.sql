@@ -5,6 +5,23 @@ WHERE project_id = $1
 ORDER BY created_at DESC, id DESC
 LIMIT 1;
 
+-- The last edition that actually captured this case (#253).
+--
+-- A free case used to read at the project's latest edition, which assumed
+-- every run covers the whole book. When one does not, the case keeps its
+-- state — the catalogue counts it, the queue promises it — while its grid
+-- shows nothing. It reads at the run that did capture it instead.
+-- name: LatestEditionForCase :one
+SELECT e.* FROM editions e
+WHERE e.id = (
+    SELECT c.edition_id FROM captures c
+    JOIN steps s ON s.id = c.step_id
+    JOIN editions ce ON ce.id = c.edition_id
+    WHERE s.case_id = $1
+    ORDER BY ce.created_at DESC, ce.id DESC
+    LIMIT 1
+);
+
 -- name: EditionByID :one
 SELECT * FROM editions WHERE id = $1 AND project_id = $2;
 
@@ -22,16 +39,14 @@ SELECT
     c.id       AS capture_id,
     c.blob_hash,
     c.provenance,
-    c.freshness,
-    c.moved_pixels,
-    -- A square with no verdict row has not been judged yet: the reviewer holds
-    -- the ball on it (ADR 0012).
-    coalesce(cv.status, 'to-review') AS status
+    c.moved_pixels
+-- A step belongs to the view only if the displayed edition captured it: since
+-- steps outlive editions (#135), one born in a later edition would otherwise
+-- render in an older view as a row of `missing` marks — and `missing` means a
+-- failed run (ADR 0016), not a screen from the future (#137).
 FROM steps s
-LEFT JOIN captures c ON c.step_id = s.id AND c.edition_id = $2
-LEFT JOIN variants v ON v.id = c.variant_id
-LEFT JOIN capture_verdicts cv
-       ON cv.case_id = s.case_id AND cv.step_id = s.id AND cv.variant_id = c.variant_id
+JOIN captures c ON c.step_id = s.id AND c.edition_id = $2
+JOIN variants v ON v.id = c.variant_id
 WHERE s.case_id = $1
 ORDER BY s.position, v.label;
 
@@ -54,6 +69,30 @@ WHERE c.id = $1 AND p.slug = $2;
 
 -- name: RecordingBlobInProject :one
 SELECT r.blob_hash FROM recordings r
+JOIN cases k ON k.id = r.case_id
+JOIN projects p ON p.id = k.project_id
+WHERE r.id = $1 AND p.slug = $2;
+
+-- A recording's standing comes from its last judgment (ADR 0023): none or a
+-- take-back reads to-review, and a refusal keeps its remark for the dev.
+-- name: InsertRecordingJudgment :exec
+INSERT INTO recording_judgments (recording_id, verdict, remark, actor_id)
+VALUES ($1, $2, $3, $4);
+
+-- name: LastRecordingJudgments :many
+SELECT r.id AS recording_id, j.verdict, j.remark
+FROM recordings r
+JOIN LATERAL (
+    SELECT verdict, remark FROM recording_judgments
+    WHERE recording_id = r.id
+    ORDER BY created_at DESC LIMIT 1
+) j ON true
+WHERE r.case_id = $1 AND r.edition_id = $2;
+
+-- The recording inside the project the caller named, with its case: what a
+-- judgment needs to authorise and to recompute.
+-- name: RecordingInProject :one
+SELECT r.id, r.case_id FROM recordings r
 JOIN cases k ON k.id = r.case_id
 JOIN projects p ON p.id = k.project_id
 WHERE r.id = $1 AND p.slug = $2;

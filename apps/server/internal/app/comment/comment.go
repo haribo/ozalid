@@ -7,6 +7,7 @@ package comment
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -38,8 +39,10 @@ type Outcome struct {
 type Repository interface {
 	Track(ctx context.Context, slug, commentID string, by actor.Actor, issue IssueRef) (Outcome, error)
 	Discard(ctx context.Context, slug, commentID string, by actor.Actor, reason string) (Outcome, error)
-	Deliver(ctx context.Context, slug, commentID string, by actor.Actor) (Outcome, error)
-	Judge(ctx context.Context, slug, commentID string, by actor.Actor, accept bool, remark string) (Outcome, error)
+	Deliver(ctx context.Context, slug, commentID, issueRefID string, by actor.Actor) (Outcome, error)
+	Judge(ctx context.Context, slug, commentID, issueRefID, variantID string, by actor.Actor, accept bool, remark string) (Outcome, error)
+	Unjudge(ctx context.Context, slug, commentID, issueRefID, variantID string, by actor.Actor) (Outcome, error)
+	Edit(ctx context.Context, slug, commentID string, by actor.Actor, body string, variantIDs []string) (Outcome, error)
 	OfCase(ctx context.Context, slug, caseID string) ([]Record, error)
 }
 
@@ -71,13 +74,70 @@ func (s *Service) Discard(ctx context.Context, slug, commentID string, by actor.
 //
 // They may do so without having implemented everything else: one issue can
 // depend on the verdict given on another (ADR 0012).
-func (s *Service) Deliver(ctx context.Context, slug, commentID string, by actor.Actor) (Outcome, error) {
-	return s.repo.Deliver(ctx, slug, commentID, by)
+func (s *Service) Deliver(ctx context.Context, slug, commentID, issueRefID string, by actor.Actor) (Outcome, error) {
+	return s.repo.Deliver(ctx, slug, commentID, issueRefID, by)
 }
 
-// Judge accepts a delivery, or refuses it with a remark.
-func (s *Service) Judge(ctx context.Context, slug, commentID string, by actor.Actor, accept bool, remark string) (Outcome, error) {
-	return s.repo.Judge(ctx, slug, commentID, by, accept, strings.TrimSpace(remark))
+// Judge accepts a delivery, or refuses it with a remark — always on one
+// variant: a judgment lands on the capture on screen (ADR 0022).
+func (s *Service) Judge(ctx context.Context, slug, commentID, issueRefID, variantID string, by actor.Actor, accept bool, remark string) (Outcome, error) {
+	if strings.TrimSpace(variantID) == "" {
+		return Outcome{}, ErrVariantRequired
+	}
+	return s.repo.Judge(ctx, slug, commentID, issueRefID, variantID, by, accept, strings.TrimSpace(remark))
+}
+
+// ErrVariantRequired means the judgment named no capture: a verdict always
+// lands on the one on screen (ADR 0022).
+var ErrVariantRequired = errors.New("comment: a judgment names its variant")
+
+// Unjudge takes a judgment back — an acceptance or a refusal: the reviewer
+// reconsiders, and the ref returns to their court (#167, #171).
+func (s *Service) Unjudge(ctx context.Context, slug, commentID, issueRefID, variantID string, by actor.Actor) (Outcome, error) {
+	return s.repo.Unjudge(ctx, slug, commentID, issueRefID, variantID, by)
+}
+
+// ErrAmbiguousIssue means the comment carries several refs and the caller
+// named none: the server will not guess which fix was delivered or judged.
+var ErrAmbiguousIssue = errors.New("comment: several issues are attached, name one")
+
+// ErrNotADraft means the remark already speaks through an issue: editing it
+// would put words behind a title someone else wrote from (ADR 0020).
+var ErrNotADraft = errors.New("comment: an issue is attached, the draft is gone")
+
+// ErrNotTheAuthor means someone else's draft: a draft is the reviewer's own.
+var ErrNotTheAuthor = errors.New("comment: a draft is edited by its author only")
+
+// Edit is the author reworking their own draft: text and covered variants,
+// while no issue is attached (ADR 0020).
+func (s *Service) Edit(ctx context.Context, slug, commentID string, by actor.Actor, body string, variantIDs []string) (Outcome, error) {
+	body = strings.TrimSpace(body)
+	if body == "" || len(variantIDs) == 0 {
+		return Outcome{}, ErrEmptyEdit
+	}
+	return s.repo.Edit(ctx, slug, commentID, by, body, variantIDs)
+}
+
+// ErrEmptyEdit means the edit would leave the remark saying or covering
+// nothing.
+var ErrEmptyEdit = errors.New("comment: an edit needs a body and a variant")
+
+// IssueTracking is one attached issue as the layers above read it.
+type IssueTracking struct {
+	RefID       string
+	ID          string
+	URL         string
+	Title       string
+	State       review.RefState
+	LastRefusal string
+	Refusals    []Refusal
+}
+
+// Refusal is one standing refusal: given on a capture, it speaks until it is
+// taken back or answered by a redelivery (#212). The journal keeps the rest.
+type Refusal struct {
+	VariantID string
+	Remark    string
 }
 
 // Record is a comment as the layers above read it: what was said, where it
@@ -90,6 +150,7 @@ type Record struct {
 	State         review.CommentState
 	VariantIDs    []string
 	Issue         *IssueRef
+	Issues        []IssueTracking
 	DiscardReason string
 	AuthorID      string
 	CreatedAt     time.Time
@@ -101,7 +162,10 @@ type Judgment struct {
 	Verdict string
 	Remark  string
 	ActorID string
-	At      time.Time
+	// VariantID is the capture the judgment landed on (ADR 0022) — empty on
+	// history from before, and on ref-level moves.
+	VariantID string
+	At        time.Time
 }
 
 // OfCase returns what has been said about a case, settled comments included:

@@ -199,6 +199,13 @@ fe-test-e2e:
     set -euo pipefail
 
     docker compose up -d --wait postgres mailpit
+
+    # Whoever holds a port we need, named. A suite that ran against another
+    # product for two runs cost more than these four lines (#168).
+    squatter() {
+      ss -ltnp "sport = :$1" 2>/dev/null | tail -n +2 || lsof -i ":$1" -sTCP:LISTEN 2>/dev/null
+    }
+
     # A database of its own, inside the container that is already running.
     psql "postgres://ozalid:ozalid@localhost:{{pg_port}}/postgres"       -v ON_ERROR_STOP=1 -c 'DROP DATABASE IF EXISTS ozalid_e2e' -c 'CREATE DATABASE ozalid_e2e' >/dev/null
     GOOSE_DRIVER=postgres GOOSE_DBSTRING='{{e2e_dsn}}'       GOOSE_MIGRATION_DIR=apps/server/db/migrations go tool goose up >/dev/null
@@ -214,12 +221,24 @@ fe-test-e2e:
     # Everything below is torn down whether the suite passes or fails.
     trap 'kill $server 2>/dev/null || true; rm -rf "$blobs"' EXIT
 
+    # Identity, not liveness: if :{{e2e_port}} was already taken the server died
+    # on "address already in use", and a squatter answering 200 would pass a
+    # liveness check just as well (#168). `kill -0` does not help — a process
+    # that just died is a zombie until bash reaps it, and signalling a zombie
+    # succeeds. What only ozalid answers is the health contract itself.
+    ozalid_api() {
+      curl -sf "http://localhost:{{e2e_port}}/api/health" 2>/dev/null | grep -q '"status":"ok"'
+    }
     for _ in $(seq 1 50); do
-      curl -sf "http://localhost:{{e2e_port}}/api/health" >/dev/null && break
+      ozalid_api && break
       sleep 0.2
     done
-    curl -sf "http://localhost:{{e2e_port}}/api/health" >/dev/null || {
-      echo "the server never came up:"; cat "$blobs/server.log"; exit 1; }
+    ozalid_api || {
+      echo "port {{e2e_port}} is not serving ozalid's API. It is held by:"
+      squatter {{e2e_port}}
+      echo "--- what answers there:"
+      curl -s "http://localhost:{{e2e_port}}/api/health" | head -3
+      echo "--- the server said:"; cat "$blobs/server.log"; exit 1; }
 
     # The suite pushes evidence, so it needs a token like any other client —
     # and a token belongs to one project, which is why the suite works inside a
@@ -234,17 +253,38 @@ fe-test-e2e:
     # The suite runs against the built client, not the dev server: what CI
     # ships is what it watches.
     OZALID_API="http://localhost:{{e2e_port}}" npm run build >/dev/null
+    # `strictPort` lives in vite.config.ts, so it holds for anyone running
+    # preview by hand too (#168).
     OZALID_API="http://localhost:{{e2e_port}}" OZALID_E2E_WEB_PORT="{{e2e_web_port}}" \
       npx vite preview >"$blobs/web.log" 2>&1 &
     web=$!
     trap 'kill $server $web 2>/dev/null || true; rm -rf "$blobs"' EXIT
 
+    # The bundle this build just produced, hashed by content. Requiring it in
+    # the answer proves identity *and* freshness: another product fails it, and
+    # so does an ozalid preview left running from an older build.
+    bundle=$(grep -o 'assets/index-[A-Za-z0-9_-]*\.js' dist/index.html | head -1)
+    [ -n "$bundle" ] || { echo "the build produced no bundle to recognise"; exit 1; }
+
     for _ in $(seq 1 50); do
-      curl -sf "http://localhost:{{e2e_web_port}}/" >/dev/null && break
+      curl -sf "http://localhost:{{e2e_web_port}}/" 2>/dev/null | grep -qF "$bundle" && break
       sleep 0.2
     done
-    curl -sf "http://localhost:{{e2e_web_port}}/" >/dev/null || {
-      echo "the client never came up:"; cat "$blobs/web.log"; exit 1; }
+    curl -sf "http://localhost:{{e2e_web_port}}/" 2>/dev/null | grep -qF "$bundle" || {
+      echo "port {{e2e_web_port}} is not serving this build of ozalid. It is held by:"
+      squatter {{e2e_web_port}}
+      echo "--- what answers there:"
+      curl -s "http://localhost:{{e2e_web_port}}/" | head -5
+      echo "--- vite said:"; cat "$blobs/web.log"; exit 1; }
+
+    # Pointing the capture step at this same instance proves the pipe without a
+    # production to push to. Off unless asked for: a local run should not fill a
+    # book nobody is reading (#107).
+    if [ -n "${OZALID_PUSH_SELF:-}" ]; then
+      export OZALID_PUSH_API="http://localhost:{{e2e_port}}"
+      export OZALID_PUSH_TOKEN="$token"
+      export OZALID_PUSH_PROJECT="e2e"
+    fi
 
     OZALID_API="http://localhost:{{e2e_port}}" \
       OZALID_E2E_WEB="http://localhost:{{e2e_web_port}}" \

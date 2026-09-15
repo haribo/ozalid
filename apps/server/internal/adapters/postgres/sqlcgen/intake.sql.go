@@ -9,43 +9,6 @@ import (
 	"context"
 )
 
-const advanceCurrentEdition = `-- name: AdvanceCurrentEdition :many
-UPDATE cases
-SET current_edition_id = $1, updated_at = now()
-WHERE id = ANY($2::text[])
-  AND (current_edition_id IS NULL OR state <> 'to-review')
-RETURNING id
-`
-
-type AdvanceCurrentEditionParams struct {
-	EditionID *string
-	CaseIds   []string
-}
-
-// A new edition does not yank the ground from under a reviewer: a case sitting
-// at `to-review` keeps pointing at what its reviewer is judging, and advances
-// once that review ends (product.md §7). A case that points nowhere always
-// advances -- there was nothing to protect.
-func (q *Queries) AdvanceCurrentEdition(ctx context.Context, arg AdvanceCurrentEditionParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, advanceCurrentEdition, arg.EditionID, arg.CaseIds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const blobExists = `-- name: BlobExists :one
 SELECT EXISTS (SELECT 1 FROM blobs WHERE hash = $1)
 `
@@ -58,7 +21,7 @@ func (q *Queries) BlobExists(ctx context.Context, hash string) (bool, error) {
 }
 
 const casesByIDs = `-- name: CasesByIDs :many
-SELECT id, project_id, category_id, title, description, state, archived_at, created_at, updated_at, current_edition_id FROM cases WHERE project_id = $1 AND id = ANY($2::text[])
+SELECT id, project_id, category_id, title, description, state, archived_at, created_at, updated_at FROM cases WHERE project_id = $1 AND id = ANY($2::text[])
 `
 
 type CasesByIDsParams struct {
@@ -85,7 +48,6 @@ func (q *Queries) CasesByIDs(ctx context.Context, arg CasesByIDsParams) ([]Case,
 			&i.ArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.CurrentEditionID,
 		); err != nil {
 			return nil, err
 		}
@@ -110,9 +72,9 @@ func (q *Queries) CountCasesToReview(ctx context.Context, projectID string) (int
 }
 
 const createCapture = `-- name: CreateCapture :one
-INSERT INTO captures (edition_id, step_id, variant_id, blob_hash, provenance, freshness, moved_pixels)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, edition_id, step_id, variant_id, blob_hash, provenance, freshness, moved_pixels
+INSERT INTO captures (edition_id, step_id, variant_id, blob_hash, provenance, moved_pixels)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, edition_id, step_id, variant_id, blob_hash, provenance, moved_pixels
 `
 
 type CreateCaptureParams struct {
@@ -121,12 +83,12 @@ type CreateCaptureParams struct {
 	VariantID   string
 	BlobHash    string
 	Provenance  []byte
-	Freshness   *string
 	MovedPixels *int32
 }
 
-// A capture is born with its freshness: it is computed once, against what was
-// approved, and the row never changes again.
+// A capture is born with its measurement: moved_pixels is computed once at
+// intake against what was approved, and the row never changes again. The
+// conclusion — moved or not — is derived at read time (ADR 0021).
 func (q *Queries) CreateCapture(ctx context.Context, arg CreateCaptureParams) (Capture, error) {
 	row := q.db.QueryRow(ctx, createCapture,
 		arg.EditionID,
@@ -134,7 +96,6 @@ func (q *Queries) CreateCapture(ctx context.Context, arg CreateCaptureParams) (C
 		arg.VariantID,
 		arg.BlobHash,
 		arg.Provenance,
-		arg.Freshness,
 		arg.MovedPixels,
 	)
 	var i Capture
@@ -145,7 +106,6 @@ func (q *Queries) CreateCapture(ctx context.Context, arg CreateCaptureParams) (C
 		&i.VariantID,
 		&i.BlobHash,
 		&i.Provenance,
-		&i.Freshness,
 		&i.MovedPixels,
 	)
 	return i, err
@@ -203,20 +163,6 @@ func (q *Queries) CreateRecording(ctx context.Context, arg CreateRecordingParams
 		&i.BlobHash,
 	)
 	return i, err
-}
-
-const deleteStepsBeyond = `-- name: DeleteStepsBeyond :exec
-DELETE FROM steps WHERE case_id = $1 AND position >= $2
-`
-
-type DeleteStepsBeyondParams struct {
-	CaseID   string
-	Position int32
-}
-
-func (q *Queries) DeleteStepsBeyond(ctx context.Context, arg DeleteStepsBeyondParams) error {
-	_, err := q.db.Exec(ctx, deleteStepsBeyond, arg.CaseID, arg.Position)
-	return err
 }
 
 const enterReviewOnFirstCaptures = `-- name: EnterReviewOnFirstCaptures :many
@@ -317,6 +263,17 @@ func (q *Queries) ListVariants(ctx context.Context, projectID string) ([]Variant
 	return items, nil
 }
 
+const pixelThresholdByProject = `-- name: PixelThresholdByProject :one
+SELECT pixel_threshold FROM projects WHERE id = $1
+`
+
+func (q *Queries) PixelThresholdByProject(ctx context.Context, id string) (int32, error) {
+	row := q.db.QueryRow(ctx, pixelThresholdByProject, id)
+	var pixel_threshold int32
+	err := row.Scan(&pixel_threshold)
+	return pixel_threshold, err
+}
+
 const projectThreshold = `-- name: ProjectThreshold :one
 SELECT pixel_threshold FROM projects WHERE slug = $1
 `
@@ -326,6 +283,25 @@ func (q *Queries) ProjectThreshold(ctx context.Context, slug string) (int32, err
 	var pixel_threshold int32
 	err := row.Scan(&pixel_threshold)
 	return pixel_threshold, err
+}
+
+const pruneCapturelessSteps = `-- name: PruneCapturelessSteps :exec
+DELETE FROM steps s
+WHERE s.case_id = $1
+  AND NOT (s.id = ANY($2::text[]))
+  AND NOT EXISTS (SELECT 1 FROM captures c WHERE c.step_id = s.id)
+`
+
+type PruneCapturelessStepsParams struct {
+	CaseID string
+	Kept   []string
+}
+
+// A step out of the manifest stays while anything references it: it holds the
+// evidence of earlier editions. Only a step nothing ever captured goes.
+func (q *Queries) PruneCapturelessSteps(ctx context.Context, arg PruneCapturelessStepsParams) error {
+	_, err := q.db.Exec(ctx, pruneCapturelessSteps, arg.CaseID, arg.Kept)
+	return err
 }
 
 const recordTransition = `-- name: RecordTransition :exec
@@ -483,7 +459,7 @@ func (q *Queries) UpsertBlob(ctx context.Context, arg UpsertBlobParams) error {
 const upsertStep = `-- name: UpsertStep :one
 INSERT INTO steps (case_id, name, position)
 VALUES ($1, $2, $3)
-ON CONFLICT (case_id, position) DO UPDATE SET name = EXCLUDED.name
+ON CONFLICT (case_id, name) DO UPDATE SET position = EXCLUDED.position
 RETURNING id, case_id, name, position
 `
 
@@ -495,6 +471,9 @@ type UpsertStepParams struct {
 
 // Steps are reconciled per case: the manifest gives the order, and re-pushing
 // the same step keeps its identity so the comments anchored to it survive.
+// A step is matched by its name, and moved rather than renamed: the row is
+// the cross-edition identity that captures, verdicts and comments hang from,
+// and renaming it reattached history to the wrong screen (#132).
 func (q *Queries) UpsertStep(ctx context.Context, arg UpsertStepParams) (Step, error) {
 	row := q.db.QueryRow(ctx, upsertStep, arg.CaseID, arg.Name, arg.Position)
 	var i Step

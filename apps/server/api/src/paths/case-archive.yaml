@@ -13,7 +13,6 @@ post:
   security:
     - serviceToken: []
     - session: []
-    - session: []
   summary: Take a case out of the catalogue
   description: |
     It stops being listed and stops blocking intake, and stays readable with its

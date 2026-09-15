@@ -1,8 +1,13 @@
 -- The id is generated here and returned; the client never invents it
 -- (ADR 0014).
 -- name: CreateCase :one
+-- The category has to be one of this project's. Guarded in the WHERE rather
+-- than checked beside it: a separate lookup is a second round trip somebody can
+-- forget, and the two answers can disagree. No row means no such category here,
+-- which the caller is told as a 404 (#115).
 INSERT INTO cases (project_id, category_id, title, description)
-VALUES ($1, $2, $3, $4)
+SELECT $1, $2, $3, $4
+WHERE EXISTS (SELECT 1 FROM categories WHERE id = $2 AND project_id = $1)
 RETURNING *;
 
 -- A case, inside the project the caller named. The project is not checked

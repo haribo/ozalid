@@ -14,10 +14,10 @@ const props = withDefaults(
 )
 
 const NAMES: Record<string, string> = {
-  check: 'valider',
-  comment: 'commenter',
-  accept: 'accepter',
-  refuse: 'refuser',
+  check: 'validate',
+  comment: 'comment',
+  accept: 'accept',
+  refuse: 'refuse',
 }
 const title = computed(() => props.label || NAMES[props.name])
 </script>

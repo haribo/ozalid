@@ -4,15 +4,52 @@
  *
  * One capture at full size, the two verdicts within reach, and the keyboard
  * doing the work: arrows to move, space to validate, Escape to leave. On a
- * case of twelve squares the reviewer never touches the mouse.
+ * case of twelve captures the reviewer never touches the mouse.
  */
-import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import type { components } from '@/shared/api'
-import { ActionIcon, KindIcon, MovedIcon, StateIcon } from '@/shared/ui'
-import { hasMoved, type Tone } from '@/shared/lib'
+import { AppButton, CopyableId, MovedIcon, StateIcon, VariantHead, VerdictPair } from '@/shared/ui'
+import { isSettled, SETTLED_GROUND, SETTLED_INK, SETTLED_LABEL, SETTLED_TONE } from '@/shared/lib'
 
 type Grid = components['schemas']['Grid']
 type Comment = components['schemas']['Comment']
+type QueueEntry = components['schemas']['QueueEntry']
+
+/**
+ * A walk across a project's queue rather than one case's grid (#205).
+ *
+ * The entries are fixed for the length of the walk: recomputing them after
+ * every verdict would move the list under the reviewer, and the one they
+ * started is the one they finish.
+ */
+export type Walk = {
+  entries: QueueEntry[]
+  /** The case the open capture belongs to — the walk crosses cases. */
+  caseId: string
+  /** The category trail above the case, already trimmed of what every case
+   * in the walk shares. */
+  trail: string
+  caseName: string
+  /** What the sitting came to, once the last capture is judged: read back
+   * from the server, never counted in the browser (#255). Absent while the
+   * walk is still going. */
+  summary?: WalkSummary
+  /** Where "back" goes, in the reader's words: the category the walk was
+   * started from, or the project. */
+  scope: string
+}
+
+/** The tally of a finished walk — captures of the queue that have since left
+ * it, and where they went. */
+export type WalkSummary = {
+  accepted: number
+  refused: number
+  cases: number
+  /** Still awaiting a verdict: a walk can be left before its end, and saying
+   * nothing waits when something does is the one thing this screen must not
+   * do. */
+  remaining: number
+}
 
 const props = defineProps<{
   slug: string
@@ -20,115 +57,271 @@ const props = defineProps<{
   comments: Comment[]
   stepId: string
   variantId: string
+  /** Walking a queue: left and right follow it instead of the grid's steps,
+   * and the banner says which case the reviewer is in (#205). */
+  walk?: Walk
+  /** The recording view (ADR 0023): the player instead of a capture, the
+   * pair judging the video of this variant at the current edition. */
+  recording?: boolean
+  /** Somebody else holds the case (ADR 0005, #95): the pair goes inert and
+   * says who. Navigation and playback stay free. */
+  heldBy?: { name: string; since: string } | null
   busy?: boolean
 }>()
 
 const emit = defineEmits<{
   close: []
   move: [stepId: string, variantId: string]
-  validate: [stepId: string, variantId: string]
-  comment: [
-    input: { stepId: string; kind: 'defect' | 'improvement'; body: string; variantIds: string[] },
-  ]
-  judge: [commentId: string, accept: boolean, remark: string]
+  /** The walk reached another entry, which may sit in another case (#205). */
+  moveEntry: [entry: QueueEntry]
+  /** Walked past the last entry: the sitting is over and wants its tally
+   * (#255). */
+  finish: []
+  /** Leave the walk and read the project's whole queue instead. */
+  reviewProject: []
+  /** Accept the capture; withdraw carries the capture's draft refusals when the
+   * verdict is switched in one gesture (ADR 0020). */
+  accept: [stepId: string, variantId: string, withdraw: boolean]
+  unaccept: [stepId: string, variantId: string]
+  /** Refuse the capture: the remark and its variants, plus the acceptance
+   * take-back when one stood (one gesture, never two). */
+  refuse: [input: { stepId: string; body: string; variantIds: string[]; unaccept: boolean }]
+  unrefuse: [stepId: string, variantId: string]
+  edit: [commentId: string, body: string, variantIds: string[]]
+  /** A judgment lands on the capture on screen (ADR 0022): the variant rides
+   * along so the server releases or restores exactly this coverage. */
+  judge: [commentId: string, issueRefId: string, accept: boolean, remark: string, variantId: string]
+  /** Empty variantId keeps the take-back ref-level (a refusal reopening). */
+  unjudge: [commentId: string, issueRefId: string, variantId: string]
+  moveRecording: [variantId: string]
+  judgeRecording: [recordingId: string, accept: boolean, remark: string]
+  unjudgeRecording: [recordingId: string]
 }>()
 
-/** Every square that exists, in reading order: steps down, variants across. */
-const squares = computed(() =>
-  props.grid.steps.flatMap((step) =>
-    props.grid.variants
-      .filter((v) => step.cells.some((c) => c.variantId === v.id))
-      .map((v) => ({ stepId: step.id, variantId: v.id })),
-  ),
-)
+/** Where the open step sits in the flow. The counter counts steps: the
+ * horizontal walk is the flow, and the variant is a lens on it (#149). */
+const stepIndex = computed(() => props.grid.steps.findIndex((s) => s.id === props.stepId))
 
-const index = computed(() =>
-  squares.value.findIndex((s) => s.stepId === props.stepId && s.variantId === props.variantId),
+/** The video of this variant at the current edition (ADR 0023). */
+const rec = computed(() =>
+  props.recording ? props.grid.recordings.find((r) => r.variantId === props.variantId) : undefined,
 )
 
 const step = computed(() => props.grid.steps.find((s) => s.id === props.stepId))
 const variant = computed(() => props.grid.variants.find((v) => v.id === props.variantId))
-const cell = computed(() => step.value?.cells.find((c) => c.variantId === props.variantId))
+const capture = computed(() => step.value?.captures.find((c) => c.variantId === props.variantId))
 
-/** The comments covering this exact square — what is already known about it. */
+/** The comments covering this exact capture — what is already known about it. */
 const onSquare = computed(() =>
   props.comments.filter((c) => c.stepId === props.stepId && c.variantIds.includes(props.variantId)),
 )
 
-/** A delivery waiting for a verdict. That is what gets judged here, not the
- * capture itself. */
-const toJudge = computed(() => onSquare.value.find((c) => c.state === 'to-review'))
-
-const isPortrait = computed(() => Object.values(variant.value?.values ?? {}).includes('mobile'))
-
-/** The verdict already on this square, in the grid's own vocabulary — one
- * language learnt once, whatever the size the capture is shown at. */
-const VERDICT_TONE: Record<string, Tone> = { validated: 'done', 'to-fix': 'dev' }
-const VERDICT_MARK: Record<string, string> = {
-  validated: 'text-emerald-700 dark:text-emerald-400',
-  'to-fix': 'text-amber-700 dark:text-amber-400',
-}
-const VERDICT_LABEL: Record<string, string> = { validated: 'validée', 'to-fix': 'commentée' }
-
-/** A capture that has moved is back to needing eyes, whatever its verdict says,
- * so it comes back to full strength here as it does in the grid. */
-const moved = computed(() => hasMoved(cell.value?.freshness))
-const judged = computed(
-  () => cell.value !== undefined && cell.value.status in VERDICT_TONE && !moved.value,
+/** The issue refs of the comments covering this capture, each with its owner. */
+const refsOnSquare = computed(() =>
+  onSquare.value.flatMap((c) => (c.issues ?? []).map((tracked) => ({ comment: c, ref: tracked }))),
 )
 
+/** A delivery waiting for a verdict. That is what gets judged here, not the
+ * capture itself. One at a time: the capture's other refs live in the recap,
+ * and the next delivered one takes this spot once this one is judged (#171). */
+const toJudge = computed(() =>
+  refsOnSquare.value.find(({ ref: tracked }) => tracked.state === 'to-review'),
+)
+
+/** Accepting released this variant from the coverage (ADR 0022), so an
+ * acceptance is read off the judgment history — the last judgment naming this
+ * variant — never off the coverage. History from before the rule kept its
+ * coverage, so the coverage-based reading stays as the fallback. */
+const acceptedHere = computed(() =>
+  props.comments.filter(
+    (c) =>
+      c.stepId === props.stepId &&
+      (c.judgments ?? []).filter((j) => j.variantId === props.variantId).at(-1)?.verdict ===
+        'accepted',
+  ),
+)
+const acceptedRef = computed(
+  () =>
+    acceptedHere.value
+      .flatMap((c) => (c.issues ?? []).map((tracked) => ({ comment: c, ref: tracked })))
+      .at(0) ?? refsOnSquare.value.find(({ ref: tracked }) => tracked.state === 'accepted'),
+)
+const refusedRef = computed(() =>
+  refsOnSquare.value.find(({ ref: tracked }) => tracked.state === 'refused'),
+)
+
+/** The branch loop (#175): a ref-less remark delivered, judged or settled as
+ * itself — no issue ever attached, the remark's own words do the talking. */
+const remarkToJudge = computed(() =>
+  onSquare.value.find((c) => (c.issues ?? []).length === 0 && c.state === 'to-review'),
+)
+const acceptedRemark = computed(
+  () =>
+    acceptedHere.value.find((c) => (c.issues ?? []).length === 0) ??
+    onSquare.value.find((c) => (c.issues ?? []).length === 0 && c.state === 'accepted'),
+)
+const refusedRemark = computed(() =>
+  onSquare.value.find((c) => (c.issues ?? []).length === 0 && c.state === 'refused'),
+)
+
+/** The reviewer's own drafts on this capture: remarks no issue is attached to
+ * yet. Editable and withdrawable — they never counted anywhere (ADR 0020). */
+const drafts = computed(() =>
+  onSquare.value.filter((c) => (c.issues ?? []).length === 0 && c.state === 'to-track'),
+)
+
+/** Tracked remarks speak through their issue titles; the drafts through their
+ * own words. Settled and discarded ones say nothing here. */
+const trackedTitles = computed(() =>
+  onSquare.value
+    .filter((c) => c.state === 'tracked')
+    .flatMap((c) => (c.issues ?? []).map((r) => `#${r.issueId} ${r.title ?? ''}`.trim())),
+)
+
+/** The context line: one grammar for every state (ADR 0022) — the issue and
+ * its title, or the bare remark's own words. The verdict reads on the pair. */
+const contextRef = computed(() => toJudge.value ?? acceptedRef.value ?? refusedRef.value)
+const contextRemark = computed(
+  () => remarkToJudge.value ?? acceptedRemark.value ?? refusedRemark.value,
+)
+
+/** What the pair shows. The fix's judgment outranks the capture's own status:
+ * when an issue is on this capture, the verdict is about the fix. */
+const verdict = computed<'none' | 'accepted' | 'refused'>(() => {
+  if (props.recording) {
+    if (rec.value?.status === 'accepted') return 'accepted'
+    if (rec.value?.status === 'refused') return 'refused'
+    return 'none'
+  }
+  if (toJudge.value || remarkToJudge.value) return 'none'
+  if (acceptedRef.value) return 'accepted'
+  if (refusedRef.value) return 'refused'
+  if (capture.value?.status === 'accepted') return 'accepted'
+  if (capture.value?.status === 'refused') return 'refused'
+  return 'none'
+})
+
+/** A capture that has moved is back to needing eyes, whatever its verdict
+ * says: the badge says it moved, and it keeps full strength — the mark of a
+ * settled capture would say the opposite (ADR 0026). */
+const moved = computed(() => capture.value?.status === 'moved')
+
+/**
+ * Judged and settled, so the stage says so in the grid's own language
+ * (ADR 0026): the image steps back and its status wears a disc.
+ *
+ * It reads the capture's status, never `verdict`: the pair goes empty while a
+ * delivered fix awaits judgment, and a mark taken from it would make the stage
+ * contradict the grid about the same capture.
+ */
+const settled = computed(() => !props.recording && isSettled(capture.value?.status ?? ''))
+
+/** Where the open capture sits in the walk, when there is one (#205). */
+const walkIndex = computed(() => {
+  const walk = props.walk
+  if (!walk) return -1
+  return walk.entries.findIndex(
+    (e) =>
+      e.caseId === walk.caseId && e.stepId === props.stepId && e.variant.id === props.variantId,
+  )
+})
+
+/** The walk crossed into another case and its grid is still on its way: the
+ * address already names the new capture, the evidence does not exist yet.
+ * Judging blind is worse than waiting, so the stage says so and the pair goes
+ * inert until the pixels are there (#205). */
+/** What the sitting came to, in one sentence. Built here rather than in the
+ * template: a `v-if` between two interpolations swallows the space after the
+ * full stop, and "…under Checkout.2 refusals went back" is what that looks
+ * like on screen. */
+const walkOver = computed(() => {
+  const summary = props.walk?.summary
+  if (!summary) return ''
+  const judged = summary.accepted + summary.refused
+  const sentence = `${judged} capture${judged === 1 ? '' : 's'} judged across ${summary.cases} case${
+    summary.cases === 1 ? '' : 's'
+  } under ${props.walk?.scope}.`
+  if (!summary.refused) return sentence
+  return `${sentence} ${summary.refused} refusal${
+    summary.refused === 1 ? '' : 's'
+  } went back to the developers.`
+})
+
+/** The id of the object on screen — the capture, or the recording in the
+ * recording view. Absent when there is nothing to name: crossing into the next
+ * case of a walk, the header stands before its evidence arrives (#258). */
+const namedId = computed(() => (props.recording ? rec.value?.id : capture.value?.id))
+
+const awaitingCase = computed(() => !!props.walk && !props.recording && !capture.value)
+
+/** Left and right walk the steps, keeping the variant; a step that lacks it
+ * is skipped rather than switching the lens under the reviewer (#149). */
 function go(delta: number) {
-  const next = squares.value[index.value + delta]
-  if (next) emit('move', next.stepId, next.variantId)
+  // Walking a queue, the walk is the queue: the next entry may be another
+  // step, another variant or another case, and the reviewer says so by
+  // pressing the same key (#205).
+  if (props.walk) {
+    if (walkIndex.value < 0) return
+    const next = props.walk.entries[walkIndex.value + delta]
+    if (next) {
+      emit('moveEntry', next)
+      return
+    }
+    // Past the last one: say the sitting is over rather than leave the
+    // reviewer standing on a capture they have just judged (#255).
+    if (delta > 0) emit('finish')
+    return
+  }
+  if (props.recording) {
+    // The video is the walk's first position: right enters the steps.
+    if (delta > 0) {
+      const first = props.grid.steps.find((s) =>
+        s.captures.some((c) => c.variantId === props.variantId),
+      )
+      if (first) emit('move', first.id, props.variantId)
+    }
+    return
+  }
+  for (let i = stepIndex.value + delta; i >= 0 && i < props.grid.steps.length; i += delta) {
+    const candidate = props.grid.steps[i]
+    if (candidate.captures.some((c) => c.variantId === props.variantId)) {
+      emit('move', candidate.id, props.variantId)
+      return
+    }
+  }
+  // Left past the first step lands on the video, when there is one.
+  if (delta < 0 && props.grid.recordings.some((r) => r.variantId === props.variantId)) {
+    emit('moveRecording', props.variantId)
+  }
 }
 
-/** Up and down move to the same step's next variant; left and right walk the
- * whole grid in reading order. */
+/** Up and down move to the same step's next variant. */
 function goVariant(delta: number) {
   const here = props.grid.variants.findIndex((v) => v.id === props.variantId)
   const next = props.grid.variants[here + delta]
-  if (next && step.value?.cells.some((c) => c.variantId === next.id)) {
+  if (!next) return
+  if (props.recording) {
+    if (props.grid.recordings.some((r) => r.variantId === next.id)) {
+      emit('moveRecording', next.id)
+    }
+    return
+  }
+  if (step.value?.captures.some((c) => c.variantId === next.id)) {
     emit('move', props.stepId, next.id)
   }
 }
 
-// ---- comment composer -----------------------------------------------------
+// ---- the refuse / edit sheet ----------------------------------------------
 
-const composing = ref(false)
-const kind = ref<'defect' | 'improvement'>('defect')
-const body = ref('')
+/** Open, the sheet is the only editing surface: the pair goes inert and the
+ * capture shrinks — it stays on screen, the remark describes pixels the
+ * reviewer can still see (ADR 0020). */
+const sheet = ref<null | { editing: string | null }>(null)
+const remark = ref('')
 const chosen = ref<string[]>([])
 
-/** The variant on screen is ticked to start with — it is the one being looked
- * at. */
-watch(
-  () => props.variantId,
-  (id) => {
-    if (!composing.value) chosen.value = [id]
-  },
-  { immediate: true },
-)
-
-function openComposer() {
-  composing.value = true
-  chosen.value = [props.variantId]
-}
-
-function toggle(id: string) {
-  chosen.value = chosen.value.includes(id)
-    ? chosen.value.filter((v) => v !== id)
-    : [...chosen.value, id]
-}
-
-/**
- * Group shortcuts, so saying "everywhere" or "both dark ones" is one click and
- * not four.
- *
- * They are derived from the axis values actually present, never hard-coded:
- * the project declares its own axes and ozalid ships no list of them
- * (ADR 0001). A project with a `role` axis gets `admin` and `member`
- * shortcuts without anyone writing them.
- */
+/** Group shortcuts, derived from the axis values actually present — the
+ * project declares its own axes and ozalid ships no list of them (ADR 0001). */
 const groups = computed(() => {
   const values = new Set<string>()
   for (const v of props.grid.variants) {
@@ -136,6 +329,12 @@ const groups = computed(() => {
   }
   return [...values].toSorted()
 })
+
+function toggle(id: string) {
+  chosen.value = chosen.value.includes(id)
+    ? chosen.value.filter((v) => v !== id)
+    : [...chosen.value, id]
+}
 
 function pickValue(value: string) {
   chosen.value = props.grid.variants
@@ -147,39 +346,116 @@ function pickAll() {
   chosen.value = props.grid.variants.map((v) => v.id)
 }
 
-const canAdd = computed(() => body.value.trim() !== '' && chosen.value.length > 0)
+const canSend = computed(() => {
+  if (remark.value.trim() === '') return false
+  // A fix's or a recording's refusal needs no variants: the thing being
+  // judged already owns its own.
+  return props.recording || toJudge.value || remarkToJudge.value ? true : chosen.value.length > 0
+})
 
-function add() {
-  if (!canAdd.value) return
-  emit('comment', {
-    stepId: props.stepId,
-    kind: kind.value,
-    body: body.value.trim(),
-    variantIds: [...chosen.value],
-  })
-  body.value = ''
-  composing.value = false
+function openSheet() {
+  sheet.value = { editing: null }
+  remark.value = ''
+  chosen.value = [props.variantId]
 }
 
-// ---- judging a delivery ---------------------------------------------------
-
-const refusing = ref(false)
-const remark = ref('')
-
-function accept() {
-  if (toJudge.value) emit('judge', toJudge.value.id, true, '')
+function openEdit(commentId: string) {
+  const draft = drafts.value.find((c) => c.id === commentId)
+  if (!draft) return
+  sheet.value = { editing: commentId }
+  remark.value = draft.body
+  chosen.value = [...draft.variantIds]
 }
 
-function refuse() {
-  if (!refusing.value) {
-    refusing.value = true
+function closeSheet() {
+  sheet.value = null
+  remark.value = ''
+}
+
+function send() {
+  if (!sheet.value || !canSend.value) return
+  const body = remark.value.trim()
+  if (props.recording) {
+    if (rec.value) emit('judgeRecording', rec.value.id, false, body)
+    closeSheet()
     return
   }
-  if (toJudge.value && remark.value.trim() !== '') {
-    emit('judge', toJudge.value.id, false, remark.value.trim())
-    remark.value = ''
-    refusing.value = false
+  if (sheet.value.editing) {
+    emit('edit', sheet.value.editing, body, [...chosen.value])
+  } else if (toJudge.value) {
+    emit('judge', toJudge.value.comment.id, toJudge.value.ref.id, false, body, props.variantId)
+  } else if (remarkToJudge.value) {
+    emit('judge', remarkToJudge.value.id, '', false, body, props.variantId)
+  } else {
+    emit('refuse', {
+      stepId: props.stepId,
+      body,
+      variantIds: [...chosen.value],
+      unaccept: capture.value?.status === 'accepted',
+    })
   }
+  closeSheet()
+}
+
+// ---- the pair's reading of a click ----------------------------------------
+
+function onAccept() {
+  if (props.busy || props.heldBy || sheet.value) return
+  if (props.recording) {
+    if (!rec.value) return
+    // Accepted un-presses; refused or unjudged accepts — one gesture, the
+    // judgment lands on these bytes (ADR 0023).
+    if (rec.value.status === 'accepted') emit('unjudgeRecording', rec.value.id)
+    else emit('judgeRecording', rec.value.id, true, '')
+    return
+  }
+  if (toJudge.value) {
+    emit('judge', toJudge.value.comment.id, toJudge.value.ref.id, true, '', props.variantId)
+    return
+  }
+  if (remarkToJudge.value) {
+    emit('judge', remarkToJudge.value.id, '', true, '', props.variantId)
+    return
+  }
+  if (acceptedRemark.value) {
+    emit('unjudge', acceptedRemark.value.id, '', props.variantId)
+    return
+  }
+  if (acceptedRef.value) {
+    // The filled half un-presses: the judgment is taken back (#167).
+    emit('unjudge', acceptedRef.value.comment.id, acceptedRef.value.ref.id, props.variantId)
+    return
+  }
+  if (verdict.value === 'accepted') {
+    emit('unaccept', props.stepId, props.variantId)
+    return
+  }
+  // Refused → accepted is one gesture: the draft goes with its refusal.
+  emit('accept', props.stepId, props.variantId, verdict.value === 'refused')
+}
+
+function onRefuse() {
+  if (props.busy || props.heldBy || sheet.value) return
+  if (props.recording) {
+    if (!rec.value) return
+    if (rec.value.status === 'refused') emit('unjudgeRecording', rec.value.id)
+    else openSheet()
+    return
+  }
+  if (refusedRef.value) {
+    emit('unjudge', refusedRef.value.comment.id, refusedRef.value.ref.id, '')
+    return
+  }
+  if (refusedRemark.value) {
+    emit('unjudge', refusedRemark.value.id, '', '')
+    return
+  }
+  if (verdict.value === 'refused') {
+    // Withdraw the draft refusal: the reviewer's own remark goes with it.
+    emit('unrefuse', props.stepId, props.variantId)
+    return
+  }
+  openSheet()
 }
 
 // ---- keyboard -------------------------------------------------------------
@@ -194,7 +470,9 @@ function onKey(event: KeyboardEvent) {
 
   switch (event.key) {
     case 'Escape':
-      emit('close')
+      // The sheet first, the carousel second.
+      if (sheet.value) closeSheet()
+      else emit('close')
       break
     case 'ArrowRight':
       go(1)
@@ -209,10 +487,13 @@ function onKey(event: KeyboardEvent) {
       goVariant(-1)
       break
     case ' ':
+      // Space plays accept — give or take back (ADR 0020). On the video it
+      // belongs to the player: play and pause, the pair is clicked.
+      if (props.recording) return
       event.preventDefault()
-      if (!toJudge.value && cell.value?.status !== 'validated') {
-        emit('validate', props.stepId, props.variantId)
-      }
+      if (sheet.value) break
+      if (awaitingCase.value) break
+      onAccept()
       break
     default:
       return
@@ -224,238 +505,352 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <template>
-  <div class="overflow-hidden rounded-lg border border-slate-300 dark:border-slate-600">
+  <!-- A column filling whatever box the caller gives it — the window, since
+       #125. The stage takes what the bars leave. -->
+  <div
+    role="dialog"
+    aria-label="capture"
+    class="flex flex-col overflow-hidden bg-white dark:bg-slate-950"
+  >
+    <!-- The sitting is over. The tally is read back from the server, never
+         counted here: a verdict is sent as it is made and nothing accumulates
+         in the browser, so a number this screen invented would be the one
+         thing on it nobody could trust (#255). -->
     <div
-      class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 font-mono text-[11px] text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+      v-if="walk?.summary"
+      data-test="walk-over"
+      class="flex h-full flex-col items-center justify-center gap-4 p-10 text-center"
     >
-      <span>
-        <b class="font-medium text-slate-900 dark:text-slate-100">{{ step?.name }}</b>
-        · {{ variant?.label }}
+      <span
+        class="grid h-12 w-12 place-items-center rounded-full border border-emerald-600 text-display text-emerald-700 dark:border-emerald-400 dark:text-emerald-300"
+        aria-hidden="true"
+      >
+        ✓
       </span>
-      <span>
-        {{ index + 1 }} / {{ squares.length }} ·
-        <!-- Arrow glyphs are missing from most monospace faces and render as
-             empty boxes; the system font has them. -->
-        <kbd class="rounded border border-current px-1 font-sans">←</kbd>
-        <kbd class="rounded border border-current px-1 font-sans">→</kbd> capture ·
-        <kbd class="rounded border border-current px-1 font-sans">↑</kbd>
-        <kbd class="rounded border border-current px-1 font-sans">↓</kbd> variante ·
-        <kbd class="rounded border border-current px-1">Échap</kbd> fermer
-      </span>
+      <h2 class="text-display font-semibold">
+        {{
+          walk.summary.remaining === 0
+            ? 'Nothing is waiting on you'
+            : `${walk.summary.remaining} capture${walk.summary.remaining === 1 ? '' : 's'} still waiting`
+        }}
+      </h2>
+      <p class="max-w-prose text-slate-500 dark:text-slate-400">{{ walkOver }}</p>
+      <p
+        class="flex flex-wrap justify-center gap-5 font-mono text-mono text-slate-500 dark:text-slate-400"
+      >
+        <span
+          ><b class="font-medium text-slate-900 dark:text-slate-100">{{ walk.summary.accepted }}</b>
+          accepted</span
+        >
+        <span
+          ><b class="font-medium text-slate-900 dark:text-slate-100">{{ walk.summary.refused }}</b>
+          refused</span
+        >
+        <span
+          ><b class="font-medium text-slate-900 dark:text-slate-100">{{ walk.summary.cases }}</b>
+          case{{ walk.summary.cases === 1 ? '' : 's' }} touched</span
+        >
+      </p>
+      <div class="flex flex-wrap justify-center gap-3">
+        <AppButton @click="emit('close')">Back to {{ walk.scope }}</AppButton>
+        <AppButton variant="secondary" @click="emit('reviewProject')">
+          Review the whole project
+        </AppButton>
+      </div>
     </div>
 
-    <div class="grid place-items-center bg-slate-100 p-6 dark:bg-slate-950">
-      <!-- The same reading as the grid, at full size: a square already judged
-           steps back and wears its verdict, so what the eye lands on is what
-           still needs looking at. -->
-      <span v-if="cell" class="relative inline-block leading-none">
-        <!-- Said on the image itself: the reviewer landed here from a keyboard
-             walk and never saw the grid's mark. -->
+    <template v-else>
+      <div
+        class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 font-mono text-mono text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+      >
+        <span class="flex min-w-0 items-center gap-2.5">
+          <!-- The id of what is on screen, so a capture worth judging can be
+               quoted elsewhere — a ticket, a thread, a request against the API
+               (#258, product.md §3.5). -->
+          <CopyableId
+            v-if="namedId"
+            data-test="named-id"
+            :value="namedId"
+            :label="`Copy the ${recording ? 'recording' : 'capture'} id`"
+          />
+          <span class="truncate">
+            <b class="font-medium text-slate-900 dark:text-slate-100">{{
+              recording ? 'recording' : step?.name
+            }}</b>
+            ·
+          </span>
+          <!-- The variant as the grid draws it (#220): shapes for the values
+               the interface knows, words for the ones it does not. -->
+          <VariantHead
+            v-if="variant"
+            :label="variant.label"
+            :values="variant.values"
+            compact
+            class="flex-none"
+          />
+        </span>
+        <span>
+          <!-- Walking a queue, the position is the queue's: the flow's own
+               counter would answer a question the reviewer is not asking (#205). -->
+          <template v-if="walk"
+            >{{ walkIndex + 1 }} / {{ walk.entries.length }} to judge ·
+          </template>
+          <template v-else-if="!recording"
+            >{{ stepIndex + 1 }} / {{ grid.steps.length }} ·
+          </template>
+          <!-- Arrow glyphs are missing from most monospace faces and render as
+               empty boxes; the system font has them. -->
+          <kbd class="rounded border border-current px-1 font-sans">←</kbd>
+          <kbd class="rounded border border-current px-1 font-sans">→</kbd> step ·
+          <kbd class="rounded border border-current px-1 font-sans">↑</kbd>
+          <kbd class="rounded border border-current px-1 font-sans">↓</kbd> variant ·
+          <kbd class="rounded border border-current px-1">space</kbd>
+          {{ recording ? 'play' : 'accept' }} ·
+          <kbd class="rounded border border-current px-1">Esc</kbd> close
+        </span>
+      </div>
+
+      <!-- Walking a queue, the case changes under an otherwise unchanged screen.
+           The name at title size is what says it: no interstitial, no transition
+           marker, and no status word — the verdict pair announces `to-review`
+           and the badge announces `moved` (#205, product.md §3.6). -->
+      <div
+        v-if="walk"
+        data-test="walk-banner"
+        class="flex flex-wrap items-center gap-x-3 border-b border-l-4 border-slate-200 border-l-indigo-600 bg-indigo-50 px-3 py-2 dark:border-slate-700 dark:border-l-indigo-400 dark:bg-indigo-950"
+      >
         <span
-          v-if="moved"
-          class="absolute -top-3 -right-3 z-10 flex items-center gap-1.5 rounded border border-indigo-500 bg-white px-2 py-1 font-mono text-[10.5px] text-indigo-700 dark:border-indigo-400 dark:bg-slate-900 dark:text-indigo-300"
+          v-if="walk.trail"
+          class="w-full font-mono text-mono text-indigo-700 dark:text-indigo-300"
         >
-          <MovedIcon :size="12" />a bougé<template v-if="cell.movedPixels !== undefined">
-            · {{ cell.movedPixels }} px</template
+          {{ walk.trail }}
+        </span>
+        <span class="truncate text-title font-semibold text-slate-900 dark:text-slate-100">
+          {{ walk.caseName }}
+        </span>
+      </div>
+
+      <!-- Flex, not grid: a grid's auto row grows with its content, and the
+           max-h chain below then constrains nothing — a tall capture overflowed
+           the stage instead of scaling (#177). Every link of the chain carries
+           min-h-0 so the percentages stay bound to the stage. -->
+      <div
+        class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-slate-100 p-6 dark:bg-slate-950"
+      >
+        <!-- A settled capture steps back and wears its status, exactly as the
+             grid marks it (ADR 0026): full intensity is reserved for what still
+             needs eyes. Re-reading it at full strength means taking the verdict
+             back, which the ADR records as the price.
+             When the sheet is open the stage shrinks with the flex column: the
+             pixels stay on screen while the remark is written. -->
+        <!-- Said over the stage: the reviewer landed here from a keyboard walk
+             and never saw the grid's mark. Anchored to the stage corner, not the
+             image — the image's own box is what scales (#177). -->
+        <span
+          v-if="capture && moved"
+          class="absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded border border-indigo-500 bg-white px-2 py-1 font-mono text-mono text-indigo-700 dark:border-indigo-400 dark:bg-slate-900 dark:text-indigo-300"
+        >
+          <MovedIcon :size="12" />moved<template v-if="capture.movedPixels !== undefined">
+            · {{ capture.movedPixels }} px</template
           >
         </span>
-        <img
-          :src="`/api/projects/${slug}/captures/${cell.id}`"
-          :alt="`${step?.name} — ${variant?.label}`"
-          class="max-h-[60vh] border border-slate-300 bg-white object-contain dark:border-slate-600 dark:bg-slate-900"
-          :class="[isPortrait ? 'w-[240px]' : 'w-[560px]', judged ? 'opacity-40' : '']"
-        />
         <span
-          v-if="judged"
+          v-if="awaitingCase"
+          class="font-mono text-mono text-slate-500 dark:text-slate-400"
+          data-test="walk-loading"
+        >
+          loading the next case…
+        </span>
+        <!-- The capture takes the space the window offers and never leaves it:
+             the wrapper fills the stage, so the max constraints bind against a
+             definite box and a capture of any size scales to fit (#177, #125). -->
+        <span v-if="capture" class="flex h-full w-full min-h-0 items-center justify-center">
+          <img
+            :src="`/api/projects/${slug}/captures/${capture.id}`"
+            :alt="`${step?.name} — ${variant?.label}`"
+            class="max-h-full max-w-full border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900"
+            :class="settled ? 'opacity-40' : ''"
+          />
+        </span>
+        <!-- Centred over the stage, never over the image's own box: the image
+             scales, the mark does not move with it (#177). -->
+        <span
+          v-if="settled && capture"
+          data-test="stage-mark"
           class="pointer-events-none absolute inset-0 grid place-items-center"
-          :class="VERDICT_MARK[cell.status]"
+          :class="SETTLED_INK[capture.status]"
         >
           <StateIcon
-            :tone="VERDICT_TONE[cell.status]"
-            :size="72"
-            :label="VERDICT_LABEL[cell.status]"
+            :tone="SETTLED_TONE[capture.status]"
+            :size="28"
+            :label="SETTLED_LABEL[capture.status]"
+            :class="SETTLED_GROUND[capture.status]"
           />
         </span>
-      </span>
-    </div>
-
-    <!-- Judging a delivery replaces validating: it is no longer the capture
-         being judged, it is the fix. -->
-    <div
-      v-if="toJudge"
-      class="border-t border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900"
-    >
-      <p class="mb-2.5 font-mono text-[10.5px] tracking-widest text-slate-500 uppercase">
-        correction livrée<span v-if="toJudge.issue"> · issue {{ toJudge.issue.id }}</span>
-      </p>
-      <p class="mb-3 text-[13px] text-slate-600 dark:text-slate-300">{{ toJudge.body }}</p>
-
-      <div class="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          class="inline-flex items-center gap-1.5 rounded border border-emerald-600 px-3 py-1.5 text-[12.5px] text-emerald-700 disabled:opacity-50 dark:border-emerald-500 dark:text-emerald-400"
-          :disabled="busy"
-          @click="accept"
-        >
-          <ActionIcon name="accept" :size="13" />accepter
-        </button>
-        <button
-          type="button"
-          class="inline-flex items-center gap-1.5 rounded border border-amber-600 px-3 py-1.5 text-[12.5px] text-amber-700 disabled:opacity-50 dark:border-amber-500 dark:text-amber-400"
-          :disabled="busy || (refusing && remark.trim() === '')"
-          @click="refuse"
-        >
-          <ActionIcon name="refuse" :size="13" />refuser
-        </button>
-        <span v-if="!refusing" class="font-mono text-[11px] text-slate-500"
-          >refuser demandera votre remarque</span
-        >
-      </div>
-
-      <textarea
-        v-if="refusing"
-        v-model="remark"
-        class="mt-2.5 w-full rounded border border-slate-300 bg-white p-2 text-[13px] dark:border-slate-600 dark:bg-slate-950"
-        rows="2"
-        placeholder="ce que le dev doit reprendre"
-      ></textarea>
-    </div>
-
-    <!-- Otherwise: the two things a reviewer does in front of a capture. -->
-    <div
-      v-else-if="!composing"
-      class="flex flex-wrap items-center gap-2 border-t border-slate-200 p-3 dark:border-slate-700"
-    >
-      <button
-        type="button"
-        class="inline-flex items-center gap-1.5 rounded border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-[12.5px] text-white disabled:opacity-50"
-        :disabled="busy || cell?.status === 'validated'"
-        @click="emit('validate', stepId, variantId)"
-      >
-        <ActionIcon name="check" :size="13" />valider
-        <kbd class="rounded border border-current px-1 text-[10px]">espace</kbd>
-      </button>
-      <button
-        type="button"
-        class="inline-flex items-center gap-1.5 rounded border border-amber-600 px-3 py-1.5 text-[12.5px] text-amber-700 dark:border-amber-500 dark:text-amber-400"
-        :disabled="busy"
-        @click="openComposer"
-      >
-        <ActionIcon name="comment" :size="13" />commenter
-      </button>
-      <span
-        v-if="cell?.status === 'validated'"
-        class="inline-flex items-center gap-1.5 font-mono text-[11px] text-emerald-700 dark:text-emerald-400"
-      >
-        <StateIcon tone="done" :size="12" />validée
-      </span>
-      <span
-        v-for="c in onSquare"
-        :key="c.id"
-        class="font-mono text-[11px] text-amber-700 dark:text-amber-400"
-      >
-        {{ c.body }}
-      </span>
-    </div>
-
-    <div
-      v-else
-      class="border-t border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900"
-    >
-      <p class="mb-2.5 font-mono text-[10.5px] tracking-widest text-slate-500 uppercase">
-        commentaire sur cette étape
-      </p>
-
-      <div class="mb-2.5 flex gap-1.5">
-        <button
-          type="button"
-          class="inline-flex items-center gap-1.5 rounded border px-2.5 py-1 font-mono text-[11px]"
-          :class="
-            kind === 'defect'
-              ? 'border-amber-600 bg-amber-50 text-amber-800 dark:border-amber-500 dark:bg-amber-950 dark:text-amber-300'
-              : 'border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300'
-          "
-          @click="kind = 'defect'"
-        >
-          <KindIcon kind="defect" :size="12" />défaut
-        </button>
-        <button
-          type="button"
-          class="inline-flex items-center gap-1.5 rounded border px-2.5 py-1 font-mono text-[11px]"
-          :class="
-            kind === 'improvement'
-              ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-950 dark:text-indigo-300'
-              : 'border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300'
-          "
-          @click="kind = 'improvement'"
-        >
-          <KindIcon kind="improvement" :size="12" />amélioration
-        </button>
-      </div>
-
-      <textarea
-        v-model="body"
-        class="w-full rounded border border-slate-300 bg-white p-2 text-[13px] dark:border-slate-600 dark:bg-slate-950"
-        rows="3"
-        placeholder="ce que vous voyez, dans vos mots"
-      ></textarea>
-
-      <div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-[11px]">
-        <label
-          v-for="v in grid.variants"
-          :key="v.id"
-          class="inline-flex cursor-pointer items-center gap-1.5"
-        >
-          <input
-            type="checkbox"
-            :checked="chosen.includes(v.id)"
-            class="accent-indigo-600"
-            @change="toggle(v.id)"
-          />
-          {{ v.label }}
-        </label>
-        <span class="ml-auto flex flex-wrap gap-1.5">
-          <button
-            v-for="value in groups"
-            :key="value"
-            type="button"
-            class="rounded-full border border-slate-300 px-2 py-0.5 text-[10px] text-slate-500 hover:border-indigo-500 hover:text-indigo-600 dark:border-slate-600 dark:text-slate-400"
-            @click="pickValue(value)"
-          >
-            {{ value }}
-          </button>
-          <button
-            type="button"
-            class="rounded-full border border-slate-300 px-2 py-0.5 text-[10px] text-slate-500 hover:border-indigo-500 hover:text-indigo-600 dark:border-slate-600 dark:text-slate-400"
-            @click="pickAll"
-          >
-            tout
-          </button>
+        <!-- The player: the browser's own controls, streaming the sniffed
+             content type. The pair below judges these exact bytes (ADR 0023). -->
+        <span v-if="rec" class="flex h-full w-full min-h-0 items-center justify-center">
+          <!-- Unlike a capture, the video scales up: nothing pixel-accurate is
+               being judged here (ADR 0013), and a small source in a big stage
+               is just hard to watch (#232). object-contain letterboxes. -->
+          <video
+            :src="`/api/projects/${slug}/recordings/${rec.id}`"
+            controls
+            :aria-label="`recording — ${variant?.label}`"
+            class="h-full w-full border border-slate-300 bg-white object-contain dark:border-slate-600 dark:bg-slate-900"
+          ></video>
         </span>
       </div>
 
-      <div class="mt-3 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          class="rounded border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[12.5px] text-white disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:border-slate-600 dark:disabled:bg-slate-800"
-          :disabled="!canAdd || busy"
-          @click="add"
+      <!-- The judgment zone: one centred grammar for every state (#171). The
+           verdict's echo tints the bar's top edge; everything else is the pair,
+           its context line, the draft cards, and the sheet while it is open. -->
+      <div
+        class="flex flex-col items-center gap-2.5 border-t border-slate-200 p-3 text-center dark:border-slate-700"
+        :class="{
+          'shadow-[inset_0_2px_0_theme(colors.emerald.600)] dark:shadow-[inset_0_2px_0_theme(colors.emerald.500)]':
+            verdict === 'accepted' && !sheet,
+          'shadow-[inset_0_2px_0_theme(colors.amber.600)] dark:shadow-[inset_0_2px_0_theme(colors.amber.500)]':
+            verdict === 'refused' && !sheet,
+        }"
+      >
+        <!-- The video's standing refusal speaks; nothing else has a line
+             here — a recording carries no issues (ADR 0023). -->
+        <p
+          v-if="recording && rec?.refusal"
+          class="max-w-[56ch] font-mono text-mono text-amber-700 dark:text-amber-400"
         >
-          ajouter
-        </button>
-        <button
-          type="button"
-          class="rounded border border-slate-300 px-3 py-1.5 text-[12.5px] text-slate-600 dark:border-slate-600 dark:text-slate-300"
-          @click="composing = false"
+          {{ rec.refusal }}
+        </p>
+        <!-- The context line, identical whatever the round's state (ADR 0022):
+             the issue and its title. The verdict reads on the pair alone. -->
+        <p
+          v-if="!recording && contextRef"
+          class="max-w-[56ch] text-body text-slate-600 dark:text-slate-300"
         >
-          annuler
-        </button>
-        <span class="font-mono text-[11px] text-slate-500">
-          {{ chosen.length }} variante{{ chosen.length > 1 ? 's' : '' }} cochée{{
-            chosen.length > 1 ? 's' : ''
-          }}
-        </span>
+          <a
+            v-if="contextRef.ref.url"
+            :href="contextRef.ref.url"
+            target="_blank"
+            rel="noopener"
+            class="text-indigo-700 hover:underline dark:text-indigo-300"
+            >issue #{{ contextRef.ref.issueId }}</a
+          ><span v-else>issue #{{ contextRef.ref.issueId }}</span
+          >: {{ contextRef.ref.title || contextRef.comment.body }}
+        </p>
+        <!-- The branch loop (#175): no number — the remark's own words talk. -->
+        <p
+          v-else-if="contextRemark"
+          class="max-w-[56ch] text-body text-slate-600 dark:text-slate-300"
+        >
+          {{ contextRemark.body }}
+        </p>
+
+        <!-- A held case takes no verdict but its holder's (ADR 0005): the
+             pair goes inert, the line says who. -->
+        <p v-if="heldBy" class="font-mono text-mono text-slate-500 dark:text-slate-400">
+          {{ heldBy.name }} is reviewing this case — read-only until they let go
+        </p>
+        <VerdictPair
+          :verdict="verdict"
+          :disabled="busy || awaitingCase || !!heldBy || sheet !== null"
+          @accept="onAccept"
+          @refuse="onRefuse"
+        />
+
+        <!-- Tracked remarks speak through their issue titles; the drafts are
+             the reviewer's own — the whole card is the way into editing. -->
+        <template v-if="!sheet && !recording">
+          <p
+            v-for="title in trackedTitles"
+            :key="title"
+            class="font-mono text-mono text-slate-500 dark:text-slate-400"
+          >
+            {{ title }}
+          </p>
+          <AppButton
+            v-for="draft in drafts"
+            :key="draft.id"
+            variant="secondary"
+            class="w-full max-w-md justify-between border-slate-300 font-normal normal-case dark:border-slate-600"
+            :aria-label="`edit the remark: ${draft.body}`"
+            @click="openEdit(draft.id)"
+          >
+            <span class="flex-1 text-left font-mono text-mono text-amber-700 dark:text-amber-400">{{
+              draft.body
+            }}</span>
+            <span aria-hidden="true" class="text-slate-400">✎</span>
+          </AppButton>
+        </template>
+
+        <!-- The sheet: under the image, which stays on screen. Cancel is a true
+             no-op, whatever verdict already stood. -->
+        <form
+          v-if="sheet"
+          class="flex w-full max-w-md flex-col gap-2.5 rounded-md border border-slate-200 bg-slate-50 p-3 text-left dark:border-slate-700 dark:bg-slate-900"
+          @submit.prevent="send"
+        >
+          <h3 class="text-body font-semibold">
+            {{
+              sheet.editing
+                ? 'Edit the remark'
+                : recording
+                  ? 'Refuse the recording'
+                  : toJudge
+                    ? `Refuse the fix — issue #${toJudge.ref.issueId}`
+                    : remarkToJudge
+                      ? 'Refuse the fix'
+                      : 'Refuse the capture'
+            }}
+          </h3>
+          <label class="flex flex-col gap-1">
+            <span class="font-mono text-label tracking-wider text-slate-500 uppercase">
+              remark <b class="text-amber-700 dark:text-amber-400">*</b>
+            </span>
+            <textarea
+              v-model="remark"
+              class="w-full rounded border border-slate-300 bg-white p-2 text-body dark:border-slate-600 dark:bg-slate-950"
+              rows="3"
+            ></textarea>
+          </label>
+          <div
+            v-if="!recording && !toJudge && !remarkToJudge"
+            class="flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-mono"
+          >
+            <label
+              v-for="v in grid.variants"
+              :key="v.id"
+              class="inline-flex cursor-pointer items-center gap-1.5"
+            >
+              <!-- eslint-disable-next-line vue/no-restricted-html-elements -- a checkbox, not a text field (#155) -->
+              <input
+                type="checkbox"
+                :checked="chosen.includes(v.id)"
+                class="accent-indigo-600"
+                @change="toggle(v.id)"
+              />
+              {{ v.label }}
+            </label>
+            <span class="ml-auto flex flex-wrap gap-1.5">
+              <AppButton
+                v-for="value in groups"
+                :key="value"
+                variant="secondary"
+                @click="pickValue(value)"
+              >
+                {{ value }}
+              </AppButton>
+              <AppButton variant="secondary" @click="pickAll"> all </AppButton>
+            </span>
+          </div>
+          <div class="flex items-center justify-end gap-2">
+            <AppButton variant="ghost" @click="closeSheet"> cancel </AppButton>
+            <AppButton variant="destructive" :disabled="!canSend || busy" @click="send">
+              {{ sheet.editing ? 'save' : 'refuse' }}
+            </AppButton>
+          </div>
+        </form>
       </div>
-    </div>
+    </template>
   </div>
 </template>

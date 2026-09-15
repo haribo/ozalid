@@ -264,3 +264,13 @@ FROM projects p
 JOIN project_members m ON m.project_id = p.id
 WHERE m.service_account_id = @service_account_id
 ORDER BY lower(p.name);
+
+-- What a token can learn about itself (#180): whose key it is, and which
+-- project it opens. A program fails fast on "token retired" instead of
+-- discovering it on its first real call.
+-- name: ServiceAccountIdentity :one
+SELECT sa.id, sa.name, p.slug AS project_slug, p.name AS project_name
+FROM service_accounts sa
+JOIN project_members m ON m.service_account_id = sa.id
+JOIN projects p ON p.id = m.project_id
+WHERE sa.id = @id AND sa.deactivated_at IS NULL;

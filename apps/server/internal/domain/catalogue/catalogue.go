@@ -15,9 +15,17 @@ import (
 
 // Errors the domain can state on its own, without asking anything.
 var (
-	ErrTitleRequired       = errors.New("catalogue: a case needs a title")
-	ErrNameRequired        = errors.New("catalogue: a category needs a name")
-	ErrCategoryNotEmpty    = errors.New("catalogue: only an empty category can be deleted")
+	ErrTitleRequired    = errors.New("catalogue: a case needs a title")
+	ErrCategoryRequired = errors.New("catalogue: a case needs a category")
+	ErrNameRequired     = errors.New("catalogue: a category needs a name")
+	ErrCategoryNotEmpty = errors.New("catalogue: only an empty category can be deleted")
+	// ErrCategoryUnknown means the category a patch names is none of this
+	// project's. Distinct from ErrCategoryRequired so the two answers stay
+	// distinct: a malformed request, and a category nobody has (#229).
+	ErrCategoryUnknown = errors.New("catalogue: no such category in this project")
+	// ErrCategoryCycle means a move would make a category its own ancestor:
+	// the tree would stop being one (#179).
+	ErrCategoryCycle       = errors.New("catalogue: a category cannot become its own ancestor")
 	ErrCaseAlreadyArchived = errors.New("catalogue: the case is already archived")
 )
 
@@ -76,6 +84,34 @@ type Case struct {
 	ArchivedAt *time.Time
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+	// Held names who is reviewing this case right now, nil when free.
+	// Occupancy, never a state (ADR 0005, #95).
+	Held *review.Held
+}
+
+// Transition is one recorded change of state on a case (#94).
+//
+// The journal also stores the inputs the computation consumed and the rule
+// version that produced it — a regression oracle (ADR 0002), not something a
+// reader is owed. They stop at the repository.
+type Transition struct {
+	At        time.Time
+	FromState string
+	ToState   string
+	// Cause is the fact that caused the change, in the server's own words:
+	// `edition-accepted`, `review-saved`, `comment-discarded`.
+	Cause string
+	Actor TransitionActor
+}
+
+// TransitionActor is who caused it. The kind is derived from how the caller
+// authenticated, which is why the journal is worth keeping (ADR 0018).
+type TransitionActor struct {
+	ID   string
+	Kind string
+	// Name is empty when the account is gone or was never named: rows written
+	// before identity existed keep whatever they named.
+	Name string
 }
 
 // Archived reports whether the case has left the catalogue. An archived case
@@ -94,13 +130,13 @@ type Axis struct {
 type StateCounts struct {
 	NotInstrumented int64
 	ToReview        int64
-	ToFix           int64
-	Reviewed        int64
+	Refused         int64
+	Accepted        int64
 }
 
 // Total is how many cases the counts cover.
 func (c StateCounts) Total() int64 {
-	return c.NotInstrumented + c.ToReview + c.ToFix + c.Reviewed
+	return c.NotInstrumented + c.ToReview + c.Refused + c.Accepted
 }
 
 // CategoryNode is a category with what its whole branch holds.
@@ -112,10 +148,10 @@ type CategoryNode struct {
 
 // CaptureCounts is how a case's captures stand at the edition it points at.
 type CaptureCounts struct {
-	Total     int64
-	Validated int64
-	Commented int64
-	ToJudge   int64
+	Total    int64
+	Accepted int64
+	Refused  int64
+	ToJudge  int64
 }
 
 // CaseSummary is a case plus what a listing needs to draw its row without

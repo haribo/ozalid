@@ -14,32 +14,85 @@ import (
 func (r *Repository) Track(
 	ctx context.Context, slug, commentID string, by actor.Actor, issue appcomment.IssueRef,
 ) (appcomment.Outcome, error) {
-	return r.move(ctx, slug, commentID, by, review.MoveTrack, "", func(ctx context.Context, q *sqlcgen.Queries, to review.CommentState) error {
-		return q.AttachIssue(ctx, sqlcgen.AttachIssueParams{
-			ID: commentID, State: string(to),
-			IssueRef: &issue.ID, IssueUrl: nonEmpty(issue.URL), IssueTitle: nonEmpty(issue.Title),
-		})
+	// Attaching adds a row — a comment may split into several issues, each on
+	// its own round (#138). Allowed as long as the comment is open.
+	return r.move(ctx, slug, commentID, by, review.MoveTrack, "", func(ctx context.Context, q *sqlcgen.Queries, c sqlcgen.Comment) (review.CommentState, error) {
+		if !review.CommentState(c.State).Open() {
+			return "", review.ErrNotOpen
+		}
+		if _, err := q.CreateCommentIssue(ctx, sqlcgen.CreateCommentIssueParams{
+			CommentID: commentID, IssueID: issue.ID,
+			Url: nonEmpty(issue.URL), Title: nonEmpty(issue.Title),
+		}); err != nil {
+			return "", translate("attaching the issue", err)
+		}
+		return r.derive(ctx, q, c)
 	})
 }
 
 func (r *Repository) Discard(
 	ctx context.Context, slug, commentID string, by actor.Actor, reason string,
 ) (appcomment.Outcome, error) {
-	return r.move(ctx, slug, commentID, by, review.MoveDiscard, reason, func(ctx context.Context, q *sqlcgen.Queries, to review.CommentState) error {
-		return q.DiscardComment(ctx, sqlcgen.DiscardCommentParams{
+	return r.move(ctx, slug, commentID, by, review.MoveDiscard, reason, func(ctx context.Context, q *sqlcgen.Queries, c sqlcgen.Comment) (review.CommentState, error) {
+		to, err := review.Transition(review.CommentState(c.State), review.MoveDiscard, reason)
+		if err != nil {
+			return "", err
+		}
+		if err := q.DiscardComment(ctx, sqlcgen.DiscardCommentParams{
 			ID: commentID, State: string(to), DiscardReason: &reason,
-		})
+		}); err != nil {
+			return "", translate("discarding", err)
+		}
+		return to, nil
 	})
 }
 
 func (r *Repository) Deliver(
-	ctx context.Context, slug, commentID string, by actor.Actor,
+	ctx context.Context, slug, commentID, issueRefID string, by actor.Actor,
 ) (appcomment.Outcome, error) {
-	return r.move(ctx, slug, commentID, by, review.MoveDeliver, "", nil)
+	return r.move(ctx, slug, commentID, by, review.MoveDeliver, "", func(ctx context.Context, q *sqlcgen.Queries, c sqlcgen.Comment) (review.CommentState, error) {
+		// A ref-less remark delivers as itself (#175): the branch loop's
+		// "this edition answers your remark" needs no issue.
+		bare, err := r.refless(ctx, q, c)
+		if err != nil {
+			return "", err
+		}
+		if bare {
+			return r.moveComment(ctx, q, c, review.MoveDeliver, "")
+		}
+		if _, err := r.moveRef(ctx, q, slug, commentID, issueRefID, review.MoveDeliver, ""); err != nil {
+			return "", err
+		}
+		return r.derive(ctx, q, c)
+	})
+}
+
+// refless reports whether the comment carries no issue ref: the remark then
+// moves through its own machine rather than deriving from refs (#175).
+func (r *Repository) refless(ctx context.Context, q *sqlcgen.Queries, c sqlcgen.Comment) (bool, error) {
+	states, err := q.CommentIssueStates(ctx, c.ID)
+	if err != nil {
+		return false, translate("reading the refs", err)
+	}
+	return len(states) == 0, nil
+}
+
+// moveComment applies one comment-level transition and writes it back.
+func (r *Repository) moveComment(
+	ctx context.Context, q *sqlcgen.Queries, c sqlcgen.Comment, m review.Move, reason string,
+) (review.CommentState, error) {
+	to, err := review.Transition(review.CommentState(c.State), m, reason)
+	if err != nil {
+		return "", err
+	}
+	if err := q.SetCommentState(ctx, sqlcgen.SetCommentStateParams{ID: c.ID, State: string(to)}); err != nil {
+		return "", translate("moving the comment", err)
+	}
+	return to, nil
 }
 
 func (r *Repository) Judge(
-	ctx context.Context, slug, commentID string, by actor.Actor, accept bool, remark string,
+	ctx context.Context, slug, commentID, issueRefID, variantID string, by actor.Actor, accept bool, remark string,
 ) (appcomment.Outcome, error) {
 	move := review.MoveRefuse
 	verdict := "refused"
@@ -47,16 +100,366 @@ func (r *Repository) Judge(
 		move, verdict = review.MoveAccept, "accepted"
 	}
 
-	return r.move(ctx, slug, commentID, by, move, remark, func(ctx context.Context, q *sqlcgen.Queries, to review.CommentState) error {
-		if err := q.SetCommentState(ctx, sqlcgen.SetCommentStateParams{ID: commentID, State: string(to)}); err != nil {
-			return err
+	return r.move(ctx, slug, commentID, by, move, remark, func(ctx context.Context, q *sqlcgen.Queries, c sqlcgen.Comment) (review.CommentState, error) {
+		// A judgment lands on the capture on screen (ADR 0022): accepting
+		// releases this variant from the remark's coverage; the ref — or a
+		// ref-less remark itself — settles when the coverage empties, and a
+		// refusal opens a partial round for what remains.
+		kase, err := q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: c.CaseID, Slug: slug})
+		if err != nil {
+			return "", translate("reading the case", err)
 		}
-		// Every judgment is kept, not just the last: three round trips on one
-		// comment is information (ADR 0012).
-		return q.RecordJudgment(ctx, sqlcgen.RecordJudgmentParams{
-			CommentID: commentID, Verdict: verdict, Remark: nonEmpty(remark), ActorID: by.ID,
-		})
+		bare, err := r.refless(ctx, q, c)
+		if err != nil {
+			return "", err
+		}
+
+		if accept {
+			released, err := q.ReleaseCommentVariant(ctx, sqlcgen.ReleaseCommentVariantParams{
+				CommentID: commentID, VariantID: variantID,
+			})
+			if err != nil {
+				return "", translate("releasing the variant", err)
+			}
+			if released == 0 {
+				// Judging a variant the remark does not cover is a move the
+				// facts do not allow.
+				return "", review.ErrMoveNotAllowed
+			}
+			// The judge approved these bytes: the acceptance and its
+			// reference are this variant's own (#206, ADR 0022).
+			if err := q.RecordCaptureAcceptance(ctx, sqlcgen.RecordCaptureAcceptanceParams{
+				CaseID: c.CaseID, StepID: c.StepID, VariantID: variantID, AcceptedBy: &by.ID,
+			}); err != nil {
+				return "", translate("recording the acceptance", err)
+			}
+			if shown, err := r.displayedEdition(ctx, q, kase); err != nil {
+				return "", err
+			} else if shown != nil {
+				if err := q.StampCaptureReference(ctx, sqlcgen.StampCaptureReferenceParams{
+					CaseID: c.CaseID, StepID: c.StepID, VariantID: variantID,
+					EditionID: *shown, ApprovedBy: by.ID,
+				}); err != nil {
+					return "", translate("stamping the reference", err)
+				}
+			}
+		} else {
+			// The refusal's anchor follows the refused variant: the judge
+			// refused these bytes.
+			if shown, err := r.displayedEdition(ctx, q, kase); err != nil {
+				return "", err
+			} else if shown != nil {
+				if err := q.ReanchorCommentVariant(ctx, sqlcgen.ReanchorCommentVariantParams{
+					CommentID: commentID, VariantID: variantID, EditionID: *shown,
+				}); err != nil {
+					return "", translate("re-anchoring the refusal", err)
+				}
+			}
+		}
+
+		covered, err := q.CommentCoveredVariants(ctx, commentID)
+		if err != nil {
+			return "", translate("reading the coverage", err)
+		}
+		settled := accept && len(covered) == 0
+
+		var refID *string
+		if !bare {
+			// The ref moves on a refusal, and on the acceptance that empties
+			// the coverage — the last accepted variant closes the round.
+			if !accept || settled {
+				moved, err := r.moveRef(ctx, q, slug, commentID, issueRefID, move, remark)
+				if err != nil {
+					return "", err
+				}
+				refID = &moved
+			} else if id, err := r.namedRef(ctx, q, slug, commentID, issueRefID); err != nil {
+				return "", err
+			} else {
+				refID = &id
+			}
+		}
+
+		if err := q.RecordJudgment(ctx, sqlcgen.RecordJudgmentParams{
+			CommentID: commentID, CommentIssueID: refID,
+			Verdict: verdict, Remark: nonEmpty(remark), ActorID: by.ID,
+			VariantID: &variantID,
+		}); err != nil {
+			return "", translate("recording the judgment", err)
+		}
+
+		if bare {
+			if !accept || settled {
+				return r.moveComment(ctx, q, c, move, remark)
+			}
+			// Variants remain: the remark stays where it was, waiting for
+			// their judgments.
+			return review.CommentState(c.State), nil
+		}
+		return r.derive(ctx, q, c)
 	})
+}
+
+// namedRef resolves which ref the caller means without moving it.
+func (r *Repository) namedRef(
+	ctx context.Context, q *sqlcgen.Queries, slug, commentID, issueRefID string,
+) (string, error) {
+	refs, err := q.GetCommentIssue(ctx, sqlcgen.GetCommentIssueParams{
+		CommentID: commentID, Slug: slug, Column3: issueRefID,
+	})
+	if err != nil {
+		return "", translate("reading the issue refs", err)
+	}
+	switch {
+	case len(refs) == 0:
+		return "", review.ErrMoveNotAllowed
+	case len(refs) > 1:
+		return "", appcomment.ErrAmbiguousIssue
+	}
+	return refs[0].ID, nil
+}
+
+// Unjudge takes a judgment back — an acceptance or a refusal. The take-back
+// joins the judgment history: who reconsidered, and when, is information
+// exactly like the judgment was (#167, #171, ADR 0012).
+func (r *Repository) Unjudge(
+	ctx context.Context, slug, commentID, issueRefID, variantID string, by actor.Actor,
+) (appcomment.Outcome, error) {
+	return r.move(ctx, slug, commentID, by, review.MoveUnjudge, "", func(ctx context.Context, q *sqlcgen.Queries, c sqlcgen.Comment) (review.CommentState, error) {
+		bare, err := r.refless(ctx, q, c)
+		if err != nil {
+			return "", err
+		}
+
+		// With a variant named, the take-back restores that variant's
+		// coverage and removes its acceptance (ADR 0022) — the reference
+		// stays, it is history. Without one, the take-back is ref-level: a
+		// refusal returning to to-review.
+		var variant *string
+		if variantID != "" {
+			kase, err := q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: c.CaseID, Slug: slug})
+			if err != nil {
+				return "", translate("reading the case", err)
+			}
+			if shown, err := r.displayedEdition(ctx, q, kase); err != nil {
+				return "", err
+			} else if shown != nil {
+				if err := q.RestoreCommentVariant(ctx, sqlcgen.RestoreCommentVariantParams{
+					CommentID: commentID, VariantID: variantID, EditionID: *shown,
+				}); err != nil {
+					return "", translate("restoring the coverage", err)
+				}
+			}
+			if err := q.DeleteCaptureAcceptance(ctx, sqlcgen.DeleteCaptureAcceptanceParams{
+				CaseID: c.CaseID, StepID: c.StepID, VariantID: variantID,
+			}); err != nil {
+				return "", translate("taking the acceptance back", err)
+			}
+			variant = &variantID
+		}
+
+		if bare {
+			to := review.CommentState(c.State)
+			// A settled remark reopens; one still waiting for its other
+			// variants has nothing to move.
+			if variantID == "" || !to.Open() {
+				moved, err := r.moveComment(ctx, q, c, review.MoveUnjudge, "")
+				if err != nil {
+					return "", err
+				}
+				to = moved
+			}
+			if err := q.RecordJudgment(ctx, sqlcgen.RecordJudgmentParams{
+				CommentID: commentID, Verdict: "taken-back", ActorID: by.ID, VariantID: variant,
+			}); err != nil {
+				return "", translate("recording the take-back", err)
+			}
+			return to, nil
+		}
+
+		var refID *string
+		if variantID == "" {
+			moved, err := r.moveRef(ctx, q, slug, commentID, issueRefID, review.MoveUnjudge, "")
+			if err != nil {
+				return "", err
+			}
+			refID = &moved
+		} else {
+			id, err := r.namedRef(ctx, q, slug, commentID, issueRefID)
+			if err != nil {
+				return "", err
+			}
+			refID = &id
+			// A settled ref reopens for the restored variant; one still
+			// mid-round has nothing to move.
+			refs, err := q.CommentIssueStates(ctx, commentID)
+			if err != nil {
+				return "", translate("reading the ref states", err)
+			}
+			for _, state := range refs {
+				if review.RefState(state) == review.RefAccepted {
+					if _, err := r.moveRef(ctx, q, slug, commentID, issueRefID, review.MoveUnjudge, ""); err != nil {
+						return "", err
+					}
+					break
+				}
+			}
+		}
+		if err := q.RecordJudgment(ctx, sqlcgen.RecordJudgmentParams{
+			CommentID: commentID, CommentIssueID: refID,
+			Verdict: "taken-back", ActorID: by.ID, VariantID: variant,
+		}); err != nil {
+			return "", translate("recording the take-back", err)
+		}
+		return r.derive(ctx, q, c)
+	})
+}
+
+// Edit is the author reworking their own draft: body and covered variants,
+// while no issue is attached (ADR 0020). The covered captures change, so the
+// verdicts they carry are recomputed in the same transaction.
+func (r *Repository) Edit(
+	ctx context.Context, slug, commentID string, by actor.Actor, body string, variantIDs []string,
+) (appcomment.Outcome, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return appcomment.Outcome{}, fmt.Errorf("beginning the edit: %w", err)
+	}
+	defer func() {
+		// best-effort: rolling back a committed transaction fails, and that
+		// means the write went through.
+		_ = tx.Rollback(ctx)
+	}()
+	q := r.q.WithTx(tx)
+
+	comment, err := q.GetComment(ctx, sqlcgen.GetCommentParams{ID: commentID, Slug: slug})
+	if err != nil {
+		return appcomment.Outcome{}, translate("reading the comment", err)
+	}
+	if comment.AuthorID != by.ID {
+		return appcomment.Outcome{}, appcomment.ErrNotTheAuthor
+	}
+	refs, err := q.CommentIssueStates(ctx, commentID)
+	if err != nil {
+		return appcomment.Outcome{}, translate("reading the refs", err)
+	}
+	if comment.State != string(review.CommentToTrack) || len(refs) > 0 {
+		return appcomment.Outcome{}, appcomment.ErrNotADraft
+	}
+
+	if err := q.UpdateCommentBody(ctx, sqlcgen.UpdateCommentBodyParams{ID: commentID, Body: body}); err != nil {
+		return appcomment.Outcome{}, translate("editing the remark", err)
+	}
+	if err := q.DetachCommentVariants(ctx, commentID); err != nil {
+		return appcomment.Outcome{}, translate("clearing the variants", err)
+	}
+	kase, err := q.CaseInProject(ctx, sqlcgen.CaseInProjectParams{ID: comment.CaseID, Slug: slug})
+	if err != nil {
+		return appcomment.Outcome{}, translate("reading the case", err)
+	}
+	shown, err := r.displayedEdition(ctx, q, kase)
+	if err != nil {
+		return appcomment.Outcome{}, err
+	}
+	anchor := ""
+	if shown != nil {
+		anchor = *shown
+	}
+	for _, variantID := range variantIDs {
+		if err := q.AttachCommentVariant(ctx, sqlcgen.AttachCommentVariantParams{
+			CommentID: commentID, VariantID: variantID, EditionID: anchor,
+		}); err != nil {
+			return appcomment.Outcome{}, translate("attaching a variant", err)
+		}
+	}
+
+	before := review.CaseState(kase.State)
+	facts, err := r.factsOf(ctx, q, kase)
+	if err != nil {
+		return appcomment.Outcome{}, err
+	}
+	outcome := review.Compute(facts)
+	if outcome.State != before {
+		if err := q.SetCaseState(ctx, sqlcgen.SetCaseStateParams{
+			ID: kase.ID, State: string(outcome.State),
+		}); err != nil {
+			return appcomment.Outcome{}, translate("moving the case", err)
+		}
+		inputs, err := json.Marshal(map[string]any{"comment": commentID, "move": "edit"})
+		if err != nil {
+			return appcomment.Outcome{}, fmt.Errorf("encoding the transition inputs: %w", err)
+		}
+		if err := q.RecordTransition(ctx, sqlcgen.RecordTransitionParams{
+			ProjectID: kase.ProjectID, CaseID: &kase.ID,
+			FromState: ptr(string(before)), ToState: ptr(string(outcome.State)),
+			Cause: "comment-edited", ActorID: by.ID, ActorKind: string(by.Kind),
+			Inputs: inputs, RuleVersion: 1,
+		}); err != nil {
+			return appcomment.Outcome{}, translate("journalling the transition", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return appcomment.Outcome{}, fmt.Errorf("committing the edit: %w", err)
+	}
+	return appcomment.Outcome{CommentState: review.CommentState(comment.State), CaseState: outcome.State}, nil
+}
+
+// moveRef resolves which ref the caller means and applies the move to it.
+//
+// Named explicitly, or the comment's only one: with several attached, the
+// server will not guess which fix was delivered or judged.
+func (r *Repository) moveRef(
+	ctx context.Context, q *sqlcgen.Queries, slug, commentID, issueRefID string, m review.Move, remark string,
+) (string, error) {
+	refs, err := q.GetCommentIssue(ctx, sqlcgen.GetCommentIssueParams{
+		CommentID: commentID, Slug: slug, Column3: issueRefID,
+	})
+	if err != nil {
+		return "", translate("reading the issue refs", err)
+	}
+	switch {
+	case len(refs) == 0:
+		return "", review.ErrMoveNotAllowed
+	case len(refs) > 1:
+		return "", appcomment.ErrAmbiguousIssue
+	}
+	ref := refs[0]
+
+	to, err := review.TransitionRef(review.RefState(ref.State), m, remark)
+	if err != nil {
+		return "", err
+	}
+	if err := q.SetCommentIssueState(ctx, sqlcgen.SetCommentIssueStateParams{
+		ID: ref.ID, State: string(to),
+	}); err != nil {
+		return "", translate("moving the ref", err)
+	}
+	// The delivery is dated so a refusal can be told standing from answered
+	// (#212): only what came after the last delivery still speaks.
+	if m == review.MoveDeliver {
+		if err := q.StampCommentIssueDelivery(ctx, ref.ID); err != nil {
+			return "", translate("dating the delivery", err)
+		}
+	}
+	return ref.ID, nil
+}
+
+// derive reads the comment's state off its refs and writes it back.
+func (r *Repository) derive(ctx context.Context, q *sqlcgen.Queries, c sqlcgen.Comment) (review.CommentState, error) {
+	states, err := q.CommentIssueStates(ctx, c.ID)
+	if err != nil {
+		return "", translate("reading the ref states", err)
+	}
+	refs := make([]review.RefState, len(states))
+	for i, s := range states {
+		refs[i] = review.RefState(s)
+	}
+	to := review.DeriveComment(review.CommentState(c.State), refs)
+	if err := q.SetCommentState(ctx, sqlcgen.SetCommentStateParams{ID: c.ID, State: string(to)}); err != nil {
+		return "", translate("writing the derived state", err)
+	}
+	return to, nil
 }
 
 // move applies one transition and everything it implies, in one transaction.
@@ -71,7 +474,7 @@ func (r *Repository) move(
 	by actor.Actor,
 	m review.Move,
 	reason string,
-	write func(context.Context, *sqlcgen.Queries, review.CommentState) error,
+	write func(context.Context, *sqlcgen.Queries, sqlcgen.Comment) (review.CommentState, error),
 ) (appcomment.Outcome, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -91,20 +494,21 @@ func (r *Repository) move(
 		return appcomment.Outcome{}, translate("reading the comment", err)
 	}
 
-	to, err := review.Transition(review.CommentState(comment.State), m, reason)
-	if err != nil {
-		// A refused move is the domain's answer, not a database failure.
-		return appcomment.Outcome{}, err
+	// A held case takes no verdict but its holder's (ADR 0005, #95). The
+	// dev's moves — tracking, delivering, discarding — are not verdicts and
+	// pass untouched.
+	if m == review.MoveAccept || m == review.MoveRefuse || m == review.MoveUnjudge {
+		if err := r.refuseHeld(ctx, q, comment.CaseID, by); err != nil {
+			return appcomment.Outcome{}, err
+		}
 	}
 
-	if write != nil {
-		if err := write(ctx, q, to); err != nil {
-			return appcomment.Outcome{}, translate("applying the move", err)
-		}
-	} else if err := q.SetCommentState(ctx, sqlcgen.SetCommentStateParams{
-		ID: commentID, State: string(to),
-	}); err != nil {
-		return appcomment.Outcome{}, translate("applying the move", err)
+	// Each move decides for itself: discard consults the comment machine, the
+	// ref moves consult the ref machine and derive the comment from its refs.
+	// A refused move is the domain's answer, not a database failure.
+	to, err := write(ctx, q, comment)
+	if err != nil {
+		return appcomment.Outcome{}, err
 	}
 
 	// The comment was already proven to belong to this project, so its case
@@ -115,20 +519,52 @@ func (r *Repository) move(
 	}
 	before := review.CaseState(kase.State)
 
-	facts, err := gatherFacts(ctx, q, kase)
+	// Accepting the last delivery settles the comment, and settling is the
+	// judgment (compute pass 3): the judge approved the bytes on display, so
+	// the reference is stamped for every covered capture — otherwise the
+	// derivation would read the fix's own pixels as "moved" against the
+	// pre-fix reference (#206, seen on production as "moved · 19203 px").
+	shownForSettle, err := r.displayedEdition(ctx, q, kase)
+	if err != nil {
+		return appcomment.Outcome{}, err
+	}
+	if m == review.MoveAccept && to == review.CommentAccepted && shownForSettle != nil {
+		covered, err := q.CommentCoveredVariants(ctx, comment.ID)
+		if err != nil {
+			return appcomment.Outcome{}, translate("reading the covered variants", err)
+		}
+		for _, variantID := range covered {
+			if err := q.StampCaptureReference(ctx, sqlcgen.StampCaptureReferenceParams{
+				CaseID: kase.ID, StepID: comment.StepID, VariantID: variantID,
+				EditionID: *shownForSettle, ApprovedBy: by.ID,
+			}); err != nil {
+				return appcomment.Outcome{}, translate("stamping the reference", err)
+			}
+		}
+	}
+
+	// A delivery advances the case at once: judging a fix means reading the
+	// bytes that claim to fix it, and the pin was showing the reviewer the
+	// screen from before the fix (product.md §7, #142).
+	if m == review.MoveDeliver {
+		latest, err := r.caseEdition(ctx, q, kase.ID)
+		if err != nil {
+			return appcomment.Outcome{}, err
+		}
+		if latest != nil {
+			if err := q.RestampLiveLock(ctx, sqlcgen.RestampLiveLockParams{
+				CaseID: kase.ID, EditionID: latest, WindowSeconds: r.window(),
+			}); err != nil {
+				return appcomment.Outcome{}, translate("advancing onto the delivery", err)
+			}
+		}
+	}
+
+	facts, err := r.factsOf(ctx, q, kase)
 	if err != nil {
 		return appcomment.Outcome{}, err
 	}
 	outcome := review.Compute(facts)
-
-	for cell, status := range outcome.Verdicts {
-		if err := q.UpsertCaptureVerdict(ctx, sqlcgen.UpsertCaptureVerdictParams{
-			CaseID: kase.ID, StepID: cell.StepID, VariantID: cell.VariantID,
-			Status: string(status),
-		}); err != nil {
-			return appcomment.Outcome{}, translate("recording a verdict", err)
-		}
-	}
 
 	if outcome.State != before {
 		inputs, err := json.Marshal(map[string]any{
@@ -187,23 +623,59 @@ func (r *Repository) OfCase(ctx context.Context, slug, caseID string) ([]appcomm
 		return nil, translate("reading the comments", err)
 	}
 
+	caseRefs, err := r.q.CaseCommentIssues(ctx, caseID)
+	if err != nil {
+		return nil, translate("reading the issue refs", err)
+	}
+	refsByComment := map[string][]sqlcgen.CaseCommentIssuesRow{}
+	for _, ref := range caseRefs {
+		refsByComment[ref.CommentID] = append(refsByComment[ref.CommentID], ref)
+	}
+	standing, err := r.q.CaseStandingRefusals(ctx, caseID)
+	if err != nil {
+		return nil, translate("reading the standing refusals", err)
+	}
+	refusalsByRef := map[string][]appcomment.Refusal{}
+	for _, row := range standing {
+		var refusal appcomment.Refusal
+		if row.Remark != nil {
+			refusal.Remark = *row.Remark
+		}
+		if row.VariantID != nil {
+			refusal.VariantID = *row.VariantID
+		}
+		refusalsByRef[row.RefID] = append(refusalsByRef[row.RefID], refusal)
+	}
+
 	out := make([]appcomment.Record, 0, len(rows))
 	for _, row := range rows {
 		record := appcomment.Record{
-			ID: row.ID, StepID: row.StepID, Kind: row.Kind, Body: row.Body,
+			ID: row.ID, StepID: row.StepID, Body: row.Body,
 			State:      review.CommentState(row.State),
 			VariantIDs: row.VariantIds,
 			AuthorID:   row.AuthorID,
 			CreatedAt:  row.CreatedAt.Time,
 		}
-		if row.IssueRef != nil {
-			record.Issue = &appcomment.IssueRef{ID: *row.IssueRef}
-			if row.IssueUrl != nil {
-				record.Issue.URL = *row.IssueUrl
+		for _, ref := range refsByComment[row.ID] {
+			tracking := appcomment.IssueTracking{
+				RefID: ref.ID, ID: ref.IssueID, State: review.RefState(ref.State),
 			}
-			if row.IssueTitle != nil {
-				record.Issue.Title = *row.IssueTitle
+			if ref.Url != nil {
+				tracking.URL = *ref.Url
 			}
+			if ref.Title != nil {
+				tracking.Title = *ref.Title
+			}
+			if ref.LastRefusal != nil {
+				tracking.LastRefusal = *ref.LastRefusal
+			}
+			tracking.Refusals = refusalsByRef[ref.ID]
+			record.Issues = append(record.Issues, tracking)
+		}
+		// The first ref doubles as the old single `issue`, for old readers.
+		if len(record.Issues) > 0 {
+			first := record.Issues[0]
+			record.Issue = &appcomment.IssueRef{ID: first.ID, URL: first.URL, Title: first.Title}
 		}
 		if row.DiscardReason != nil {
 			record.DiscardReason = *row.DiscardReason
@@ -219,6 +691,9 @@ func (r *Repository) OfCase(ctx context.Context, slug, caseID string) ([]appcomm
 			}
 			if j.Remark != nil {
 				judgment.Remark = *j.Remark
+			}
+			if j.VariantID != nil {
+				judgment.VariantID = *j.VariantID
 			}
 			record.Judgments = append(record.Judgments, judgment)
 		}

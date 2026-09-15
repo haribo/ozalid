@@ -15,11 +15,11 @@ const grid: Grid = {
   steps: [
     {
       id: 's1',
-      name: 'ouvre le lien',
+      name: 'opens the link',
       position: 0,
-      cells: [
+      captures: [
         { id: 'cap1', variantId: 'v1', hash: 'sha256:a', status: 'to-review' },
-        { id: 'cap2', variantId: 'v2', hash: 'sha256:b', status: 'validated' },
+        { id: 'cap2', variantId: 'v2', hash: 'sha256:b', status: 'accepted' },
       ],
     },
   ],
@@ -32,49 +32,53 @@ function mountAt(variantId: string, comments: Comment[] = []) {
   })
 }
 
+const press = (key: string) => window.dispatchEvent(new KeyboardEvent('keydown', { key }))
+
+const half = (w: ReturnType<typeof mountAt>, text: string) =>
+  w.findAll('button').find((b) => b.text().includes(text))!
+
+/** The remark fixture: a draft is the reviewer's own, no issue attached. */
+const draft: Comment = {
+  id: 'k9',
+  stepId: 's1',
+  body: 'a draft nobody tracked yet',
+  state: 'to-track',
+  variantIds: ['v1'],
+  authorId: 'nina',
+  createdAt: '2026-08-24T09:00:00Z',
+  judgments: [],
+}
+
 describe('CaptureCarousel', () => {
-  it('says where it is in the walk', () => {
-    expect(mountAt('v1').text()).toContain('1 / 2')
-    expect(mountAt('v2').text()).toContain('2 / 2')
+  it('says which step it is on — the counter counts steps, not captures (#149)', () => {
+    expect(mountAt('v1').text()).toContain('1 / 1')
+    expect(mountAt('v2').text()).toContain('1 / 1')
   })
 
-  it('steps a judged capture back and stamps its verdict on it', () => {
-    // Same reading as the grid, at full size: what keeps full intensity is what
-    // still needs looking at.
+  it('marks a settled capture: the veil and the disc, as the grid does (ADR 0026)', () => {
     const judged = mountAt('v2')
     expect(judged.find('img').classes()).toContain('opacity-40')
-    expect(judged.find('[aria-label="validée"]').exists()).toBe(true)
-
-    const pending = mountAt('v1')
-    expect(pending.find('img').classes()).not.toContain('opacity-40')
-    expect(pending.find('[aria-label="validée"]').exists()).toBe(false)
+    expect(judged.find('[data-test="stage-mark"]').exists()).toBe(true)
+    expect(judged.find('[aria-label="accepted"]').exists()).toBe(true)
+    // The bar still reads the verdict: the mark answers another question.
+    expect(half(judged, '✓ accepted').attributes('aria-pressed')).toBe('true')
   })
 
   it('says on the image that it moved, and by how much', () => {
-    // The reviewer may have walked here with the keyboard and never seen the
-    // grid's mark. The pixel count is what makes the project's threshold
-    // judgeable rather than guessed.
     const moved: Grid = {
       ...grid,
       steps: [
         {
           ...grid.steps[0],
-          cells: [
+          captures: [
             {
-              id: 'cap6',
+              id: 'cap1',
               variantId: 'v1',
               hash: 'sha256:a',
-              status: 'validated',
-              freshness: 'to-re-review',
+              status: 'moved',
               movedPixels: 143,
             },
-            {
-              id: 'cap3',
-              variantId: 'v2',
-              hash: 'sha256:b',
-              status: 'validated',
-              freshness: 'current',
-            },
+            grid.steps[0].captures[1],
           ],
         },
       ],
@@ -82,148 +86,514 @@ describe('CaptureCarousel', () => {
     const w = mount(CaptureCarousel, {
       props: { slug: 'atlas', grid: moved, comments: [], stepId: 's1', variantId: 'v1' },
     })
-    expect(w.text()).toContain('a bougé')
+    expect(w.text()).toContain('moved')
     expect(w.text()).toContain('143 px')
-    // Back to full strength: it needs eyes again, whatever its verdict says.
-    expect(w.find('img').classes()).not.toContain('opacity-40')
   })
 
-  it('validates on space, and asks the server rather than deciding alone', () => {
+  it('changes variant on the vertical arrows and leaves on Escape', () => {
     const w = mountAt('v1')
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }))
-    expect(w.emitted('validate')?.[0]).toEqual(['s1', 'v1'])
-  })
-
-  it('does not offer to validate a square that already is', () => {
-    const w = mountAt('v2')
-    const validate = w.findAll('button').find((b) => b.text().includes('valider'))
-    expect(validate?.attributes('disabled')).toBeDefined()
-  })
-
-  it('walks the grid with the arrows and leaves on Escape', () => {
-    const w = mountAt('v1')
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
+    press('ArrowRight')
+    expect(w.emitted('move')).toBeUndefined()
+    press('ArrowDown')
     expect(w.emitted('move')?.[0]).toEqual(['s1', 'v2'])
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    press('Escape')
     expect(w.emitted('close')).toHaveLength(1)
-  })
-
-  it('refuses to add a comment with no text', async () => {
-    const w = mountAt('v1')
-    await w
-      .findAll('button')
-      .find((b) => b.text().includes('commenter'))!
-      .trigger('click')
-
-    const add = w.findAll('button').find((b) => b.text() === 'ajouter')
-    expect(add?.attributes('disabled')).toBeDefined()
-  })
-
-  it('ticks the variant on screen to start with — it is the one being looked at', async () => {
-    const w = mountAt('v2')
-    await w
-      .findAll('button')
-      .find((b) => b.text().includes('commenter'))!
-      .trigger('click')
-    expect(w.text()).toContain('1 variante cochée')
-  })
-
-  it('judges the fix rather than the capture once a delivery is waiting', () => {
-    const delivered: Comment = {
-      id: 'k1',
-      stepId: 's1',
-      kind: 'defect',
-      body: "l'avatar est écrasé",
-      state: 'to-review',
-      variantIds: ['v1'],
-      authorId: 'nina',
-      createdAt: '2026-08-24T09:00:00Z',
-      judgments: [],
-      issue: { id: '139' },
-    }
-    const w = mountAt('v1', [delivered])
-
-    expect(w.text()).toContain('correction livrée')
-    expect(w.text()).toContain('issue 139')
-    // The two verdicts replace "validate": it is no longer the capture being
-    // judged, it is the fix.
-    expect(w.findAll('button').some((b) => b.text().includes('valider'))).toBe(false)
-    expect(w.findAll('button').some((b) => b.text().includes('accepter'))).toBe(true)
-  })
-
-  it('asks for the remark before letting a refusal through', async () => {
-    const delivered: Comment = {
-      id: 'k1',
-      stepId: 's1',
-      kind: 'defect',
-      body: 'x',
-      state: 'to-review',
-      variantIds: ['v1'],
-      authorId: 'nina',
-      createdAt: '2026-08-24T09:00:00Z',
-      judgments: [],
-    }
-    const w = mountAt('v1', [delivered])
-
-    const refuse = w.findAll('button').find((b) => b.text().includes('refuser'))!
-    await refuse.trigger('click')
-    // The first click opens the field; nothing is sent yet.
-    expect(w.emitted('judge')).toBeUndefined()
-    expect(w.find('textarea').exists()).toBe(true)
-
-    await refuse.trigger('click')
-    expect(w.emitted('judge')).toBeUndefined()
   })
 })
 
-describe('the group shortcuts', () => {
-  it('are derived from the axes the project declared, never hard-coded', async () => {
-    // A project with a role axis gets its values as shortcuts without anyone
-    // writing them (ADR 0001).
-    const withRole: Grid = {
+describe('the verdict pair (ADR 0020)', () => {
+  it('accepts on space, and asks the server rather than deciding alone', () => {
+    const w = mountAt('v1')
+    press(' ')
+    expect(w.emitted('accept')?.[0]).toEqual(['s1', 'v1', false])
+  })
+
+  it('takes an acceptance back on the same key — the pair un-presses', () => {
+    const w = mountAt('v2')
+    press(' ')
+    expect(w.emitted('unaccept')?.[0]).toEqual(['s1', 'v2'])
+    expect(w.emitted('accept')).toBeUndefined()
+  })
+
+  it('un-presses on click too: the filled half is the way back', async () => {
+    const w = mountAt('v2')
+    await half(w, '✓ accepted').trigger('click')
+    expect(w.emitted('unaccept')?.[0]).toEqual(['s1', 'v2'])
+  })
+})
+
+describe('the refuse sheet (ADR 0020)', () => {
+  it('opens under the image and sends nothing until the remark is written', async () => {
+    const w = mountAt('v1')
+    await half(w, 'refuse').trigger('click')
+    expect(w.emitted('refuse')).toBeUndefined()
+    expect(w.text()).toContain('Refuse the capture')
+
+    const send = w.find('form').findAll('button').at(-1)!
+    expect(send.text()).toBe('refuse')
+    expect(send.attributes('disabled')).toBeDefined()
+  })
+
+  it('ticks the variant on screen to start with, and the group shortcuts derive from the axes', async () => {
+    const w = mountAt('v1')
+    await half(w, 'refuse').trigger('click')
+    const boxes = w.findAll('input[type="checkbox"]')
+    expect(boxes.map((b) => (b.element as HTMLInputElement).checked)).toEqual([true, false])
+
+    const labels = w.findAll('button').map((b) => b.text())
+    expect(labels).toContain('desktop')
+    expect(labels).toContain('light')
+    expect(labels).toContain('all')
+  })
+
+  it('refuses with the remark over the ticked variants', async () => {
+    const w = mountAt('v1')
+    await half(w, 'refuse').trigger('click')
+    await w.find('textarea').setValue('too much green')
+    await w
+      .findAll('button')
+      .find((b) => b.text() === 'all')!
+      .trigger('click')
+    await w.find('form').findAll('button').at(-1)!.trigger('click')
+    expect(w.emitted('refuse')).toEqual([
+      [{ stepId: 's1', body: 'too much green', variantIds: ['v1', 'v2'], unaccept: false }],
+    ])
+    // Sent: the sheet is gone.
+    expect(w.find('textarea').exists()).toBe(false)
+  })
+
+  it('switches verdicts in one gesture: refusing an accepted capture takes the acceptance back', async () => {
+    const w = mountAt('v2')
+    await half(w, 'refuse').trigger('click')
+    await w.find('textarea').setValue('second look')
+    await w.find('form').findAll('button').at(-1)!.trigger('click')
+    expect(w.emitted('refuse')?.[0]).toEqual([
+      { stepId: 's1', body: 'second look', variantIds: ['v2'], unaccept: true },
+    ])
+  })
+
+  it('cancel is a true no-op, and Escape closes the sheet before the carousel', async () => {
+    const w = mountAt('v1')
+    await half(w, 'refuse').trigger('click')
+    await w.find('textarea').setValue('words I regret')
+    press(' ')
+    expect(w.emitted('accept')).toBeUndefined()
+
+    press('Escape')
+    await w.vm.$nextTick()
+    expect(w.find('textarea').exists()).toBe(false)
+    expect(w.emitted('close')).toBeUndefined()
+    expect(w.emitted('refuse')).toBeUndefined()
+  })
+})
+
+describe("drafts are the reviewer's own (ADR 0020)", () => {
+  it('shows the draft as a card, and the card opens the edit sheet pre-filled', async () => {
+    const w = mountAt('v1', [draft])
+    expect(w.text()).toContain('a draft nobody tracked yet')
+
+    await half(w, 'a draft nobody tracked yet').trigger('click')
+    expect(w.text()).toContain('Edit the remark')
+    expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe(
+      'a draft nobody tracked yet',
+    )
+
+    await w.find('textarea').setValue('a draft, reworded')
+    await w.find('form').findAll('button').at(-1)!.trigger('click')
+    expect(w.emitted('edit')).toEqual([['k9', 'a draft, reworded', ['v1']]])
+  })
+
+  it('lets the issue title speak once tracked — the draft retires, unedited', () => {
+    const w = mountAt('v1', [
+      {
+        ...draft,
+        state: 'tracked',
+        issues: [{ id: 'r1', issueId: '9', state: 'tracked', title: 'one green thing' }],
+      },
+    ])
+    expect(w.text()).not.toContain('a draft nobody tracked yet')
+    expect(w.text()).toContain('#9 one green thing')
+  })
+
+  it('withdraws the draft refusal from the filled half', async () => {
+    const refused: Grid = {
       ...grid,
-      variants: [
-        { id: 'v1', label: 'admin·light', values: { role: 'admin', theme: 'light' } },
-        { id: 'v2', label: 'member·dark', values: { role: 'member', theme: 'dark' } },
-      ],
       steps: [
         {
-          id: 's1',
-          name: 'ouvre',
-          position: 0,
-          cells: [
-            { id: 'cap4', variantId: 'v1', hash: 'sha256:a', status: 'to-review' },
-            { id: 'cap5', variantId: 'v2', hash: 'sha256:b', status: 'to-review' },
+          ...grid.steps[0],
+          captures: [
+            { id: 'cap1', variantId: 'v1', hash: 'sha256:a', status: 'refused' },
+            grid.steps[0].captures[1],
           ],
         },
       ],
     }
     const w = mount(CaptureCarousel, {
-      props: { slug: 'atlas', grid: withRole, comments: [], stepId: 's1', variantId: 'v1' },
+      props: { slug: 'atlas', grid: refused, comments: [draft], stepId: 's1', variantId: 'v1' },
     })
-    await w
-      .findAll('button')
-      .find((b) => b.text().includes('commenter'))!
-      .trigger('click')
+    await half(w, '✗ refused').trigger('click')
+    expect(w.emitted('unrefuse')?.[0]).toEqual(['s1', 'v1'])
 
-    const labels = w.findAll('button').map((b) => b.text())
-    expect(labels).toContain('admin')
-    expect(labels).toContain('member')
-    expect(labels).toContain('light')
-    expect(labels).toContain('tout')
+    // And accepting from there is one gesture: the draft goes with it.
+    await half(w, 'accept').trigger('click')
+    expect(w.emitted('accept')?.[0]).toEqual(['s1', 'v1', true])
+  })
+})
+
+describe('a delivered fix takes the pair (#170, #171)', () => {
+  const delivered: Comment = {
+    ...draft,
+    id: 'k1',
+    body: 'the avatar is squashed',
+    state: 'to-review',
+    issue: { id: '139' },
+    issues: [{ id: 'ref1', issueId: '139', state: 'to-review', title: 'unsquash the avatar' }],
+  }
+
+  it('judges the fix rather than the capture once a delivery is waiting', async () => {
+    const w = mountAt('v1', [delivered])
+    expect(w.text()).toContain('issue #139: unsquash the avatar')
+
+    await half(w, 'accept').trigger('click')
+    expect(w.emitted('judge')).toEqual([['k1', 'ref1', true, '', 'v1']])
+    expect(w.emitted('accept')).toBeUndefined()
   })
 
-  it('ticks every variant sharing a value in one click', async () => {
-    const w = mountAt('v1')
-    await w
-      .findAll('button')
-      .find((b) => b.text().includes('commenter'))!
-      .trigger('click')
-    await w
-      .findAll('button')
-      .find((b) => b.text() === 'desktop')!
-      .trigger('click')
-    expect(w.text()).toContain('2 variantes cochées')
+  it('refuses the fix through the sheet — remark mandatory, no variant ticks', async () => {
+    const w = mountAt('v1', [delivered])
+    await half(w, 'refuse').trigger('click')
+    expect(w.text()).toContain('Refuse the fix — issue #139')
+    expect(w.find('input[type="checkbox"]').exists()).toBe(false)
+
+    await w.find('textarea').setValue('still squashed on mobile')
+    await w.find('form').findAll('button').at(-1)!.trigger('click')
+    expect(w.emitted('judge')).toEqual([['k1', 'ref1', false, 'still squashed on mobile', 'v1']])
+  })
+
+  it('keeps one context line and reopens the judgment from the filled half', async () => {
+    const accepted = mountAt('v2', [
+      {
+        ...delivered,
+        state: 'accepted',
+        variantIds: ['v2'],
+        issues: [{ id: 'ref1', issueId: '139', state: 'accepted', title: 'unsquash the avatar' }],
+      },
+    ])
+    // The line never wears the verdict (ADR 0022): the pair says it alone.
+    expect(accepted.text()).toContain('issue #139: unsquash the avatar')
+    expect(accepted.text()).not.toContain('accepted — ')
+    await half(accepted, '✓ accepted').trigger('click')
+    expect(accepted.emitted('unjudge')).toEqual([['k1', 'ref1', 'v2']])
+
+    const refused = mountAt('v1', [
+      {
+        ...delivered,
+        state: 'refused',
+        issues: [{ id: 'ref1', issueId: '139', state: 'refused', title: 'unsquash the avatar' }],
+      },
+    ])
+    expect(refused.text()).toContain('issue #139: unsquash the avatar')
+    expect(refused.text()).not.toContain('back to the developer')
+    await half(refused, '✗ refused').trigger('click')
+    // A refusal's take-back is ref-level: the coverage never moved.
+    expect(refused.emitted('unjudge')).toEqual([['k1', 'ref1', '']])
+  })
+
+  it('shows one issue at a time — the others live in the recap (#171)', () => {
+    const twoRefs: Comment = {
+      ...delivered,
+      issues: [
+        { id: 'ref1', issueId: '129', state: 'to-review', title: 'set the sign-in label' },
+        { id: 'ref2', issueId: '131', state: 'tracked', title: 'the empty mailbox hint overflows' },
+      ],
+    }
+    const w = mountAt('v1', [twoRefs])
+    expect(w.text()).toContain('set the sign-in label')
+    expect(w.text()).not.toContain('the empty mailbox hint overflows')
+  })
+})
+
+describe('arrows walk the steps (#149)', () => {
+  const three: Grid = {
+    caseId: 'c1',
+    variants: grid.variants,
+    steps: [
+      grid.steps[0],
+      {
+        id: 's2',
+        name: 'types',
+        position: 1,
+        captures: [
+          { id: 'cap3', variantId: 'v1', hash: 'sha256:c', status: 'to-review' },
+          { id: 'cap4', variantId: 'v2', hash: 'sha256:d', status: 'to-review' },
+        ],
+      },
+      {
+        id: 's3',
+        name: 'lands',
+        position: 2,
+        // v2 only: walking right at v1 skips this step.
+        captures: [{ id: 'cap5', variantId: 'v2', hash: 'sha256:e', status: 'to-review' }],
+      },
+    ],
+    recordings: [],
+  }
+  const at = (stepId: string, variantId: string) =>
+    mount(CaptureCarousel, {
+      props: { slug: 'atlas', grid: three, comments: [], stepId, variantId },
+      attachTo: document.body,
+    })
+
+  it('moves to the next step and keeps the variant', () => {
+    const w = at('s1', 'v2')
+    press('ArrowRight')
+    expect(w.emitted('move')).toEqual([['s2', 'v2']])
+    w.unmount()
+  })
+
+  it('skips a step that lacks the variant', () => {
+    const w = at('s2', 'v1')
+    press('ArrowRight')
+    expect(w.emitted('move')).toBeUndefined()
+    w.unmount()
+  })
+
+  it('counts steps, and follows the walk', () => {
+    expect(at('s2', 'v2').text()).toContain('2 / 3')
+    expect(at('s3', 'v2').text()).toContain('3 / 3')
+  })
+})
+
+describe('the branch loop: a remark without an issue (#175)', () => {
+  const remark: Comment = {
+    id: 'k5',
+    stepId: 's1',
+    body: 'too much green everywhere',
+    state: 'to-review',
+    variantIds: ['v1'],
+    authorId: 'nina',
+    createdAt: '2026-09-07T09:00:00Z',
+    judgments: [],
+    issues: [],
+  }
+
+  it('judges the delivered remark by its own words — no number', async () => {
+    const w = mountAt('v1', [remark])
+    expect(w.text()).not.toContain('issue #')
+    expect(w.text()).toContain('too much green everywhere')
+
+    await half(w, 'accept').trigger('click')
+    expect(w.emitted('judge')).toEqual([['k5', '', true, '', 'v1']])
+  })
+
+  it('refuses it through the sheet, remark mandatory, no variant ticks', async () => {
+    const w = mountAt('v1', [remark])
+    await half(w, 'refuse').trigger('click')
+    expect(w.text()).toContain('Refuse the fix')
+    expect(w.find('input[type="checkbox"]').exists()).toBe(false)
+
+    await w.find('textarea').setValue('still three green things')
+    await w.find('form').findAll('button').at(-1)!.trigger('click')
+    expect(w.emitted('judge')).toEqual([['k5', '', false, 'still three green things', 'v1']])
+  })
+
+  it('reopens a settled remark from the filled half', async () => {
+    const accepted = mountAt('v2', [{ ...remark, state: 'accepted', variantIds: ['v2'] }])
+    await half(accepted, '✓ accepted').trigger('click')
+    expect(accepted.emitted('unjudge')).toEqual([['k5', '', 'v2']])
+
+    const refusedGrid: Grid = {
+      ...grid,
+      steps: [
+        {
+          ...grid.steps[0],
+          captures: [
+            { id: 'cap1', variantId: 'v1', hash: 'sha256:a', status: 'refused' },
+            grid.steps[0].captures[1],
+          ],
+        },
+      ],
+    }
+    const refused = mount(CaptureCarousel, {
+      props: {
+        slug: 'atlas',
+        grid: refusedGrid,
+        comments: [{ ...remark, state: 'refused' }],
+        stepId: 's1',
+        variantId: 'v1',
+      },
+    })
+    await half(refused, '✗ refused').trigger('click')
+    expect(refused.emitted('unjudge')).toEqual([['k5', '', '']])
+  })
+})
+
+describe('a judgment lands on the capture on screen (ADR 0022, #208)', () => {
+  /** One remark over both variants, fix delivered: the state #208 starts from. */
+  const overBoth: Comment = {
+    id: 'k7',
+    stepId: 's1',
+    body: 'the label overflows',
+    state: 'to-review',
+    variantIds: ['v1', 'v2'],
+    authorId: 'nina',
+    createdAt: '2026-09-07T09:00:00Z',
+    judgments: [],
+    issues: [
+      {
+        id: 'ref7',
+        issueId: '173',
+        state: 'to-review',
+        title: 'let the floating label sit on the border',
+        url: 'https://github.com/haribo/ozalid/issues/173',
+      },
+    ],
+  }
+
+  it('the pair judges this variant only', async () => {
+    const w = mountAt('v1', [overBoth])
+    await half(w, 'accept').trigger('click')
+    expect(w.emitted('judge')).toEqual([['k7', 'ref7', true, '', 'v1']])
+
+    const other = mountAt('v2', [overBoth])
+    await half(other, 'accept').trigger('click')
+    expect(other.emitted('judge')).toEqual([['k7', 'ref7', true, '', 'v2']])
+  })
+
+  it('links the issue number to its tracker', () => {
+    const w = mountAt('v1', [overBoth])
+    const link = w.findAll('a').find((a) => a.text() === 'issue #173')!
+    expect(link.attributes('href')).toBe('https://github.com/haribo/ozalid/issues/173')
+    expect(w.text()).toContain('issue #173: let the floating label sit on the border')
+  })
+
+  it('reads an accepted variant off the judgment history once released', async () => {
+    // v1 accepted and released: the coverage names v2 only, the history
+    // names v1 — the context line and the filled half must survive that.
+    const released: Comment = {
+      ...overBoth,
+      variantIds: ['v2'],
+      judgments: [
+        { verdict: 'accepted', variantId: 'v1', actorId: 'nina', at: '2026-09-07T10:00:00Z' },
+      ],
+    }
+    const acceptedGrid: Grid = {
+      ...grid,
+      steps: [
+        {
+          ...grid.steps[0],
+          captures: [
+            { id: 'cap1', variantId: 'v1', hash: 'sha256:a', status: 'accepted' },
+            grid.steps[0].captures[1],
+          ],
+        },
+      ],
+    }
+    const w = mount(CaptureCarousel, {
+      props: {
+        slug: 'atlas',
+        grid: acceptedGrid,
+        comments: [released],
+        stepId: 's1',
+        variantId: 'v1',
+      },
+    })
+    expect(w.text()).toContain('issue #173: let the floating label sit on the border')
+
+    // Taking it back names the variant, so the server restores its coverage.
+    await half(w, '✓ accepted').trigger('click')
+    expect(w.emitted('unjudge')).toEqual([['k7', 'ref7', 'v1']])
+  })
+})
+
+describe('the recording is judged in the carousel (ADR 0023, #226)', () => {
+  const withVideo: Grid = {
+    ...grid,
+    recordings: [
+      { id: 'rec1', variantId: 'v1', hash: 'sha256:vid', status: 'to-review' },
+      { id: 'rec2', variantId: 'v2', hash: 'sha256:vid2', status: 'to-review' },
+    ],
+  }
+  const mountRecording = (over: Partial<Grid> = {}) =>
+    mount(CaptureCarousel, {
+      props: {
+        slug: 'atlas',
+        grid: { ...withVideo, ...over },
+        comments: [],
+        stepId: '',
+        variantId: 'v1',
+        recording: true,
+      },
+    })
+
+  it('shows the player and judges these exact bytes', async () => {
+    const w = mountRecording()
+    const video = w.find('video')
+    expect(video.attributes('src')).toBe('/api/projects/atlas/recordings/rec1')
+    expect(w.text()).toContain('recording')
+
+    await half(w, 'accept').trigger('click')
+    expect(w.emitted('judgeRecording')).toEqual([['rec1', true, '']])
+  })
+
+  it('refuses through the sheet — remark mandatory, no variant ticks', async () => {
+    const w = mountRecording()
+    await half(w, 'refuse').trigger('click')
+    expect(w.text()).toContain('Refuse the recording')
+    expect(w.find('input[type="checkbox"]').exists()).toBe(false)
+
+    await w.find('textarea').setValue('the flow stutters at the door')
+    await w.find('form').findAll('button').at(-1)!.trigger('click')
+    expect(w.emitted('judgeRecording')).toEqual([['rec1', false, 'the flow stutters at the door']])
+  })
+
+  it('takes a verdict back from the filled half and shows the standing refusal', async () => {
+    const w = mountRecording({
+      recordings: [
+        {
+          id: 'rec1',
+          variantId: 'v1',
+          hash: 'sha256:vid',
+          status: 'refused',
+          refusal: 'the flow stutters at the door',
+        },
+      ],
+    })
+    expect(w.text()).toContain('the flow stutters at the door')
+    await half(w, '✗ refused').trigger('click')
+    expect(w.emitted('unjudgeRecording')).toEqual([['rec1']])
+  })
+
+  it('walks: right enters the steps, down reaches the other variant', async () => {
+    const w = mountRecording()
+    press('ArrowRight')
+    await w.vm.$nextTick()
+    expect(w.emitted('move')?.[0]).toEqual(['s1', 'v1'])
+    press('ArrowDown')
+    await w.vm.$nextTick()
+    expect(w.emitted('moveRecording')?.[0]).toEqual(['v2'])
+    w.unmount()
+  })
+})
+
+describe('a held case takes no verdict but its holder’s (ADR 0005, #95)', () => {
+  it('goes inert and says who holds it', async () => {
+    const w = mount(CaptureCarousel, {
+      props: {
+        slug: 'atlas',
+        grid,
+        comments: [],
+        stepId: 's1',
+        variantId: 'v1',
+        heldBy: { name: 'nina', since: '2026-09-11T10:42:00Z' },
+      },
+    })
+    expect(w.text()).toContain('nina is reviewing this case — read-only until they let go')
+    await half(w, 'accept').trigger('click')
+    await half(w, 'refuse').trigger('click')
+    expect(w.emitted('accept')).toBeUndefined()
+    expect(w.emitted('refuse')).toBeUndefined()
+    expect(w.find('form').exists()).toBe(false)
   })
 })

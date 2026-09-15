@@ -25,22 +25,64 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for ActorKind.
+const (
+	Human   ActorKind = "human"
+	Machine ActorKind = "machine"
+)
+
+// Valid indicates whether the value is a known member of the ActorKind enum.
+func (e ActorKind) Valid() bool {
+	switch e {
+	case Human:
+		return true
+	case Machine:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CaptureVerdictStatus.
+const (
+	CaptureVerdictStatusAccepted CaptureVerdictStatus = "accepted"
+	CaptureVerdictStatusMoved    CaptureVerdictStatus = "moved"
+	CaptureVerdictStatusRefused  CaptureVerdictStatus = "refused"
+	CaptureVerdictStatusToReview CaptureVerdictStatus = "to-review"
+)
+
+// Valid indicates whether the value is a known member of the CaptureVerdictStatus enum.
+func (e CaptureVerdictStatus) Valid() bool {
+	switch e {
+	case CaptureVerdictStatusAccepted:
+		return true
+	case CaptureVerdictStatusMoved:
+		return true
+	case CaptureVerdictStatusRefused:
+		return true
+	case CaptureVerdictStatusToReview:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CaseState.
 const (
+	CaseStateAccepted        CaseState = "accepted"
 	CaseStateNotInstrumented CaseState = "not-instrumented"
-	CaseStateReviewed        CaseState = "reviewed"
-	CaseStateToFix           CaseState = "to-fix"
+	CaseStateRefused         CaseState = "refused"
 	CaseStateToReview        CaseState = "to-review"
 )
 
 // Valid indicates whether the value is a known member of the CaseState enum.
 func (e CaseState) Valid() bool {
 	switch e {
+	case CaseStateAccepted:
+		return true
 	case CaseStateNotInstrumented:
 		return true
-	case CaseStateReviewed:
-		return true
-	case CaseStateToFix:
+	case CaseStateRefused:
 		return true
 	case CaseStateToReview:
 		return true
@@ -49,58 +91,21 @@ func (e CaseState) Valid() bool {
 	}
 }
 
-// Defines values for CellVerdictStatus.
-const (
-	CellVerdictStatusToFix     CellVerdictStatus = "to-fix"
-	CellVerdictStatusToReview  CellVerdictStatus = "to-review"
-	CellVerdictStatusValidated CellVerdictStatus = "validated"
-)
-
-// Valid indicates whether the value is a known member of the CellVerdictStatus enum.
-func (e CellVerdictStatus) Valid() bool {
-	switch e {
-	case CellVerdictStatusToFix:
-		return true
-	case CellVerdictStatusToReview:
-		return true
-	case CellVerdictStatusValidated:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CommentKind.
-const (
-	CommentKindDefect      CommentKind = "defect"
-	CommentKindImprovement CommentKind = "improvement"
-)
-
-// Valid indicates whether the value is a known member of the CommentKind enum.
-func (e CommentKind) Valid() bool {
-	switch e {
-	case CommentKindDefect:
-		return true
-	case CommentKindImprovement:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for CommentState.
 const (
+	CommentStateAccepted  CommentState = "accepted"
 	CommentStateDiscarded CommentState = "discarded"
 	CommentStateRefused   CommentState = "refused"
 	CommentStateToReview  CommentState = "to-review"
 	CommentStateToTrack   CommentState = "to-track"
 	CommentStateTracked   CommentState = "tracked"
-	CommentStateValidated CommentState = "validated"
 )
 
 // Valid indicates whether the value is a known member of the CommentState enum.
 func (e CommentState) Valid() bool {
 	switch e {
+	case CommentStateAccepted:
+		return true
 	case CommentStateDiscarded:
 		return true
 	case CommentStateRefused:
@@ -111,46 +116,74 @@ func (e CommentState) Valid() bool {
 		return true
 	case CommentStateTracked:
 		return true
-	case CommentStateValidated:
+	default:
+		return false
+	}
+}
+
+// Defines values for GridCaptureStatus.
+const (
+	GridCaptureStatusAccepted GridCaptureStatus = "accepted"
+	GridCaptureStatusMoved    GridCaptureStatus = "moved"
+	GridCaptureStatusRefused  GridCaptureStatus = "refused"
+	GridCaptureStatusToReview GridCaptureStatus = "to-review"
+)
+
+// Valid indicates whether the value is a known member of the GridCaptureStatus enum.
+func (e GridCaptureStatus) Valid() bool {
+	switch e {
+	case GridCaptureStatusAccepted:
+		return true
+	case GridCaptureStatusMoved:
+		return true
+	case GridCaptureStatusRefused:
+		return true
+	case GridCaptureStatusToReview:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for GridCellFreshness.
+// Defines values for GridRecordingStatus.
 const (
-	Current    GridCellFreshness = "current"
-	ToReReview GridCellFreshness = "to-re-review"
+	GridRecordingStatusAccepted GridRecordingStatus = "accepted"
+	GridRecordingStatusRefused  GridRecordingStatus = "refused"
+	GridRecordingStatusToReview GridRecordingStatus = "to-review"
 )
 
-// Valid indicates whether the value is a known member of the GridCellFreshness enum.
-func (e GridCellFreshness) Valid() bool {
+// Valid indicates whether the value is a known member of the GridRecordingStatus enum.
+func (e GridRecordingStatus) Valid() bool {
 	switch e {
-	case Current:
+	case GridRecordingStatusAccepted:
 		return true
-	case ToReReview:
+	case GridRecordingStatusRefused:
+		return true
+	case GridRecordingStatusToReview:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for GridCellStatus.
+// Defines values for IssueTrackingState.
 const (
-	GridCellStatusToFix     GridCellStatus = "to-fix"
-	GridCellStatusToReview  GridCellStatus = "to-review"
-	GridCellStatusValidated GridCellStatus = "validated"
+	IssueTrackingStateAccepted IssueTrackingState = "accepted"
+	IssueTrackingStateRefused  IssueTrackingState = "refused"
+	IssueTrackingStateToReview IssueTrackingState = "to-review"
+	IssueTrackingStateTracked  IssueTrackingState = "tracked"
 )
 
-// Valid indicates whether the value is a known member of the GridCellStatus enum.
-func (e GridCellStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the IssueTrackingState enum.
+func (e IssueTrackingState) Valid() bool {
 	switch e {
-	case GridCellStatusToFix:
+	case IssueTrackingStateAccepted:
 		return true
-	case GridCellStatusToReview:
+	case IssueTrackingStateRefused:
 		return true
-	case GridCellStatusValidated:
+	case IssueTrackingStateToReview:
+		return true
+	case IssueTrackingStateTracked:
 		return true
 	default:
 		return false
@@ -159,8 +192,9 @@ func (e GridCellStatus) Valid() bool {
 
 // Defines values for JudgmentVerdict.
 const (
-	JudgmentVerdictAccepted JudgmentVerdict = "accepted"
-	JudgmentVerdictRefused  JudgmentVerdict = "refused"
+	JudgmentVerdictAccepted  JudgmentVerdict = "accepted"
+	JudgmentVerdictRefused   JudgmentVerdict = "refused"
+	JudgmentVerdictTakenBack JudgmentVerdict = "taken-back"
 )
 
 // Valid indicates whether the value is a known member of the JudgmentVerdict enum.
@@ -170,23 +204,7 @@ func (e JudgmentVerdict) Valid() bool {
 		return true
 	case JudgmentVerdictRefused:
 		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for NewCommentKind.
-const (
-	NewCommentKindDefect      NewCommentKind = "defect"
-	NewCommentKindImprovement NewCommentKind = "improvement"
-)
-
-// Valid indicates whether the value is a known member of the NewCommentKind enum.
-func (e NewCommentKind) Valid() bool {
-	switch e {
-	case NewCommentKindDefect:
-		return true
-	case NewCommentKindImprovement:
+	case JudgmentVerdictTakenBack:
 		return true
 	default:
 		return false
@@ -273,10 +291,25 @@ type Account struct {
 	Email         openapi_types.Email `json:"email"`
 	Id            string              `json:"id"`
 
-	// IsAdmin Manages accounts and creates projects; reaches no content.
+	// IsAdmin Manages accounts, creates projects, and reaches every one of them
+	// (`product.md` §8.2).
 	IsAdmin bool   `json:"isAdmin"`
 	Name    string `json:"name"`
 }
+
+// Actor defines model for Actor.
+type Actor struct {
+	Id   string    `json:"id"`
+	Kind ActorKind `json:"kind"`
+
+	// Name Absent when the account is gone or was never named — rows written
+	// before identity existed keep whatever they named, and history is not
+	// rewritten to look answered.
+	Name *string `json:"name,omitempty"`
+}
+
+// ActorKind defines model for Actor.Kind.
+type ActorKind string
 
 // Axis A rendering dimension the project declares. ozalid ships no built-in list:
 // an axis exists because a capture mentioned it.
@@ -290,11 +323,28 @@ type Axis struct {
 // CaptureCounts How this case's captures stand at the edition it points at. A capture with
 // no verdict yet counts as still to judge.
 type CaptureCounts struct {
-	Commented int `json:"commented"`
-	ToJudge   int `json:"toJudge"`
-	Total     int `json:"total"`
-	Validated int `json:"validated"`
+	Accepted int `json:"accepted"`
+	Refused  int `json:"refused"`
+	ToJudge  int `json:"toJudge"`
+	Total    int `json:"total"`
 }
+
+// CaptureRef Names one capture by its step and variant — the address a verdict is
+// written at, distinct from ADR 0017's *reference* (the approved bytes).
+type CaptureRef struct {
+	StepId    string `json:"stepId"`
+	VariantId string `json:"variantId"`
+}
+
+// CaptureVerdict defines model for CaptureVerdict.
+type CaptureVerdict struct {
+	Status    CaptureVerdictStatus `json:"status"`
+	StepId    string               `json:"stepId"`
+	VariantId string               `json:"variantId"`
+}
+
+// CaptureVerdictStatus defines model for CaptureVerdict.Status.
+type CaptureVerdictStatus string
 
 // Case defines model for Case.
 type Case struct {
@@ -307,6 +357,9 @@ type Case struct {
 	CategoryId  *string        `json:"categoryId,omitempty"`
 	CreatedAt   time.Time      `json:"createdAt"`
 	Description *string        `json:"description,omitempty"`
+
+	// Held Present while a reviewer holds the case (ADR 0005,
+	Held *Hold `json:"held,omitempty"`
 
 	// Id Generated by the server when the case was created. Stable forever.
 	Id          string     `json:"id"`
@@ -326,9 +379,13 @@ type CaseState string
 
 // CaseUpdate defines model for CaseUpdate.
 type CaseUpdate struct {
-	CategoryId  *string `json:"categoryId,omitempty"`
+	// CategoryId Another category of the same project. Absent leaves it alone, and
+	// there is no way to remove it: a case belongs to exactly one.
+	CategoryId *string `json:"categoryId,omitempty"`
+
+	// Description Absent leaves it alone; the empty string clears it.
 	Description *string `json:"description,omitempty"`
-	Title       string  `json:"title"`
+	Title       *string `json:"title,omitempty"`
 }
 
 // Category defines model for Category.
@@ -344,22 +401,6 @@ type Category struct {
 	Position     int         `json:"position"`
 }
 
-// CellRef defines model for CellRef.
-type CellRef struct {
-	StepId    string `json:"stepId"`
-	VariantId string `json:"variantId"`
-}
-
-// CellVerdict defines model for CellVerdict.
-type CellVerdict struct {
-	Status    CellVerdictStatus `json:"status"`
-	StepId    string            `json:"stepId"`
-	VariantId string            `json:"variantId"`
-}
-
-// CellVerdictStatus defines model for CellVerdict.Status.
-type CellVerdictStatus string
-
 // Comment defines model for Comment.
 type Comment struct {
 	AuthorId string `json:"authorId"`
@@ -372,25 +413,24 @@ type Comment struct {
 	DiscardReason *string `json:"discardReason,omitempty"`
 	Id            string  `json:"id"`
 
-	// Issue An opaque reference to an issue somewhere else. Supplied by the client and
-	// never read back: ozalid holds no tracker credential (ADR 0003).
+	// Issue The first ref, kept for old readers. The table reads `issues`.
 	Issue *IssueRef `json:"issue,omitempty"`
 
-	// Judgments Every judgment, not just the last — three round trips is information.
-	Judgments []Judgment  `json:"judgments"`
-	Kind      CommentKind `json:"kind"`
+	// Issues One row per attached issue, each on its own delivered-and-judged round
+	// (#138). The comment's own state derives from these.
+	Issues *[]IssueTracking `json:"issues,omitempty"`
 
-	// State Where the comment stands. `validated` and `discarded` are the only terminal
+	// Judgments Every judgment, not just the last — three round trips is information.
+	Judgments []Judgment `json:"judgments"`
+
+	// State Where the comment stands. `accepted` and `discarded` are the only terminal
 	// states; a refusal returns to `to-review` on the next delivery.
 	State      CommentState `json:"state"`
 	StepId     string       `json:"stepId"`
 	VariantIds []string     `json:"variantIds"`
 }
 
-// CommentKind defines model for Comment.Kind.
-type CommentKind string
-
-// CommentState Where the comment stands. `validated` and `discarded` are the only terminal
+// CommentState Where the comment stands. `accepted` and `discarded` are the only terminal
 // states; a refusal returns to `to-review` on the next delivery.
 type CommentState string
 
@@ -420,17 +460,8 @@ type Grid struct {
 	Variants []GridVariant `json:"variants"`
 }
 
-// GridCell defines model for GridCell.
-type GridCell struct {
-	// Freshness Whether this capture still shows what a reviewer approved, computed once
-	// when it arrived. **Absent means nothing to compare against** — nobody has
-	// approved this square in this capture's environment — which is not the
-	// same as unchanged (ADR 0017).
-	//
-	// Freshness is an overlay, never a state: a `reviewed` case whose captures
-	// move stays `reviewed` until its reviewer says otherwise.
-	Freshness *GridCellFreshness `json:"freshness,omitempty"`
-
+// GridCapture defines model for GridCapture.
+type GridCapture struct {
 	// Hash The content address these bytes are stored under. What a client
 	// computes before uploading, not what a reader fetches with.
 	Hash string `json:"hash"`
@@ -438,6 +469,10 @@ type GridCell struct {
 	// Id The capture. Fetch its image at
 	// `/projects/{slug}/captures/{captureId}` — the hash names no project and
 	// cannot be authorised (`product.md` §8.1).
+	//
+	// It names **these bytes at this edition**: the same step and variant,
+	// re-captured by the next run, is a different capture with a different
+	// id. Quoting one elsewhere quotes a moment, not a screen.
 	Id string `json:"id"`
 
 	// MovedPixels How many pixels differed by more than the fixed per-channel tolerance.
@@ -451,41 +486,53 @@ type GridCell struct {
 	// one environment, so this is recorded and never guessed.
 	Provenance *Provenance `json:"provenance,omitempty"`
 
-	// Status Where this square stands. Computed by the server from the comments
-	// covering it — never set by a caller (ADR 0012).
-	Status    GridCellStatus `json:"status"`
-	VariantId string         `json:"variantId"`
+	// Status Where this capture stands — derived at read time from the stored
+	// facts, never set by a caller and never stored (ADR 0012, ADR 0021).
+	// `moved`: accepted, and the image has since changed beyond the
+	// project's noise threshold.
+	//
+	// Freshness is an overlay, never a state: a `reviewed` case whose captures
+	// move stays `reviewed` until its reviewer says otherwise.
+	Status    GridCaptureStatus `json:"status"`
+	VariantId string            `json:"variantId"`
 }
 
-// GridCellFreshness Whether this capture still shows what a reviewer approved, computed once
-// when it arrived. **Absent means nothing to compare against** — nobody has
-// approved this square in this capture's environment — which is not the
-// same as unchanged (ADR 0017).
+// GridCaptureStatus Where this capture stands — derived at read time from the stored
+// facts, never set by a caller and never stored (ADR 0012, ADR 0021).
+// `moved`: accepted, and the image has since changed beyond the
+// project's noise threshold.
 //
 // Freshness is an overlay, never a state: a `reviewed` case whose captures
 // move stays `reviewed` until its reviewer says otherwise.
-type GridCellFreshness string
-
-// GridCellStatus Where this square stands. Computed by the server from the comments
-// covering it — never set by a caller (ADR 0012).
-type GridCellStatus string
+type GridCaptureStatus string
 
 // GridRecording defines model for GridRecording.
 type GridRecording struct {
 	Hash string `json:"hash"`
 
 	// Id Fetch the video at `/projects/{slug}/recordings/{recordingId}`.
-	Id        string `json:"id"`
-	VariantId string `json:"variantId"`
+	Id string `json:"id"`
+
+	// Refusal The standing refusal's remark, absent otherwise.
+	Refusal *string `json:"refusal,omitempty"`
+
+	// Status Where the judgment on exactly these bytes stands (ADR 0023). A new
+	// edition brings new bytes and a new `to-review` recording.
+	Status    GridRecordingStatus `json:"status"`
+	VariantId string              `json:"variantId"`
 }
+
+// GridRecordingStatus Where the judgment on exactly these bytes stands (ADR 0023). A new
+// edition brings new bytes and a new `to-review` recording.
+type GridRecordingStatus string
 
 // GridStep defines model for GridStep.
 type GridStep struct {
-	// Cells One entry per variant that has a capture at this step.
-	Cells    []GridCell `json:"cells"`
-	Id       string     `json:"id"`
-	Name     string     `json:"name"`
-	Position int        `json:"position"`
+	// Captures One entry per variant that has a capture at this step.
+	Captures []GridCapture `json:"captures"`
+	Id       string        `json:"id"`
+	Name     string        `json:"name"`
+	Position int           `json:"position"`
 }
 
 // GridVariant defines model for GridVariant.
@@ -495,6 +542,13 @@ type GridVariant struct {
 	// Label A readable rendering of the combination, such as `dark·mobile`.
 	Label  string            `json:"label"`
 	Values map[string]string `json:"values"`
+}
+
+// Hold Who holds the case, and since when. Occupancy, never a state (ADR 0005).
+type Hold struct {
+	By    string    `json:"by"`
+	Name  string    `json:"name"`
+	Since time.Time `json:"since"`
 }
 
 // IntakeRefused defines model for IntakeRefused.
@@ -534,17 +588,49 @@ type IssueRef struct {
 	Url   *string `json:"url,omitempty"`
 }
 
+// IssueTracking defines model for IssueTracking.
+type IssueTracking struct {
+	// Id The ref's own id — what `delivery` and `judgment` name.
+	Id      string `json:"id"`
+	IssueId string `json:"issueId"`
+
+	// LastRefusal The remark of the latest standing refusal on this ref, if any. A
+	// refusal speaks only while it stands (#212): taken back, or answered
+	// by a redelivery, it leaves this field — the journal keeps it.
+	LastRefusal *string `json:"lastRefusal,omitempty"`
+
+	// Refusals Every standing refusal of the current round, each naming the capture
+	// it was given on (ADR 0022, #212). Empty when nothing stands.
+	Refusals *[]Refusal `json:"refusals,omitempty"`
+
+	// State accepted, not validated — validated is the vocabulary of captures (#170).
+	State IssueTrackingState `json:"state"`
+
+	// Title What the book reads once attached; the comment's text was the draft.
+	Title *string `json:"title,omitempty"`
+	Url   *string `json:"url,omitempty"`
+}
+
+// IssueTrackingState accepted, not validated — validated is the vocabulary of captures (#170).
+type IssueTrackingState string
+
 // Judgment defines model for Judgment.
 type Judgment struct {
 	ActorId string    `json:"actorId"`
 	At      time.Time `json:"at"`
 
 	// Remark Mandatory on a refusal. It is what the dev has to read.
-	Remark  *string         `json:"remark,omitempty"`
+	Remark *string `json:"remark,omitempty"`
+
+	// VariantId The capture the judgment landed on (ADR 0022). Absent on history from
+	// before, and on ref-level moves.
+	VariantId *string `json:"variantId,omitempty"`
+
+	// Verdict taken-back is a reviewer reconsidering an acceptance: unvalidating a capture whose validation derived from the settled reference (#167).
 	Verdict JudgmentVerdict `json:"verdict"`
 }
 
-// JudgmentVerdict defines model for Judgment.Verdict.
+// JudgmentVerdict taken-back is a reviewer reconsidering an acceptance: unvalidating a capture whose validation derived from the settled reference (#167).
 type JudgmentVerdict string
 
 // Manifest defines model for Manifest.
@@ -645,7 +731,7 @@ type MoveOutcome struct {
 	// endpoint accepts it as an argument.
 	CaseState CaseState `json:"caseState"`
 
-	// CommentState Where the comment stands. `validated` and `discarded` are the only terminal
+	// CommentState Where the comment stands. `accepted` and `discarded` are the only terminal
 	// states; a refusal returns to `to-review` on the next delivery.
 	CommentState CommentState `json:"commentState"`
 }
@@ -660,7 +746,7 @@ type NewAccount struct {
 
 // NewCase defines model for NewCase.
 type NewCase struct {
-	CategoryId  *string `json:"categoryId,omitempty"`
+	CategoryId  string  `json:"categoryId"`
 	Description *string `json:"description,omitempty"`
 	Title       string  `json:"title"`
 }
@@ -674,21 +760,13 @@ type NewCategory struct {
 
 // NewComment defines model for NewComment.
 type NewComment struct {
-	Body string `json:"body"`
-
-	// Kind What it is. The kind is written on the comment, where it is exact and
-	// where the issue is written from — it never colours the case's state.
-	Kind   NewCommentKind `json:"kind"`
-	StepId string         `json:"stepId"`
+	Body   string `json:"body"`
+	StepId string `json:"stepId"`
 
 	// VariantIds The variants it applies to. One defect spanning four variants is **one**
 	// comment with four variants checked, never four comments.
 	VariantIds []string `json:"variantIds"`
 }
-
-// NewCommentKind What it is. The kind is written on the comment, where it is exact and
-// where the issue is written from — it never colours the case's state.
-type NewCommentKind string
 
 // NewMembership defines model for NewMembership.
 type NewMembership struct {
@@ -759,6 +837,32 @@ type Provenance struct {
 	Resolution *string `json:"resolution,omitempty"`
 }
 
+// QueueEntry defines model for QueueEntry.
+type QueueEntry struct {
+	// Capture The capture awaiting a verdict. Its `status` reads `to-review` or
+	// `moved` — the two that await the reviewer, and nothing on the entry
+	// repeats what that status already says (`product.md` §3.6).
+	Capture   GridCapture `json:"capture"`
+	CaseId    string      `json:"caseId"`
+	CaseTitle string      `json:"caseTitle"`
+
+	// CategoryId Where the case is filed. Absent only for a case filed nowhere, which creation has refused since
+	CategoryId   *string     `json:"categoryId,omitempty"`
+	StepId       string      `json:"stepId"`
+	StepName     string      `json:"stepName"`
+	StepPosition int         `json:"stepPosition"`
+	Variant      GridVariant `json:"variant"`
+}
+
+// Refusal defines model for Refusal.
+type Refusal struct {
+	// Remark What the dev has to read.
+	Remark string `json:"remark"`
+
+	// VariantId The capture the refusal landed on. Absent on ref-level history from before ADR 0022.
+	VariantId *string `json:"variantId,omitempty"`
+}
+
 // ReviewOutcome defines model for ReviewOutcome.
 type ReviewOutcome struct {
 	// Comments How many comments the session added.
@@ -769,16 +873,34 @@ type ReviewOutcome struct {
 	State CaseState `json:"state"`
 
 	// Verdicts The status of every capture the case has, after the save.
-	Verdicts []CellVerdict `json:"verdicts"`
+	Verdicts []CaptureVerdict `json:"verdicts"`
+}
+
+// ReviewQueue defines model for ReviewQueue.
+type ReviewQueue struct {
+	// Entries In walking order: by case in catalogue order, then by step position,
+	// then by variant label (`product.md` §3.6). A flat list, because the
+	// reviewer walks one capture at a time; the grouping by case is the
+	// order, not a nesting.
+	Entries []QueueEntry `json:"entries"`
 }
 
 // ReviewSave defines model for ReviewSave.
 type ReviewSave struct {
-	// Comments What the reviewer wrote during the sitting.
+	// Accepted The captures the reviewer looked at with nothing to say.
+	Accepted *[]CaptureRef `json:"accepted,omitempty"`
+
+	// Comments The remarks of this sitting's refusals (ADR 0020).
 	Comments *[]NewComment `json:"comments,omitempty"`
 
-	// Validated The squares the reviewer looked at with nothing to say.
-	Validated *[]CellRef `json:"validated,omitempty"`
+	// Unaccepted Captures whose acceptance the reviewer takes back — a misclick, or a
+	// second look. The verdict is a toggle until the review ends (#156); the
+	// journal keeps both moves.
+	Unaccepted *[]CaptureRef `json:"unaccepted,omitempty"`
+
+	// Unrefused Captures whose draft refusal the reviewer takes back: their own remarks
+	// with no issue attached are withdrawn with it (ADR 0020).
+	Unrefused *[]CaptureRef `json:"unrefused,omitempty"`
 }
 
 // Rights `reader` sees everything and changes nothing; `member` does everything, on
@@ -809,10 +931,30 @@ type ServiceToken struct {
 // descendance** — not just its direct children. A branch in trouble has to be
 // visible from the root.
 type StateCounts struct {
+	Accepted        int `json:"accepted"`
 	NotInstrumented int `json:"notInstrumented"`
-	Reviewed        int `json:"reviewed"`
-	ToFix           int `json:"toFix"`
+	Refused         int `json:"refused"`
 	ToReview        int `json:"toReview"`
+}
+
+// Transition defines model for Transition.
+type Transition struct {
+	Actor Actor     `json:"actor"`
+	At    time.Time `json:"at"`
+
+	// Cause The fact that caused the change, in the server's own words —
+	// `edition-accepted`, `review-saved`, `comment-discarded`. Not an enum:
+	// the vocabulary grows with the moves the product records, and a client
+	// that switches on it would break on the next one.
+	Cause string `json:"cause"`
+
+	// FromState Who holds the ball. Computed by the server from the case's comments; no
+	// endpoint accepts it as an argument.
+	FromState *CaseState `json:"fromState,omitempty"`
+
+	// ToState Who holds the ball. Computed by the server from the case's comments; no
+	// endpoint accepts it as an argument.
+	ToState *CaseState `json:"toState,omitempty"`
 }
 
 // Variant A combination of axis values, such as `{"theme":"dark","viewport":"mobile"}`.
@@ -851,6 +993,9 @@ type BadRequest = Problem
 
 // Forbidden defines model for Forbidden.
 type Forbidden = Problem
+
+// Held defines model for Held.
+type Held = Problem
 
 // MoveApplied defines model for MoveApplied.
 type MoveApplied = MoveOutcome
@@ -891,16 +1036,79 @@ type GetCaseCapturesParams struct {
 	EditionId *string `form:"editionId,omitempty" json:"editionId,omitempty"`
 }
 
+// ClaimCaseJSONBody defines parameters for ClaimCase.
+type ClaimCaseJSONBody struct {
+	// Fresh Opening the page (true) re-stamps the hold onto the latest
+	// edition; the heartbeat (false, the default) keeps the bytes.
+	Fresh *bool `json:"fresh,omitempty"`
+}
+
+// UpdateCategoryJSONBody defines parameters for UpdateCategory.
+type UpdateCategoryJSONBody struct {
+	Name *string `json:"name,omitempty"`
+
+	// ParentId Another category's id, or the empty string for the root. Absent = unchanged.
+	ParentId *string `json:"parentId,omitempty"`
+	Position *int    `json:"position,omitempty"`
+}
+
+// EditCommentJSONBody defines parameters for EditComment.
+type EditCommentJSONBody struct {
+	Body       string   `json:"body"`
+	VariantIds []string `json:"variantIds"`
+}
+
+// DeliverCommentJSONBody defines parameters for DeliverComment.
+type DeliverCommentJSONBody struct {
+	// IssueId The ref delivered — its `id` in the comment's `issues` list.
+	// Mandatory once the comment carries more than one.
+	IssueId *string `json:"issueId,omitempty"`
+}
+
 // DiscardCommentJSONBody defines parameters for DiscardComment.
 type DiscardCommentJSONBody struct {
 	Reason string `json:"reason"`
+}
+
+// UnjudgeCommentJSONBody defines parameters for UnjudgeComment.
+type UnjudgeCommentJSONBody struct {
+	// IssueId The ref unjudged — its `id` in the comment's `issues` list.
+	// Mandatory once the comment carries more than one (#138).
+	IssueId *string `json:"issueId,omitempty"`
+
+	// VariantId The capture on screen. Taking an acceptance back restores
+	// this variant's coverage (ADR 0022); absent, the take-back
+	// is ref-level — a refusal returning to to-review.
+	VariantId *string `json:"variantId,omitempty"`
 }
 
 // JudgeCommentJSONBody defines parameters for JudgeComment.
 type JudgeCommentJSONBody struct {
 	Accept bool `json:"accept"`
 
+	// IssueId The ref judged — its `id` in the comment's `issues` list.
+	// Mandatory once the comment carries more than one (#138).
+	IssueId *string `json:"issueId,omitempty"`
+
 	// Remark Mandatory when refusing. It is what the dev has to read.
+	Remark *string `json:"remark,omitempty"`
+
+	// VariantId The capture on screen: a judgment always lands on one
+	// variant (ADR 0022). Accepting releases it from the remark's
+	// coverage; refusing opens a partial round for what remains.
+	VariantId string `json:"variantId"`
+}
+
+// GetReviewQueueParams defines parameters for GetReviewQueue.
+type GetReviewQueueParams struct {
+	CategoryId *string `form:"categoryId,omitempty" json:"categoryId,omitempty"`
+}
+
+// JudgeRecordingJSONBody defines parameters for JudgeRecording.
+type JudgeRecordingJSONBody struct {
+	Accept bool `json:"accept"`
+
+	// Remark Mandatory on a refusal. It is what the dev has to read.
 	Remark *string `json:"remark,omitempty"`
 }
 
@@ -932,14 +1140,29 @@ type CreateCaseJSONRequestBody = NewCase
 // UpdateCaseJSONRequestBody defines body for UpdateCase for application/json ContentType.
 type UpdateCaseJSONRequestBody = CaseUpdate
 
+// ClaimCaseJSONRequestBody defines body for ClaimCase for application/json ContentType.
+type ClaimCaseJSONRequestBody ClaimCaseJSONBody
+
 // SaveReviewJSONRequestBody defines body for SaveReview for application/json ContentType.
 type SaveReviewJSONRequestBody = ReviewSave
 
 // CreateCategoryJSONRequestBody defines body for CreateCategory for application/json ContentType.
 type CreateCategoryJSONRequestBody = NewCategory
 
+// UpdateCategoryJSONRequestBody defines body for UpdateCategory for application/json ContentType.
+type UpdateCategoryJSONRequestBody UpdateCategoryJSONBody
+
+// EditCommentJSONRequestBody defines body for EditComment for application/json ContentType.
+type EditCommentJSONRequestBody EditCommentJSONBody
+
+// DeliverCommentJSONRequestBody defines body for DeliverComment for application/json ContentType.
+type DeliverCommentJSONRequestBody DeliverCommentJSONBody
+
 // DiscardCommentJSONRequestBody defines body for DiscardComment for application/json ContentType.
 type DiscardCommentJSONRequestBody DiscardCommentJSONBody
+
+// UnjudgeCommentJSONRequestBody defines body for UnjudgeComment for application/json ContentType.
+type UnjudgeCommentJSONRequestBody UnjudgeCommentJSONBody
 
 // JudgeCommentJSONRequestBody defines body for JudgeComment for application/json ContentType.
 type JudgeCommentJSONRequestBody JudgeCommentJSONBody
@@ -952,6 +1175,9 @@ type CreateEditionJSONRequestBody = Manifest
 
 // GrantMembershipJSONRequestBody defines body for GrantMembership for application/json ContentType.
 type GrantMembershipJSONRequestBody = NewMembership
+
+// JudgeRecordingJSONRequestBody defines body for JudgeRecording for application/json ContentType.
+type JudgeRecordingJSONRequestBody JudgeRecordingJSONBody
 
 // CreateServiceAccountJSONRequestBody defines body for CreateServiceAccount for application/json ContentType.
 type CreateServiceAccountJSONRequestBody = NewServiceAccount
@@ -1030,6 +1256,15 @@ type ServerInterface interface {
 	// ListComments Read what has been said about a case
 	// (GET /projects/{slug}/cases/{caseId}/comments)
 	ListComments(w http.ResponseWriter, r *http.Request, slug string, caseId string)
+	// GetCaseHistory Read how a case reached the state it is in
+	// (GET /projects/{slug}/cases/{caseId}/history)
+	GetCaseHistory(w http.ResponseWriter, r *http.Request, slug string, caseId string)
+	// ReleaseCase Let the case go
+	// (DELETE /projects/{slug}/cases/{caseId}/lock)
+	ReleaseCase(w http.ResponseWriter, r *http.Request, slug string, caseId string)
+	// ClaimCase Hold the case, or keep holding it
+	// (POST /projects/{slug}/cases/{caseId}/lock)
+	ClaimCase(w http.ResponseWriter, r *http.Request, slug string, caseId string)
 	// SaveReview Save what one review session decided
 	// (POST /projects/{slug}/cases/{caseId}/reviews)
 	SaveReview(w http.ResponseWriter, r *http.Request, slug string, caseId string)
@@ -1042,12 +1277,21 @@ type ServerInterface interface {
 	// DeleteCategory Remove an empty node
 	// (DELETE /projects/{slug}/categories/{categoryId})
 	DeleteCategory(w http.ResponseWriter, r *http.Request, slug string, categoryId string)
+	// UpdateCategory Rename or move a node
+	// (PATCH /projects/{slug}/categories/{categoryId})
+	UpdateCategory(w http.ResponseWriter, r *http.Request, slug string, categoryId string)
+	// EditComment Edit a draft remark
+	// (PATCH /projects/{slug}/comments/{commentId})
+	EditComment(w http.ResponseWriter, r *http.Request, slug Slug, commentId CommentId)
 	// DeliverComment Ask for a judgment on a delivered fix
 	// (POST /projects/{slug}/comments/{commentId}/delivery)
 	DeliverComment(w http.ResponseWriter, r *http.Request, slug Slug, commentId CommentId)
 	// DiscardComment Set a comment aside
 	// (POST /projects/{slug}/comments/{commentId}/discard)
 	DiscardComment(w http.ResponseWriter, r *http.Request, slug Slug, commentId CommentId)
+	// UnjudgeComment Take a judgment back
+	// (DELETE /projects/{slug}/comments/{commentId}/judgment)
+	UnjudgeComment(w http.ResponseWriter, r *http.Request, slug Slug, commentId CommentId)
 	// JudgeComment Accept a delivery, or refuse it
 	// (POST /projects/{slug}/comments/{commentId}/judgment)
 	JudgeComment(w http.ResponseWriter, r *http.Request, slug Slug, commentId CommentId)
@@ -1066,9 +1310,18 @@ type ServerInterface interface {
 	// GrantMembership Put a person on a project, or change what they may do
 	// (PUT /projects/{slug}/members/{accountId})
 	GrantMembership(w http.ResponseWriter, r *http.Request, slug string, accountId string)
+	// GetReviewQueue Read the captures awaiting the reviewer
+	// (GET /projects/{slug}/queue)
+	GetReviewQueue(w http.ResponseWriter, r *http.Request, slug string, params GetReviewQueueParams)
 	// GetRecordingVideo The video a recording holds
 	// (GET /projects/{slug}/recordings/{recordingId})
 	GetRecordingVideo(w http.ResponseWriter, r *http.Request, slug string, recordingId string)
+	// UnjudgeRecording Take the recording's verdict back
+	// (DELETE /projects/{slug}/recordings/{recordingId}/judgment)
+	UnjudgeRecording(w http.ResponseWriter, r *http.Request, slug string, recordingId string)
+	// JudgeRecording Render a verdict on the recording on screen
+	// (POST /projects/{slug}/recordings/{recordingId}/judgment)
+	JudgeRecording(w http.ResponseWriter, r *http.Request, slug string, recordingId string)
 	// CreateServiceAccount Make a program an account on this project
 	// (POST /projects/{slug}/service-accounts)
 	CreateServiceAccount(w http.ResponseWriter, r *http.Request, slug string)
@@ -1093,6 +1346,9 @@ type ServerInterface interface {
 	// SignOut End this session
 	// (POST /sign-out)
 	SignOut(w http.ResponseWriter, r *http.Request)
+	// WhoIsTheToken What a token can learn about itself
+	// (GET /token)
+	WhoIsTheToken(w http.ResponseWriter, r *http.Request)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -1695,6 +1951,111 @@ func (siw *ServerInterfaceWrapper) ListComments(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// GetCaseHistory operation middleware
+func (siw *ServerInterfaceWrapper) GetCaseHistory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "caseId" -------------
+	var caseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "caseId", r.PathValue("caseId"), &caseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "caseId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCaseHistory(w, r, slug, caseId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReleaseCase operation middleware
+func (siw *ServerInterfaceWrapper) ReleaseCase(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "caseId" -------------
+	var caseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "caseId", r.PathValue("caseId"), &caseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "caseId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReleaseCase(w, r, slug, caseId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ClaimCase operation middleware
+func (siw *ServerInterfaceWrapper) ClaimCase(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "caseId" -------------
+	var caseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "caseId", r.PathValue("caseId"), &caseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "caseId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ClaimCase(w, r, slug, caseId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // SaveReview operation middleware
 func (siw *ServerInterfaceWrapper) SaveReview(w http.ResponseWriter, r *http.Request) {
 
@@ -1817,6 +2178,76 @@ func (siw *ServerInterfaceWrapper) DeleteCategory(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// UpdateCategory operation middleware
+func (siw *ServerInterfaceWrapper) UpdateCategory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "categoryId" -------------
+	var categoryId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "categoryId", r.PathValue("categoryId"), &categoryId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "categoryId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateCategory(w, r, slug, categoryId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// EditComment operation middleware
+func (siw *ServerInterfaceWrapper) EditComment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug Slug
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "commentId" -------------
+	var commentId CommentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "commentId", r.PathValue("commentId"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "commentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EditComment(w, r, slug, commentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeliverComment operation middleware
 func (siw *ServerInterfaceWrapper) DeliverComment(w http.ResponseWriter, r *http.Request) {
 
@@ -1878,6 +2309,41 @@ func (siw *ServerInterfaceWrapper) DiscardComment(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DiscardComment(w, r, slug, commentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UnjudgeComment operation middleware
+func (siw *ServerInterfaceWrapper) UnjudgeComment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug Slug
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "commentId" -------------
+	var commentId CommentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "commentId", r.PathValue("commentId"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "commentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnjudgeComment(w, r, slug, commentId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2079,6 +2545,48 @@ func (siw *ServerInterfaceWrapper) GrantMembership(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// GetReviewQueue operation middleware
+func (siw *ServerInterfaceWrapper) GetReviewQueue(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetReviewQueueParams
+
+	// ------------- Optional query parameter "categoryId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "categoryId", r.URL.Query(), &params.CategoryId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "categoryId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "categoryId", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetReviewQueue(w, r, slug, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetRecordingVideo operation middleware
 func (siw *ServerInterfaceWrapper) GetRecordingVideo(w http.ResponseWriter, r *http.Request) {
 
@@ -2105,6 +2613,76 @@ func (siw *ServerInterfaceWrapper) GetRecordingVideo(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetRecordingVideo(w, r, slug, recordingId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UnjudgeRecording operation middleware
+func (siw *ServerInterfaceWrapper) UnjudgeRecording(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "recordingId" -------------
+	var recordingId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "recordingId", r.PathValue("recordingId"), &recordingId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "recordingId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnjudgeRecording(w, r, slug, recordingId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// JudgeRecording operation middleware
+func (siw *ServerInterfaceWrapper) JudgeRecording(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", r.PathValue("slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "recordingId" -------------
+	var recordingId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "recordingId", r.PathValue("recordingId"), &recordingId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "recordingId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.JudgeRecording(w, r, slug, recordingId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2331,6 +2909,20 @@ func (siw *ServerInterfaceWrapper) SignOut(w http.ResponseWriter, r *http.Reques
 	handler.ServeHTTP(w, r)
 }
 
+// WhoIsTheToken operation middleware
+func (siw *ServerInterfaceWrapper) WhoIsTheToken(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.WhoIsTheToken(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -2455,6 +3047,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/sign-in", wrapper.RequestSignIn)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/sign-in/claim", wrapper.ClaimSignIn)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/sign-out", wrapper.SignOut)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/token", wrapper.WhoIsTheToken)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/me", wrapper.WhoAmI)
 	m.HandleFunc(http.MethodHead+" "+options.BaseURL+"/projects/{slug}/blobs/{hash}", wrapper.HeadBlob)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/projects/{slug}/blobs/{hash}", wrapper.PutBlob)
@@ -2482,17 +3075,26 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/categories", wrapper.CreateCategory)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/captures/{captureId}", wrapper.GetCaptureImage)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/recordings/{recordingId}", wrapper.GetRecordingVideo)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/projects/{slug}/recordings/{recordingId}/judgment", wrapper.UnjudgeRecording)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/recordings/{recordingId}/judgment", wrapper.JudgeRecording)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}", wrapper.GetCase)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}", wrapper.UpdateCase)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}/lock", wrapper.ReleaseCase)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}/lock", wrapper.ClaimCase)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}/history", wrapper.GetCaseHistory)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}/captures", wrapper.GetCaseCaptures)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}/comments", wrapper.ListComments)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/projects/{slug}/comments/{commentId}", wrapper.EditComment)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/comments/{commentId}/reference", wrapper.TrackComment)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/comments/{commentId}/discard", wrapper.DiscardComment)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/comments/{commentId}/delivery", wrapper.DeliverComment)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/projects/{slug}/comments/{commentId}/judgment", wrapper.UnjudgeComment)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/comments/{commentId}/judgment", wrapper.JudgeComment)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}/reviews", wrapper.SaveReview)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/projects/{slug}/cases/{caseId}/archive", wrapper.ArchiveCase)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/projects/{slug}/categories/{categoryId}", wrapper.DeleteCategory)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/projects/{slug}/categories/{categoryId}", wrapper.UpdateCategory)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/projects/{slug}/queue", wrapper.GetReviewQueue)
 
 	return m
 }
@@ -2500,6 +3102,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 type BadRequestApplicationProblemPlusJSONResponse Problem
 
 type ForbiddenApplicationProblemPlusJSONResponse Problem
+
+type HeldApplicationProblemPlusJSONResponse Problem
 
 type MoveAppliedJSONResponse MoveOutcome
 
@@ -2842,7 +3446,8 @@ type WhoAmI200JSONResponse struct {
 	Email string `json:"email"`
 	Id    string `json:"id"`
 
-	// IsAdmin Manages accounts and creates projects; reaches no content.
+	// IsAdmin Manages accounts, creates projects, and reaches every one of them
+	// (`product.md` §8.2).
 	IsAdmin bool   `json:"isAdmin"`
 	Name    string `json:"name"`
 }
@@ -4016,6 +4621,230 @@ func (response ListComments404ApplicationProblemPlusJSONResponse) VisitListComme
 	return err
 }
 
+type GetCaseHistoryRequestObject struct {
+	Slug   string `json:"slug"`
+	CaseId string `json:"caseId"`
+}
+
+type GetCaseHistoryResponseObject interface {
+	VisitGetCaseHistoryResponse(w http.ResponseWriter) error
+}
+
+type GetCaseHistory200JSONResponse []Transition
+
+func (response GetCaseHistory200JSONResponse) VisitGetCaseHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCaseHistory401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response GetCaseHistory401ApplicationProblemPlusJSONResponse) VisitGetCaseHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCaseHistory403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response GetCaseHistory403ApplicationProblemPlusJSONResponse) VisitGetCaseHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCaseHistory404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response GetCaseHistory404ApplicationProblemPlusJSONResponse) VisitGetCaseHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReleaseCaseRequestObject struct {
+	Slug   string `json:"slug"`
+	CaseId string `json:"caseId"`
+}
+
+type ReleaseCaseResponseObject interface {
+	VisitReleaseCaseResponse(w http.ResponseWriter) error
+}
+
+type ReleaseCase204Response struct {
+}
+
+func (response ReleaseCase204Response) VisitReleaseCaseResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ReleaseCase401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response ReleaseCase401ApplicationProblemPlusJSONResponse) VisitReleaseCaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReleaseCase403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response ReleaseCase403ApplicationProblemPlusJSONResponse) VisitReleaseCaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReleaseCase404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response ReleaseCase404ApplicationProblemPlusJSONResponse) VisitReleaseCaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimCaseRequestObject struct {
+	Slug   string `json:"slug"`
+	CaseId string `json:"caseId"`
+	Body   *ClaimCaseJSONRequestBody
+}
+
+type ClaimCaseResponseObject interface {
+	VisitClaimCaseResponse(w http.ResponseWriter) error
+}
+
+type ClaimCase200JSONResponse Hold
+
+func (response ClaimCase200JSONResponse) VisitClaimCaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimCase401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response ClaimCase401ApplicationProblemPlusJSONResponse) VisitClaimCaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimCase403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response ClaimCase403ApplicationProblemPlusJSONResponse) VisitClaimCaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimCase404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response ClaimCase404ApplicationProblemPlusJSONResponse) VisitClaimCaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimCase423ApplicationProblemPlusJSONResponse struct {
+	HeldApplicationProblemPlusJSONResponse
+}
+
+func (response ClaimCase423ApplicationProblemPlusJSONResponse) VisitClaimCaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(423)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SaveReviewRequestObject struct {
 	Slug   string `json:"slug"`
 	CaseId string `json:"caseId"`
@@ -4100,6 +4929,22 @@ func (response SaveReview404ApplicationProblemPlusJSONResponse) VisitSaveReviewR
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SaveReview423ApplicationProblemPlusJSONResponse struct {
+	HeldApplicationProblemPlusJSONResponse
+}
+
+func (response SaveReview423ApplicationProblemPlusJSONResponse) VisitSaveReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(423)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4354,9 +5199,200 @@ func (response DeleteCategory409ApplicationProblemPlusJSONResponse) VisitDeleteC
 	return err
 }
 
+type UpdateCategoryRequestObject struct {
+	Slug       string `json:"slug"`
+	CategoryId string `json:"categoryId"`
+	Body       *UpdateCategoryJSONRequestBody
+}
+
+type UpdateCategoryResponseObject interface {
+	VisitUpdateCategoryResponse(w http.ResponseWriter) error
+}
+
+type UpdateCategory200JSONResponse Category
+
+func (response UpdateCategory200JSONResponse) VisitUpdateCategoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCategory401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateCategory401ApplicationProblemPlusJSONResponse) VisitUpdateCategoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCategory403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateCategory403ApplicationProblemPlusJSONResponse) VisitUpdateCategoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCategory404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateCategory404ApplicationProblemPlusJSONResponse) VisitUpdateCategoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCategory409ApplicationProblemPlusJSONResponse Problem
+
+func (response UpdateCategory409ApplicationProblemPlusJSONResponse) VisitUpdateCategoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EditCommentRequestObject struct {
+	Slug      Slug      `json:"slug"`
+	CommentId CommentId `json:"commentId"`
+	Body      *EditCommentJSONRequestBody
+}
+
+type EditCommentResponseObject interface {
+	VisitEditCommentResponse(w http.ResponseWriter) error
+}
+
+type EditComment200JSONResponse struct{ MoveAppliedJSONResponse }
+
+func (response EditComment200JSONResponse) VisitEditCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EditComment400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response EditComment400ApplicationProblemPlusJSONResponse) VisitEditCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EditComment401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response EditComment401ApplicationProblemPlusJSONResponse) VisitEditCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EditComment403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response EditComment403ApplicationProblemPlusJSONResponse) VisitEditCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EditComment404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response EditComment404ApplicationProblemPlusJSONResponse) VisitEditCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EditComment409ApplicationProblemPlusJSONResponse struct {
+	MoveRefusedApplicationProblemPlusJSONResponse
+}
+
+func (response EditComment409ApplicationProblemPlusJSONResponse) VisitEditCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeliverCommentRequestObject struct {
 	Slug      Slug      `json:"slug"`
 	CommentId CommentId `json:"commentId"`
+	Body      *DeliverCommentJSONRequestBody
 }
 
 type DeliverCommentResponseObject interface {
@@ -4373,6 +5409,22 @@ func (response DeliverComment200JSONResponse) VisitDeliverCommentResponse(w http
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeliverComment400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response DeliverComment400ApplicationProblemPlusJSONResponse) VisitDeliverCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4545,6 +5597,126 @@ func (response DiscardComment409ApplicationProblemPlusJSONResponse) VisitDiscard
 	return err
 }
 
+type UnjudgeCommentRequestObject struct {
+	Slug      Slug      `json:"slug"`
+	CommentId CommentId `json:"commentId"`
+	Body      *UnjudgeCommentJSONRequestBody
+}
+
+type UnjudgeCommentResponseObject interface {
+	VisitUnjudgeCommentResponse(w http.ResponseWriter) error
+}
+
+type UnjudgeComment200JSONResponse struct{ MoveAppliedJSONResponse }
+
+func (response UnjudgeComment200JSONResponse) VisitUnjudgeCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnjudgeComment400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response UnjudgeComment400ApplicationProblemPlusJSONResponse) VisitUnjudgeCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnjudgeComment401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response UnjudgeComment401ApplicationProblemPlusJSONResponse) VisitUnjudgeCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnjudgeComment403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response UnjudgeComment403ApplicationProblemPlusJSONResponse) VisitUnjudgeCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnjudgeComment404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response UnjudgeComment404ApplicationProblemPlusJSONResponse) VisitUnjudgeCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnjudgeComment409ApplicationProblemPlusJSONResponse struct {
+	MoveRefusedApplicationProblemPlusJSONResponse
+}
+
+func (response UnjudgeComment409ApplicationProblemPlusJSONResponse) VisitUnjudgeCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnjudgeComment423ApplicationProblemPlusJSONResponse struct {
+	HeldApplicationProblemPlusJSONResponse
+}
+
+func (response UnjudgeComment423ApplicationProblemPlusJSONResponse) VisitUnjudgeCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(423)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type JudgeCommentRequestObject struct {
 	Slug      Slug      `json:"slug"`
 	CommentId CommentId `json:"commentId"`
@@ -4645,6 +5817,22 @@ func (response JudgeComment409ApplicationProblemPlusJSONResponse) VisitJudgeComm
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JudgeComment423ApplicationProblemPlusJSONResponse struct {
+	HeldApplicationProblemPlusJSONResponse
+}
+
+func (response JudgeComment423ApplicationProblemPlusJSONResponse) VisitJudgeCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(423)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5039,6 +6227,77 @@ func (response GrantMembership404ApplicationProblemPlusJSONResponse) VisitGrantM
 	return err
 }
 
+type GetReviewQueueRequestObject struct {
+	Slug   string `json:"slug"`
+	Params GetReviewQueueParams
+}
+
+type GetReviewQueueResponseObject interface {
+	VisitGetReviewQueueResponse(w http.ResponseWriter) error
+}
+
+type GetReviewQueue200JSONResponse ReviewQueue
+
+func (response GetReviewQueue200JSONResponse) VisitGetReviewQueueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetReviewQueue401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response GetReviewQueue401ApplicationProblemPlusJSONResponse) VisitGetReviewQueueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetReviewQueue403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response GetReviewQueue403ApplicationProblemPlusJSONResponse) VisitGetReviewQueueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetReviewQueue404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response GetReviewQueue404ApplicationProblemPlusJSONResponse) VisitGetReviewQueueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetRecordingVideoRequestObject struct {
 	Slug        string `json:"slug"`
 	RecordingId string `json:"recordingId"`
@@ -5056,6 +6315,46 @@ type GetRecordingVideo200ApplicationoctetStreamResponse struct {
 func (response GetRecordingVideo200ApplicationoctetStreamResponse) VisitGetRecordingVideoResponse(w http.ResponseWriter) error {
 
 	w.Header().Set("Content-Type", "application/octet-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetRecordingVideo200Videomp4Response struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetRecordingVideo200Videomp4Response) VisitGetRecordingVideoResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "video/mp4")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetRecordingVideo200VideowebmResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetRecordingVideo200VideowebmResponse) VisitGetRecordingVideoResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "video/webm")
 	if response.ContentLength != 0 {
 		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
 	}
@@ -5112,6 +6411,205 @@ func (response GetRecordingVideo404ApplicationProblemPlusJSONResponse) VisitGetR
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnjudgeRecordingRequestObject struct {
+	Slug        string `json:"slug"`
+	RecordingId string `json:"recordingId"`
+}
+
+type UnjudgeRecordingResponseObject interface {
+	VisitUnjudgeRecordingResponse(w http.ResponseWriter) error
+}
+
+type UnjudgeRecording200JSONResponse struct {
+	// CaseState Who holds the ball. Computed by the server from the case's comments; no
+	// endpoint accepts it as an argument.
+	CaseState CaseState `json:"caseState"`
+}
+
+func (response UnjudgeRecording200JSONResponse) VisitUnjudgeRecordingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnjudgeRecording401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response UnjudgeRecording401ApplicationProblemPlusJSONResponse) VisitUnjudgeRecordingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnjudgeRecording403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response UnjudgeRecording403ApplicationProblemPlusJSONResponse) VisitUnjudgeRecordingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnjudgeRecording404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response UnjudgeRecording404ApplicationProblemPlusJSONResponse) VisitUnjudgeRecordingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnjudgeRecording423ApplicationProblemPlusJSONResponse struct {
+	HeldApplicationProblemPlusJSONResponse
+}
+
+func (response UnjudgeRecording423ApplicationProblemPlusJSONResponse) VisitUnjudgeRecordingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(423)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JudgeRecordingRequestObject struct {
+	Slug        string `json:"slug"`
+	RecordingId string `json:"recordingId"`
+	Body        *JudgeRecordingJSONRequestBody
+}
+
+type JudgeRecordingResponseObject interface {
+	VisitJudgeRecordingResponse(w http.ResponseWriter) error
+}
+
+type JudgeRecording200JSONResponse struct {
+	// CaseState Who holds the ball. Computed by the server from the case's comments; no
+	// endpoint accepts it as an argument.
+	CaseState CaseState `json:"caseState"`
+}
+
+func (response JudgeRecording200JSONResponse) VisitJudgeRecordingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JudgeRecording400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response JudgeRecording400ApplicationProblemPlusJSONResponse) VisitJudgeRecordingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JudgeRecording401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response JudgeRecording401ApplicationProblemPlusJSONResponse) VisitJudgeRecordingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JudgeRecording403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response JudgeRecording403ApplicationProblemPlusJSONResponse) VisitJudgeRecordingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JudgeRecording404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response JudgeRecording404ApplicationProblemPlusJSONResponse) VisitJudgeRecordingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JudgeRecording423ApplicationProblemPlusJSONResponse struct {
+	HeldApplicationProblemPlusJSONResponse
+}
+
+func (response JudgeRecording423ApplicationProblemPlusJSONResponse) VisitJudgeRecordingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(423)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5583,6 +7081,51 @@ func (response SignOut204Response) VisitSignOutResponse(w http.ResponseWriter) e
 	return nil
 }
 
+type WhoIsTheTokenRequestObject struct {
+}
+
+type WhoIsTheTokenResponseObject interface {
+	VisitWhoIsTheTokenResponse(w http.ResponseWriter) error
+}
+
+type WhoIsTheToken200JSONResponse struct {
+	// Name The service account's label.
+	Name    string `json:"name"`
+	Project struct {
+		Name string `json:"name"`
+		Slug string `json:"slug"`
+	} `json:"project"`
+	ServiceAccountId string `json:"serviceAccountId"`
+}
+
+func (response WhoIsTheToken200JSONResponse) VisitWhoIsTheTokenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WhoIsTheToken401ApplicationProblemPlusJSONResponse struct {
+	UnauthenticatedApplicationProblemPlusJSONResponse
+}
+
+func (response WhoIsTheToken401ApplicationProblemPlusJSONResponse) VisitWhoIsTheTokenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// ListAccounts Every account on this instance
@@ -5648,6 +7191,15 @@ type StrictServerInterface interface {
 	// ListComments Read what has been said about a case
 	// (GET /projects/{slug}/cases/{caseId}/comments)
 	ListComments(ctx context.Context, request ListCommentsRequestObject) (ListCommentsResponseObject, error)
+	// GetCaseHistory Read how a case reached the state it is in
+	// (GET /projects/{slug}/cases/{caseId}/history)
+	GetCaseHistory(ctx context.Context, request GetCaseHistoryRequestObject) (GetCaseHistoryResponseObject, error)
+	// ReleaseCase Let the case go
+	// (DELETE /projects/{slug}/cases/{caseId}/lock)
+	ReleaseCase(ctx context.Context, request ReleaseCaseRequestObject) (ReleaseCaseResponseObject, error)
+	// ClaimCase Hold the case, or keep holding it
+	// (POST /projects/{slug}/cases/{caseId}/lock)
+	ClaimCase(ctx context.Context, request ClaimCaseRequestObject) (ClaimCaseResponseObject, error)
 	// SaveReview Save what one review session decided
 	// (POST /projects/{slug}/cases/{caseId}/reviews)
 	SaveReview(ctx context.Context, request SaveReviewRequestObject) (SaveReviewResponseObject, error)
@@ -5660,12 +7212,21 @@ type StrictServerInterface interface {
 	// DeleteCategory Remove an empty node
 	// (DELETE /projects/{slug}/categories/{categoryId})
 	DeleteCategory(ctx context.Context, request DeleteCategoryRequestObject) (DeleteCategoryResponseObject, error)
+	// UpdateCategory Rename or move a node
+	// (PATCH /projects/{slug}/categories/{categoryId})
+	UpdateCategory(ctx context.Context, request UpdateCategoryRequestObject) (UpdateCategoryResponseObject, error)
+	// EditComment Edit a draft remark
+	// (PATCH /projects/{slug}/comments/{commentId})
+	EditComment(ctx context.Context, request EditCommentRequestObject) (EditCommentResponseObject, error)
 	// DeliverComment Ask for a judgment on a delivered fix
 	// (POST /projects/{slug}/comments/{commentId}/delivery)
 	DeliverComment(ctx context.Context, request DeliverCommentRequestObject) (DeliverCommentResponseObject, error)
 	// DiscardComment Set a comment aside
 	// (POST /projects/{slug}/comments/{commentId}/discard)
 	DiscardComment(ctx context.Context, request DiscardCommentRequestObject) (DiscardCommentResponseObject, error)
+	// UnjudgeComment Take a judgment back
+	// (DELETE /projects/{slug}/comments/{commentId}/judgment)
+	UnjudgeComment(ctx context.Context, request UnjudgeCommentRequestObject) (UnjudgeCommentResponseObject, error)
 	// JudgeComment Accept a delivery, or refuse it
 	// (POST /projects/{slug}/comments/{commentId}/judgment)
 	JudgeComment(ctx context.Context, request JudgeCommentRequestObject) (JudgeCommentResponseObject, error)
@@ -5684,9 +7245,18 @@ type StrictServerInterface interface {
 	// GrantMembership Put a person on a project, or change what they may do
 	// (PUT /projects/{slug}/members/{accountId})
 	GrantMembership(ctx context.Context, request GrantMembershipRequestObject) (GrantMembershipResponseObject, error)
+	// GetReviewQueue Read the captures awaiting the reviewer
+	// (GET /projects/{slug}/queue)
+	GetReviewQueue(ctx context.Context, request GetReviewQueueRequestObject) (GetReviewQueueResponseObject, error)
 	// GetRecordingVideo The video a recording holds
 	// (GET /projects/{slug}/recordings/{recordingId})
 	GetRecordingVideo(ctx context.Context, request GetRecordingVideoRequestObject) (GetRecordingVideoResponseObject, error)
+	// UnjudgeRecording Take the recording's verdict back
+	// (DELETE /projects/{slug}/recordings/{recordingId}/judgment)
+	UnjudgeRecording(ctx context.Context, request UnjudgeRecordingRequestObject) (UnjudgeRecordingResponseObject, error)
+	// JudgeRecording Render a verdict on the recording on screen
+	// (POST /projects/{slug}/recordings/{recordingId}/judgment)
+	JudgeRecording(ctx context.Context, request JudgeRecordingRequestObject) (JudgeRecordingResponseObject, error)
 	// CreateServiceAccount Make a program an account on this project
 	// (POST /projects/{slug}/service-accounts)
 	CreateServiceAccount(ctx context.Context, request CreateServiceAccountRequestObject) (CreateServiceAccountResponseObject, error)
@@ -5711,6 +7281,9 @@ type StrictServerInterface interface {
 	// SignOut End this session
 	// (POST /sign-out)
 	SignOut(ctx context.Context, request SignOutRequestObject) (SignOutResponseObject, error)
+	// WhoIsTheToken What a token can learn about itself
+	// (GET /token)
+	WhoIsTheToken(ctx context.Context, request WhoIsTheTokenRequestObject) (WhoIsTheTokenResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -6340,6 +7913,97 @@ func (sh *strictHandler) ListComments(w http.ResponseWriter, r *http.Request, sl
 	}
 }
 
+// GetCaseHistory operation middleware
+func (sh *strictHandler) GetCaseHistory(w http.ResponseWriter, r *http.Request, slug string, caseId string) {
+	var request GetCaseHistoryRequestObject
+
+	request.Slug = slug
+	request.CaseId = caseId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCaseHistory(ctx, request.(GetCaseHistoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCaseHistory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCaseHistoryResponseObject); ok {
+		if err := validResponse.VisitGetCaseHistoryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReleaseCase operation middleware
+func (sh *strictHandler) ReleaseCase(w http.ResponseWriter, r *http.Request, slug string, caseId string) {
+	var request ReleaseCaseRequestObject
+
+	request.Slug = slug
+	request.CaseId = caseId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReleaseCase(ctx, request.(ReleaseCaseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReleaseCase")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReleaseCaseResponseObject); ok {
+		if err := validResponse.VisitReleaseCaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ClaimCase operation middleware
+func (sh *strictHandler) ClaimCase(w http.ResponseWriter, r *http.Request, slug string, caseId string) {
+	var request ClaimCaseRequestObject
+
+	request.Slug = slug
+	request.CaseId = caseId
+
+	var body ClaimCaseJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ClaimCase(ctx, request.(ClaimCaseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ClaimCase")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ClaimCaseResponseObject); ok {
+		if err := validResponse.VisitClaimCaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // SaveReview operation middleware
 func (sh *strictHandler) SaveReview(w http.ResponseWriter, r *http.Request, slug string, caseId string) {
 	var request SaveReviewRequestObject
@@ -6460,12 +8124,90 @@ func (sh *strictHandler) DeleteCategory(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
+// UpdateCategory operation middleware
+func (sh *strictHandler) UpdateCategory(w http.ResponseWriter, r *http.Request, slug string, categoryId string) {
+	var request UpdateCategoryRequestObject
+
+	request.Slug = slug
+	request.CategoryId = categoryId
+
+	var body UpdateCategoryJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateCategory(ctx, request.(UpdateCategoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateCategory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateCategoryResponseObject); ok {
+		if err := validResponse.VisitUpdateCategoryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// EditComment operation middleware
+func (sh *strictHandler) EditComment(w http.ResponseWriter, r *http.Request, slug Slug, commentId CommentId) {
+	var request EditCommentRequestObject
+
+	request.Slug = slug
+	request.CommentId = commentId
+
+	var body EditCommentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.EditComment(ctx, request.(EditCommentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "EditComment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(EditCommentResponseObject); ok {
+		if err := validResponse.VisitEditCommentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // DeliverComment operation middleware
 func (sh *strictHandler) DeliverComment(w http.ResponseWriter, r *http.Request, slug Slug, commentId CommentId) {
 	var request DeliverCommentRequestObject
 
 	request.Slug = slug
 	request.CommentId = commentId
+
+	var body DeliverCommentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.DeliverComment(ctx, request.(DeliverCommentRequestObject))
@@ -6514,6 +8256,43 @@ func (sh *strictHandler) DiscardComment(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DiscardCommentResponseObject); ok {
 		if err := validResponse.VisitDiscardCommentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnjudgeComment operation middleware
+func (sh *strictHandler) UnjudgeComment(w http.ResponseWriter, r *http.Request, slug Slug, commentId CommentId) {
+	var request UnjudgeCommentRequestObject
+
+	request.Slug = slug
+	request.CommentId = commentId
+
+	var body UnjudgeCommentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnjudgeComment(ctx, request.(UnjudgeCommentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnjudgeComment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnjudgeCommentResponseObject); ok {
+		if err := validResponse.VisitUnjudgeCommentResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -6709,6 +8488,33 @@ func (sh *strictHandler) GrantMembership(w http.ResponseWriter, r *http.Request,
 	}
 }
 
+// GetReviewQueue operation middleware
+func (sh *strictHandler) GetReviewQueue(w http.ResponseWriter, r *http.Request, slug string, params GetReviewQueueParams) {
+	var request GetReviewQueueRequestObject
+
+	request.Slug = slug
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetReviewQueue(ctx, request.(GetReviewQueueRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetReviewQueue")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetReviewQueueResponseObject); ok {
+		if err := validResponse.VisitGetReviewQueueResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetRecordingVideo operation middleware
 func (sh *strictHandler) GetRecordingVideo(w http.ResponseWriter, r *http.Request, slug string, recordingId string) {
 	var request GetRecordingVideoRequestObject
@@ -6729,6 +8535,67 @@ func (sh *strictHandler) GetRecordingVideo(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetRecordingVideoResponseObject); ok {
 		if err := validResponse.VisitGetRecordingVideoResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnjudgeRecording operation middleware
+func (sh *strictHandler) UnjudgeRecording(w http.ResponseWriter, r *http.Request, slug string, recordingId string) {
+	var request UnjudgeRecordingRequestObject
+
+	request.Slug = slug
+	request.RecordingId = recordingId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnjudgeRecording(ctx, request.(UnjudgeRecordingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnjudgeRecording")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnjudgeRecordingResponseObject); ok {
+		if err := validResponse.VisitUnjudgeRecordingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// JudgeRecording operation middleware
+func (sh *strictHandler) JudgeRecording(w http.ResponseWriter, r *http.Request, slug string, recordingId string) {
+	var request JudgeRecordingRequestObject
+
+	request.Slug = slug
+	request.RecordingId = recordingId
+
+	var body JudgeRecordingJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.JudgeRecording(ctx, request.(JudgeRecordingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "JudgeRecording")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(JudgeRecordingResponseObject); ok {
+		if err := validResponse.VisitJudgeRecordingResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -6971,212 +8838,299 @@ func (sh *strictHandler) SignOut(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// WhoIsTheToken operation middleware
+func (sh *strictHandler) WhoIsTheToken(w http.ResponseWriter, r *http.Request) {
+	var request WhoIsTheTokenRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.WhoIsTheToken(ctx, request.(WhoIsTheTokenRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WhoIsTheToken")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(WhoIsTheTokenResponseObject); ok {
+		if err := validResponse.VisitWhoIsTheTokenResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
 // Stored as a slice of fixed-width chunks rather than one concatenated
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"EGk+9jqqI7UtRmejE1mp0euXr/9/AAAA//8=",
+	"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",
+	"23n+V6SacYYhuQuVLQbjwZks1eDtq7f/JwAA//8=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

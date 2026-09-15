@@ -6,8 +6,7 @@ import prettier from 'eslint-config-prettier'
 // frontend ADR 0002. A slice reaches downward, never sideways, never upward.
 const LAYERS = ['app', 'pages', 'widgets', 'features', 'shared']
 
-const upward = (layer: string) =>
-  LAYERS.slice(0, LAYERS.indexOf(layer)).map((l) => `@/${l}/*`)
+const upward = (layer: string) => LAYERS.slice(0, LAYERS.indexOf(layer)).map((l) => `@/${l}/*`)
 
 export default defineConfigWithVueTs(
   { ignores: ['dist/**', 'node_modules/**', 'src/shared/api/schema.gen.ts'] },
@@ -17,6 +16,40 @@ export default defineConfigWithVueTs(
   // this the two disagree on line breaks and every file reports warnings
   // nobody can fix.
   prettier,
+  {
+    // Four type roles and nothing else (#145): an arbitrary text size is how
+    // the scale rotted the first time. The roles live in style.css's @theme.
+    files: ['src/**/*.vue'],
+    rules: {
+      'vue/no-restricted-class': ['error', '/^text-\\[/', 'border-dashed'],
+      // A raw <button> is how the cursor, the disabled look and the focus
+      // ring drifted apart (#155): AppButton is the one way. Toggle chips are
+      // the documented exception, disabled inline where they live.
+      'vue/no-restricted-html-elements': [
+        'error',
+        { element: 'button', message: 'use AppButton (shared/ui) — #155' },
+        {
+          element: 'input',
+          message: 'use TextField (shared/ui) — #155; a checkbox is the scoped exception',
+        },
+      ],
+    },
+  },
+  {
+    // The primitives themselves: the one raw <button>, the one dashed border.
+    files: [
+      'src/shared/ui/AppButton.vue',
+      'src/shared/ui/CopyableId.vue',
+      'src/shared/ui/VerdictPair.vue',
+      'src/shared/ui/EmptyState.vue',
+      'src/shared/ui/StateIcon.vue',
+      'src/shared/ui/TextField.vue',
+    ],
+    rules: {
+      'vue/no-restricted-html-elements': 'off',
+      'vue/no-restricted-class': ['error', '/^text-\\[/'],
+    },
+  },
   ...LAYERS.map((layer) => ({
     files: [`src/${layer}/**/*.{ts,vue}`],
     rules: {

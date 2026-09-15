@@ -90,7 +90,22 @@ Delivery:
 
       They may ask without having implemented everything else on the case: one
       issue can depend on the verdict given on another.
+
+      A comment may carry several issue refs (#138): `issueId` names the one
+      delivered. It may be omitted while the comment carries exactly one.
     tags: [comments]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              issueId:
+                type: string
+                description: |
+                  The ref delivered — its `id` in the comment's `issues` list.
+                  Mandatory once the comment carries more than one.
     responses:
       '401':
         $ref: "../components/responses.yaml#/Unauthenticated"
@@ -98,6 +113,50 @@ Delivery:
         $ref: "../components/responses.yaml#/Forbidden"
       "200":
         $ref: "#/MoveApplied"
+      "400":
+        $ref: "../components/responses.yaml#/BadRequest"
+      "404":
+        $ref: "../components/responses.yaml#/NotFound"
+      "409":
+        $ref: "#/MoveRefused"
+
+Comment:
+  parameters:
+    - $ref: "#/Slug"
+    - $ref: "#/CommentId"
+  patch:
+    operationId: editComment
+    security:
+      - serviceToken: []
+      - session: []
+    summary: Edit a draft remark
+    description: |
+      The author reworking their own draft (ADR 0020): text and covered
+      variants, while no issue is attached. Once tracked, the issue's title
+      speaks in the remark's place and editing is refused.
+    tags: [comments]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [body, variantIds]
+            properties:
+              body: { type: string, minLength: 1 }
+              variantIds:
+                type: array
+                minItems: 1
+                items: { type: string }
+    responses:
+      '401':
+        $ref: "../components/responses.yaml#/Unauthenticated"
+      '403':
+        $ref: "../components/responses.yaml#/Forbidden"
+      "200":
+        $ref: "#/MoveApplied"
+      "400":
+        $ref: "../components/responses.yaml#/BadRequest"
       "404":
         $ref: "../components/responses.yaml#/NotFound"
       "409":
@@ -107,6 +166,51 @@ Judgment:
   parameters:
     - $ref: "#/Slug"
     - $ref: "#/CommentId"
+  delete:
+    operationId: unjudgeComment
+    security:
+      - serviceToken: []
+      - session: []
+    summary: Take a judgment back
+    description: |
+      The reviewer reconsiders an acceptance or a refusal: the ref returns to
+      to-review, and the capture it covers with it (#167, #171). The take-back
+      joins the judgment history as `taken-back` — who reconsidered, and when,
+      is information exactly like the judgment was.
+    tags: [comments]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              issueId:
+                type: string
+                description: |
+                  The ref unjudged — its `id` in the comment's `issues` list.
+                  Mandatory once the comment carries more than one (#138).
+              variantId:
+                type: string
+                description: |
+                  The capture on screen. Taking an acceptance back restores
+                  this variant's coverage (ADR 0022); absent, the take-back
+                  is ref-level — a refusal returning to to-review.
+    responses:
+      '401':
+        $ref: "../components/responses.yaml#/Unauthenticated"
+      '403':
+        $ref: "../components/responses.yaml#/Forbidden"
+      "200":
+        $ref: "#/MoveApplied"
+      "400":
+        $ref: "../components/responses.yaml#/BadRequest"
+      "423":
+        $ref: "../components/responses.yaml#/Held"
+      "404":
+        $ref: "../components/responses.yaml#/NotFound"
+      "409":
+        $ref: "#/MoveRefused"
   post:
     operationId: judgeComment
     security:
@@ -124,12 +228,23 @@ Judgment:
         application/json:
           schema:
             type: object
-            required: [accept]
+            required: [accept, variantId]
             properties:
               accept: { type: boolean }
+              variantId:
+                type: string
+                description: |
+                  The capture on screen: a judgment always lands on one
+                  variant (ADR 0022). Accepting releases it from the remark's
+                  coverage; refusing opens a partial round for what remains.
               remark:
                 type: string
                 description: Mandatory when refusing. It is what the dev has to read.
+              issueId:
+                type: string
+                description: |
+                  The ref judged — its `id` in the comment's `issues` list.
+                  Mandatory once the comment carries more than one (#138).
     responses:
       '401':
         $ref: "../components/responses.yaml#/Unauthenticated"
@@ -139,6 +254,8 @@ Judgment:
         $ref: "#/MoveApplied"
       "400":
         $ref: "../components/responses.yaml#/BadRequest"
+      "423":
+        $ref: "../components/responses.yaml#/Held"
       "404":
         $ref: "../components/responses.yaml#/NotFound"
       "409":

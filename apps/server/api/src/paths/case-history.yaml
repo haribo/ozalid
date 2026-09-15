@@ -1,0 +1,43 @@
+parameters:
+  - name: slug
+    in: path
+    required: true
+    schema: { type: string }
+  - name: caseId
+    in: path
+    required: true
+    schema: { type: string }
+
+get:
+  operationId: getCaseHistory
+  security:
+    - serviceToken: []
+    - session: []
+  summary: Read how a case reached the state it is in
+  description: |
+    The transition journal (`product.md` §9): every recorded change of state on
+    this case, oldest first, each naming what caused it and who.
+
+    It answers *what happened on this case, in order, caused by whom*. It is
+    **not** an audit export (`product.md` §10) and it is not a second source of
+    truth for the state: the state is stored and computed by the server
+    (ADR 0002), and the journal says how it got there without getting to
+    disagree about where it is.
+
+    A case nobody has ever moved answers an empty history, not an error.
+  tags: [cases]
+  responses:
+    '401':
+      $ref: "../components/responses.yaml#/Unauthenticated"
+    '403':
+      $ref: "../components/responses.yaml#/Forbidden"
+    "200":
+      description: The transitions, oldest first.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: "../components/schemas.yaml#/Transition"
+    "404":
+      $ref: "../components/responses.yaml#/NotFound"

@@ -1,0 +1,33 @@
+get:
+  operationId: whoIsTheToken
+  security:
+    - serviceToken: []
+  summary: What a token can learn about itself
+  description: |
+    A program holding an `ozp_` token asks whose key it is and which project it
+    opens — and fails fast with a clear 401 when the token is retired or the
+    account deactivated, instead of discovering it on its first real call
+    (#180). `/me` stays the person's mirror; this is the machine's.
+  tags:
+    - service-accounts
+  responses:
+    "200":
+      description: Whose key this is.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [serviceAccountId, name, project]
+            properties:
+              serviceAccountId: { type: string }
+              name:
+                type: string
+                description: The service account's label.
+              project:
+                type: object
+                required: [slug, name]
+                properties:
+                  slug: { type: string }
+                  name: { type: string }
+    "401":
+      $ref: "../components/responses.yaml#/Unauthenticated"

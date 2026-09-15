@@ -13,7 +13,7 @@ independent picks.
 
 What the review book actually asks of a frontend:
 
-- A **dense grid** of captures, steps across variants, with per-cell verdicts
+- A **dense grid** of captures, steps across variants, with per-capture verdicts
   accumulated in memory and saved as one review session.
 - **Image comparison** — a capture against its reference, at a zoom level the
   reviewer controls.
@@ -22,7 +22,7 @@ What the review book actually asks of a frontend:
 - **Two themes.** The product's own subject matter is light and dark rendering
   ([`product.md` § 2](../../design/product.md)); a review tool that renders
   correctly in only one of them is not credible.
-- **Keyboard-first review.** A reviewer passing a case moves through cells
+- **Keyboard-first review.** A reviewer passing a case moves through captures
   without reaching for the mouse.
 
 ## Decision
@@ -55,7 +55,7 @@ the same job.
 
 **No state library, provide/inject and composables only.** Considered
 seriously — the state is not vast. Rejected because the review session is
-written from several places at once (cell verdicts, the problem editor, the
+written from several places at once (capture verdicts, the problem editor, the
 event stream, the lock heartbeat) and an unowned shared ref across four writers
 is where bugs of the "my verdict disappeared" kind live. That failure mode is
 the one the product exists to prevent.

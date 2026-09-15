@@ -23,6 +23,8 @@ paths:
     $ref: "./paths/sign-in-claim.yaml"
   /sign-out:
     $ref: "./paths/sign-out.yaml"
+  /token:
+    $ref: "./paths/token.yaml"
   /me:
     $ref: "./paths/me.yaml"
   /projects/{slug}/blobs/{hash}:
@@ -59,12 +61,20 @@ paths:
     $ref: "./paths/capture-image.yaml"
   /projects/{slug}/recordings/{recordingId}:
     $ref: "./paths/recording-video.yaml"
+  /projects/{slug}/recordings/{recordingId}/judgment:
+    $ref: "./paths/recording-judgment.yaml"
   /projects/{slug}/cases/{caseId}:
     $ref: "./paths/case.yaml"
+  /projects/{slug}/cases/{caseId}/lock:
+    $ref: "./paths/case-lock.yaml"
+  /projects/{slug}/cases/{caseId}/history:
+    $ref: "./paths/case-history.yaml"
   /projects/{slug}/cases/{caseId}/captures:
     $ref: "./paths/case-captures.yaml"
   /projects/{slug}/cases/{caseId}/comments:
     $ref: "./paths/case-comments.yaml"
+  /projects/{slug}/comments/{commentId}:
+    $ref: "./paths/comment-moves.yaml#/Comment"
   /projects/{slug}/comments/{commentId}/reference:
     $ref: "./paths/comment-moves.yaml#/Reference"
   /projects/{slug}/comments/{commentId}/discard:
@@ -79,6 +89,8 @@ paths:
     $ref: "./paths/case-archive.yaml"
   /projects/{slug}/categories/{categoryId}:
     $ref: "./paths/category.yaml"
+  /projects/{slug}/queue:
+    $ref: "./paths/review-queue.yaml"
 
 # Declared on every operation, never globally. An empty default would say the
 # same thing less visibly — this way `security` is a decision somebody made

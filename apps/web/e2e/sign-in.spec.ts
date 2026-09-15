@@ -64,7 +64,7 @@ test('a link nobody issued is refused', async ({ request }) => {
 test('a signed-out visitor reaching a case is offered the way in', async ({ page }) => {
   await page.goto('/projects/e2e/cases/00000000-0000-0000-0000-000000000000')
 
-  await expect(page.getByRole('heading', { name: 'Se connecter' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
 })
 
 test('the link opens in another tab, and the waiting one carries on', async ({ page, context }) => {
@@ -73,17 +73,15 @@ test('the link opens in another tab, and the waiting one carries on', async ({ p
   // looking at a sign-in form next to a session that works.
   const seeded = await seed(page)
   await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
-  await expect(page.getByRole('heading', { name: 'Se connecter' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
 
   await emptyMailbox(REVIEWER)
-  await page.getByLabel('adresse').fill(REVIEWER)
-  await page.getByRole('button', { name: 'Envoyer le lien' }).click()
-  await expect(page.getByText('Le lien est parti.')).toBeVisible()
+  await page.getByLabel('address').fill(REVIEWER)
+  await page.getByRole('button', { name: 'Send the link' }).click()
+  await expect(page.getByText('The link is on its way.')).toBeVisible()
 
   const other = await context.newPage()
   await other.goto(`/sign-in/${await linkSentTo(REVIEWER)}`)
 
-  await expect(
-    page.getByRole('heading', { name: 'réinitialiser un mot de passe oublié' }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'reset a forgotten password' })).toBeVisible()
 })

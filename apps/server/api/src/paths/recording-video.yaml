@@ -17,12 +17,23 @@ get:
   description: |
     Read through the recording, for the same reason a capture's image is
     (`product.md` §8.1). A recording is a supporting exhibit: never
-    byte-compared, never a source of state (ADR 0013).
+    byte-compared, judged, never byte-compared (ADR 0013, ADR 0023).
   tags: [blobs]
   responses:
     "200":
-      description: The video.
+      description: |
+        The video, served as what its first bytes say it is (#226): a browser
+        streams a `video/*` answer inline instead of downloading it. Unknown
+        bytes fall back to `application/octet-stream`.
       content:
+        video/webm:
+          schema:
+            type: string
+            format: binary
+        video/mp4:
+          schema:
+            type: string
+            format: binary
         application/octet-stream:
           schema:
             type: string

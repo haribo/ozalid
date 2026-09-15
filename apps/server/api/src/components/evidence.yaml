@@ -40,18 +40,18 @@ GridVariant:
 
 GridStep:
   type: object
-  required: [id, name, position, cells]
+  required: [id, name, position, captures]
   properties:
     id: { type: string }
     name: { type: string }
     position: { type: integer }
-    cells:
+    captures:
       type: array
       description: One entry per variant that has a capture at this step.
       items:
-        $ref: "#/GridCell"
+        $ref: "#/GridCapture"
 
-GridCell:
+GridCapture:
   type: object
   required: [id, variantId, hash, status]
   properties:
@@ -61,6 +61,10 @@ GridCell:
         The capture. Fetch its image at
         `/projects/{slug}/captures/{captureId}` — the hash names no project and
         cannot be authorised (`product.md` §8.1).
+
+        It names **these bytes at this edition**: the same step and variant,
+        re-captured by the next run, is a different capture with a different
+        id. Quoting one elsewhere quotes a moment, not a screen.
     variantId: { type: string }
     hash:
       type: string
@@ -69,18 +73,12 @@ GridCell:
         computes before uploading, not what a reader fetches with.
     status:
       type: string
-      enum: [to-review, to-fix, validated]
+      enum: [to-review, refused, accepted, moved]
       description: |
-        Where this square stands. Computed by the server from the comments
-        covering it — never set by a caller (ADR 0012).
-    freshness:
-      type: string
-      enum: [current, to-re-review]
-      description: |
-        Whether this capture still shows what a reviewer approved, computed once
-        when it arrived. **Absent means nothing to compare against** — nobody has
-        approved this square in this capture's environment — which is not the
-        same as unchanged (ADR 0017).
+        Where this capture stands — derived at read time from the stored
+        facts, never set by a caller and never stored (ADR 0012, ADR 0021).
+        `moved`: accepted, and the image has since changed beyond the
+        project's noise threshold.
 
         Freshness is an overlay, never a state: a `reviewed` case whose captures
         move stays `reviewed` until its reviewer says otherwise.
@@ -98,10 +96,55 @@ GridCell:
 
 GridRecording:
   type: object
-  required: [id, variantId, hash]
+  required: [id, variantId, hash, status]
   properties:
     id:
       type: string
       description: Fetch the video at `/projects/{slug}/recordings/{recordingId}`.
     variantId: { type: string }
     hash: { type: string }
+    status:
+      type: string
+      enum: [to-review, accepted, refused]
+      description: |
+        Where the judgment on exactly these bytes stands (ADR 0023). A new
+        edition brings new bytes and a new `to-review` recording.
+    refusal:
+      type: string
+      description: The standing refusal's remark, absent otherwise.
+
+ReviewQueue:
+  type: object
+  required: [entries]
+  properties:
+    entries:
+      type: array
+      description: |
+        In walking order: by case in catalogue order, then by step position,
+        then by variant label (`product.md` §3.6). A flat list, because the
+        reviewer walks one capture at a time; the grouping by case is the
+        order, not a nesting.
+      items:
+        $ref: "#/QueueEntry"
+
+QueueEntry:
+  type: object
+  required: [caseId, caseTitle, stepId, stepName, stepPosition, variant, capture]
+  properties:
+    caseId: { type: string }
+    caseTitle: { type: string }
+    categoryId:
+      type: string
+      description: Where the case is filed. Absent only for a case filed nowhere, which creation has refused since #115.
+    stepId: { type: string }
+    stepName: { type: string }
+    stepPosition: { type: integer }
+    variant:
+      $ref: "#/GridVariant"
+    capture:
+      description: |
+        The capture awaiting a verdict. Its `status` reads `to-review` or
+        `moved` — the two that await the reviewer, and nothing on the entry
+        repeats what that status already says (`product.md` §3.6).
+      allOf:
+        - $ref: "#/GridCapture"

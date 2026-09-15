@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted — 2026-08-19
+Accepted — 2026-08-19 — completed by
+[ADR 0024](0024-the-pin-follows-the-lock.md): the edition a case shows follows
+the lock.
 
 ## Context
 

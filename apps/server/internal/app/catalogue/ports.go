@@ -19,13 +19,15 @@ type Repository interface {
 	ProjectBySlug(ctx context.Context, slug string) (catalogue.Project, error)
 	ProjectsFor(ctx context.Context, by actor.Actor, admin bool) ([]catalogue.Project, error)
 
-	CreateCase(ctx context.Context, projectID string, categoryID *string, title string, description *string) (catalogue.Case, error)
+	CreateCase(ctx context.Context, projectID string, categoryID string, title string, description *string) (catalogue.Case, error)
 	CaseByID(ctx context.Context, slug, id string) (catalogue.Case, error)
 	ListCases(ctx context.Context, projectID string, state, categoryID *string) ([]catalogue.Case, error)
-	UpdateCase(ctx context.Context, slug, id string, title string, description *string, categoryID *string) (catalogue.Case, error)
+	UpdateCase(ctx context.Context, slug, id string, patch CasePatch) (catalogue.Case, error)
 	ArchiveCase(ctx context.Context, slug, id string) (bool, error)
+	CaseHistory(ctx context.Context, slug, id string) ([]catalogue.Transition, error)
 
 	CreateCategory(ctx context.Context, projectID string, parentID *string, name string, position int32) (catalogue.Category, error)
+	UpdateCategory(ctx context.Context, slug, id string, patch CategoryPatch) (catalogue.Category, error)
 	ListCategories(ctx context.Context, projectID string) ([]catalogue.Category, error)
 	CategoryTree(ctx context.Context, projectID string) ([]catalogue.CategoryNode, error)
 
@@ -42,6 +44,27 @@ type Actor struct {
 	ID   string
 	Kind string // "human" or "machine"
 }
+
+// CasePatch is what an update may change about a case. A nil field is left
+// alone; a Description holding the empty string clears it. Nothing empties
+// CategoryID — a case belongs to exactly one category, and an update that
+// could drop it files the case where no screen can show it (#115, #229).
+type CasePatch struct {
+	Title       *string
+	Description *string
+	CategoryID  *string
+}
+
+// CategoryPatch is what an update may change. A nil field is left alone;
+// Parent set with a nil ID moves the node to the root (#179).
+type CategoryPatch struct {
+	Name     *string
+	Parent   *CategoryParent
+	Position *int32
+}
+
+// CategoryParent names where a node moves: a category's id, or the root.
+type CategoryParent struct{ ID *string }
 
 // Errors the layers above match on. The adapter translates whatever its driver
 // reports into one of these, so no layer above it ever knows a Postgres error

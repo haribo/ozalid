@@ -1,12 +1,14 @@
 // Package evidence reads back what a run put in the book.
 //
 // A reviewer judges a case from a grid: its steps in order, the variants that
-// exist, and the capture sitting at each cell.
+// exist, and the capture sitting at each step and variant.
 package evidence
 
 import (
 	"context"
 	"errors"
+	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
+	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"time"
 
 	"github.com/haribo/ozalid/internal/contract"
@@ -23,9 +25,9 @@ type Variant struct {
 	Values map[string]string
 }
 
-// Cell is one capture: a variant, the address of its bytes, and where the
+// Capture is one capture: a variant, the address of its bytes, and where the
 // review stands on it.
-type Cell struct {
+type Capture struct {
 	// ID is the capture. It is what the bytes are fetched through, since a
 	// content address names no project and cannot be authorised
 	// (product.md §8.1).
@@ -33,10 +35,6 @@ type Cell struct {
 	VariantID string
 	Hash      string
 	Status    string
-	// Freshness is empty when there is nothing to compare against: nobody has
-	// approved this square in this capture's environment. That is not the same
-	// as unchanged (ADR 0017).
-	Freshness string
 	// MovedPixels is nil when no pixel reading happened — identical addresses
 	// need none, mismatched dimensions admit none.
 	MovedPixels *int
@@ -48,15 +46,20 @@ type Step struct {
 	ID       string
 	Name     string
 	Position int
-	Cells    []Cell
+	Captures []Capture
 }
 
 // Recording is the flow video for one variant. Optional, never compared
-// (ADR 0013).
+// (ADR 0013) — judged instead (ADR 0023).
 type Recording struct {
 	ID        string
 	VariantID string
 	Hash      string
+	// Status is to-review, accepted or refused, derived from the last
+	// judgment on exactly these bytes.
+	Status string
+	// Refusal is the standing refusal's remark, empty otherwise.
+	Refusal string
 }
 
 // Grid is what a case is judged from.
@@ -70,11 +73,31 @@ type Grid struct {
 	Recordings []Recording
 }
 
+// QueueEntry is one capture awaiting the reviewer, carrying where it sits: a
+// reviewer walking a project's work needs the case and the step to know what
+// they are looking at (product.md §3.6).
+//
+// Nothing here repeats the capture's status in another word — the status is on
+// the capture, and one fact gets one word (ADR 0021).
+type QueueEntry struct {
+	CaseID     string
+	CaseTitle  string
+	CategoryID *string
+	StepID     string
+	StepName   string
+	StepPos    int
+	Variant    Variant
+	Capture    Capture
+}
+
 // Repository is the outbound port this package needs.
 type Repository interface {
 	CaseGrid(ctx context.Context, slug, caseID string, editionID *string) (Grid, error)
+	ReviewQueue(ctx context.Context, slug string, categoryID *string) ([]QueueEntry, error)
 	CaptureBlob(ctx context.Context, slug, captureID string) (string, error)
 	RecordingBlob(ctx context.Context, slug, recordingID string) (string, error)
+	JudgeRecording(ctx context.Context, slug, recordingID string, by actor.Actor, accept bool, remark string) (review.CaseState, error)
+	UnjudgeRecording(ctx context.Context, slug, recordingID string, by actor.Actor) (review.CaseState, error)
 }
 
 // Service reads evidence.
@@ -92,6 +115,15 @@ func (s *Service) Grid(ctx context.Context, slug, caseID string, editionID *stri
 	return s.repo.CaseGrid(ctx, slug, caseID, editionID)
 }
 
+// Queue returns the captures awaiting the reviewer under a category, or under
+// the whole project when categoryID is nil (product.md §3.6).
+//
+// Nothing to review is an empty queue, not an error: a project whose book is
+// clean is the point of the exercise.
+func (s *Service) Queue(ctx context.Context, slug string, categoryID *string) ([]QueueEntry, error) {
+	return s.repo.ReviewQueue(ctx, slug, categoryID)
+}
+
 // CaptureBlob answers where one capture's bytes are stored, or ErrNotFound
 // when that capture is not in that project.
 //
@@ -105,4 +137,14 @@ func (s *Service) CaptureBlob(ctx context.Context, slug, captureID string) (stri
 // RecordingBlob does the same for a recording's video.
 func (s *Service) RecordingBlob(ctx context.Context, slug, recordingID string) (string, error) {
 	return s.repo.RecordingBlob(ctx, slug, recordingID)
+}
+
+// JudgeRecording renders a verdict on the recording on screen (ADR 0023).
+func (s *Service) JudgeRecording(ctx context.Context, slug, recordingID string, by actor.Actor, accept bool, remark string) (review.CaseState, error) {
+	return s.repo.JudgeRecording(ctx, slug, recordingID, by, accept, remark)
+}
+
+// UnjudgeRecording takes it back, symmetrically.
+func (s *Service) UnjudgeRecording(ctx context.Context, slug, recordingID string, by actor.Actor) (review.CaseState, error) {
+	return s.repo.UnjudgeRecording(ctx, slug, recordingID, by)
 }

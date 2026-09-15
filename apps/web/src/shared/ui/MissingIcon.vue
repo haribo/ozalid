@@ -4,11 +4,11 @@
  *
  * A status like the others, so it wears the disc (frontend ADR 0003). It is not
  * a verdict — nobody judged anything — but it answers the grid's question all
- * the same: this square has not been validated, and it cannot be.
+ * the same: this capture has not been accepted, and it cannot be.
  */
 withDefaults(defineProps<{ size?: number; label?: string }>(), {
   size: 13,
-  label: 'manquante',
+  label: 'missing',
 })
 </script>
 
@@ -31,8 +31,9 @@ withDefaults(defineProps<{ size?: number; label?: string }>(), {
       aria-hidden="true"
     >
       <title>{{ label }}</title>
-      <path d="M8 3.4L13.6 12.6H2.4z" />
-      <path d="M8 6.9v2.3M8 11v.1" />
+      <!-- A crossed-out frame says one thing: there is no image here (#209). -->
+      <rect x="2.6" y="3.6" width="10.8" height="8.8" rx="1" />
+      <path d="M3.4 11.6l9.2-7.2" />
     </svg>
   </span>
 </template>

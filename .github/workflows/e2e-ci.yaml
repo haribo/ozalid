@@ -66,6 +66,19 @@ jobs:
 
       - name: Run the suite
         run: just fe-test-e2e
+        env:
+          # On develop only, and only once somebody has put a token there: the
+          # run keeps its own screens and pushes them into the production book,
+          # so a change to the interface arrives as captures and is reviewed
+          # there (#107). One edition per merge, which is what an edition is —
+          # pushing from every pull request would fill the book with runs
+          # nobody reads.
+          #
+          # Empty on a fork or before the secret exists, and the capture step
+          # skips rather than fails.
+          OZALID_PUSH_API: ${{ github.ref == 'refs/heads/develop' && vars.OZALID_PUSH_API || '' }}
+          OZALID_PUSH_TOKEN: ${{ github.ref == 'refs/heads/develop' && secrets.OZALID_PUSH_TOKEN || '' }}
+          OZALID_PUSH_PROJECT: ${{ vars.OZALID_PUSH_PROJECT }}
 
       # What a failure needs to be understood: the trace of the run that broke,
       # and the screenshot of the moment it did.

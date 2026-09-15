@@ -7,98 +7,124 @@
  * written that way.
  */
 import { expect, test, type Page } from '@playwright/test'
-import { commentOnStep, moveTheDarkVariant, seed, validateEverything } from './fixture'
+import {
+  commentOnStep,
+  moveTheDarkVariant,
+  seed,
+  acceptEverything,
+  pushRecordings,
+} from './fixture'
+import { emptyMailbox, linkSentTo } from './mailbox'
+import { asksAsThemselves, freshContext, signIn } from './session'
 
-/** The grid's own cells. The recap is another table, and its ticks are actions
+/** The grid's own captures. The recap is another table, and its ticks are actions
  * rather than statuses — an assertion that spans both proves nothing about
  * either. */
+const API = process.env.OZALID_API ?? 'http://localhost:8091'
+
 const gridMarks = (page: Page) => page.locator('table').first().locator('tbody [role="img"]')
 
 test('a case arrives with everything left to judge', async ({ page }) => {
   const seeded = await seed(page)
   await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
 
-  await expect(
-    page.getByRole('heading', { name: 'réinitialiser un mot de passe oublié' }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'reset a forgotten password' })).toBeVisible()
   await expect(page.getByText('to-review')).toBeVisible()
 
-  // Six squares, none of them marked: nothing has been said, and a bare capture
+  // Six captures, none of them marked: nothing has been said, and a bare capture
   // is the only reading that leaves every pixel visible (frontend ADR 0003).
-  await expect(page.locator('tbody button[aria-label*="dans le carrousel"]')).toHaveCount(6)
+  await expect(page.locator('tbody button[aria-label*="in the carousel"]')).toHaveCount(6)
   await expect(gridMarks(page)).toHaveCount(0)
 })
 
-test('clicking a capture opens the carousel on that exact square', async ({ page }) => {
+test('clicking a capture opens the carousel on that exact capture', async ({ page }) => {
   const seeded = await seed(page)
   await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
-  await page.locator('tbody button[aria-label*="dans le carrousel"]').nth(2).click()
+  await page.locator('tbody button[aria-label*="in the carousel"]').nth(2).click()
 
-  const carousel = page.locator('.overflow-hidden.rounded-lg').first()
-  await expect(carousel).toContainText('ouvre le lien reçu par e-mail')
-  await expect(carousel).toContainText('3 / 6')
+  const carousel = page.getByRole('dialog', { name: 'capture' })
+  await expect(carousel).toContainText('opens the link received by e-mail')
+  await expect(carousel).toContainText('2 / 3')
 })
 
-test('space validates, and the server is what says so', async ({ page }) => {
+test('space accepts, and the server is what says so', async ({ page }) => {
   const seeded = await seed(page)
   await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
-  await page.locator('tbody button[aria-label*="dans le carrousel"]').first().click()
+  await page.locator('tbody button[aria-label*="in the carousel"]').first().click()
   await page.keyboard.press(' ')
 
-  await expect(page.locator('table').first().locator('[aria-label="validée"]')).toHaveCount(1)
+  await expect(page.locator('table').first().locator('[aria-label="accepted"]')).toHaveCount(1)
 
   // Redrawn from what the server answered, never from a guess made in the
   // browser (ADR 0002) — so it survives a reload.
   await page.reload()
-  await expect(page.locator('table').first().locator('[aria-label="validée"]')).toHaveCount(1)
+  await expect(page.locator('table').first().locator('[aria-label="accepted"]')).toHaveCount(1)
+
+  // And the same key takes it back (#156): a misclick is not a life
+  // sentence. The carousel route survived the reload, so the capture is still
+  // under the keyboard.
+  await page.keyboard.press(' ')
+  await page.keyboard.press('Escape')
+  await expect(page.locator('table').first().locator('[aria-label="accepted"]')).toHaveCount(0)
+  await page.reload()
+  await expect(page.locator('table').first().locator('[aria-label="accepted"]')).toHaveCount(0)
 })
 
 test('one defect over two variants is one comment, not two', async ({ page }) => {
   const seeded = await seed(page)
   await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
-  await page.locator('tbody button[aria-label*="dans le carrousel"]').nth(2).click()
-  await page.getByRole('button', { name: 'commenter' }).click()
+  await page.locator('tbody button[aria-label*="in the carousel"]').nth(2).click()
+  await page.getByRole('button', { name: 'refuse', exact: true }).click()
 
-  await page.getByPlaceholder('ce que vous voyez, dans vos mots').fill('le bouton est coupé')
-  await page.getByRole('button', { name: 'tout' }).click()
-  await page.getByRole('button', { name: 'ajouter', exact: true }).click()
+  await page.locator('textarea').fill('the button is clipped')
+  await page.getByRole('button', { name: 'all' }).click()
+  await page
+    .getByRole('dialog', { name: 'capture' })
+    .locator('form')
+    .getByRole('button', { name: 'refuse' })
+    .click()
 
   // One row in the recap — the text also shows in the carousel, so the count is
   // taken where the claim is about.
   const recap = page.locator('table').last()
-  await expect(recap.getByText('le bouton est coupé')).toHaveCount(1)
-  await expect(page.locator('table').first().locator('[aria-label="commentée"]')).toHaveCount(2)
+  await expect(recap.getByText('the button is clipped')).toHaveCount(1)
+  await expect(page.locator('table').first().locator('[aria-label="refused"]')).toHaveCount(2)
 })
 
 test('the recap takes you back to the capture a comment was written on', async ({ page }) => {
   const seeded = await seed(page)
-  await commentOnStep(seeded, 1, 'le libellé induit en erreur')
+  await commentOnStep(seeded, 1, 'the label misleads')
   await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
 
-  await page.getByRole('link', { name: 'ouvre le lien reçu par e-mail' }).click()
+  await page.getByRole('link', { name: 'opens the link received by e-mail' }).click()
 
-  const carousel = page.locator('.overflow-hidden.rounded-lg').first()
-  await expect(carousel).toContainText('ouvre le lien reçu par e-mail')
-  await expect(carousel).toContainText('le libellé induit en erreur')
+  const carousel = page.getByRole('dialog', { name: 'capture' })
+  await expect(carousel).toContainText('opens the link received by e-mail')
+  await expect(carousel).toContainText('the label misleads')
 })
 
-test('a capture that moved comes back asking to be looked at', async ({ page }) => {
+test('a capture that moved comes back asking to be looked at', async ({ page, request }) => {
   const seeded = await seed(page)
-  await validateEverything(seeded)
+  await acceptEverything(seeded)
   await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
-  await expect(page.locator('table').first().locator('[aria-label="validée"]')).toHaveCount(6)
+  await expect(page.locator('table').first().locator('[aria-label="accepted"]')).toHaveCount(6)
 
   await moveTheDarkVariant(page, seeded)
   await page.reload()
 
-  // Three dark squares moved, the light ones did not. The verdict they carried
+  // Three dark captures moved, the light ones did not. The verdict they carried
   // is gone from the grid: for the question it asks, they are to judge again.
-  await expect(page.locator('table').first().locator('[aria-label="a bougé"]')).toHaveCount(3)
-  await expect(page.locator('table').first().locator('[aria-label="validée"]')).toHaveCount(3)
-  await expect(page.getByText('3 captures ont bougé')).toBeVisible()
+  await expect(page.locator('table').first().locator('[aria-label="moved"]')).toHaveCount(3)
+  await expect(page.locator('table').first().locator('[aria-label="accepted"]')).toHaveCount(3)
+  // The count lives in the legend, beside the glyph it counts (#220).
+  await expect(page.getByText(/moved\s*3/)).toBeVisible()
 
-  // Freshness is an overlay, never a state: the case does not move.
-  await expect(page.getByText('reviewed')).toBeVisible()
+  // Movement stays at the capture, never the case (ADR 0021) — asserted on
+  // the server's own answer: with one vocabulary, "accepted" legitimately
+  // appears on the pill and in the legend alike, so the old unique
+  // visible-span guard (#120) no longer has a premise.
+  const detail = await request.get(`${API}/api/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  expect(((await detail.json()) as { state: string }).state).toBe('accepted')
 })
 
 test('every mark the grid draws wears a disc', async ({ page }) => {
@@ -106,8 +132,8 @@ test('every mark the grid draws wears a disc', async ({ page }) => {
   // render because that is where the rule was broken: a bare glyph landed on
   // the product's own button and became one of its pixels.
   const seeded = await seed(page)
-  await validateEverything(seeded)
-  await commentOnStep(seeded, 0, 'à revoir')
+  await acceptEverything(seeded)
+  await commentOnStep(seeded, 0, 'needs another look')
   await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
 
   await expect(gridMarks(page)).toHaveCount(6)
@@ -117,7 +143,7 @@ test('every mark the grid draws wears a disc', async ({ page }) => {
 })
 
 test('the captures in the grid actually decode, not just point somewhere', async ({ page }) => {
-  // Counting squares passes whether or not the bytes arrive. `naturalWidth` is
+  // Counting captures passes whether or not the bytes arrive. `naturalWidth` is
   // zero for an image the browser could not decode, so this is what tells a
   // broken address apart from a working one (#71).
   const seeded = await seed(page)
@@ -137,4 +163,303 @@ test('the captures in the grid actually decode, not just point somewhere', async
       { message: 'every capture in the grid should decode' },
     )
     .toEqual([320, 320, 320, 320, 320, 320])
+})
+
+test('a capture has an address, and the window is what sizes it', async ({ page }) => {
+  const seeded = await seed(page)
+  const grid = await (
+    await page.request.get(`/api/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)
+  ).json()
+  const step = grid.steps[1]
+  const capture = step.captures[0]
+
+  // Loaded directly, the way a colleague sent "look at step 2 in dark" would:
+  // no grid was clicked, yet the dialog opens on that exact capture (#125).
+  await page.goto(
+    `/projects/${seeded.slug}/cases/${seeded.caseId}/steps/${step.id}/variants/${capture.variantId}`,
+  )
+  const carousel = page.getByRole('dialog', { name: 'capture' })
+  await expect(carousel).toContainText(step.name)
+
+  // The capture renders at its own size when the window has room — never
+  // stretched, since blown-up pixels are falsified pixels. The old code wrote
+  // the width in advance and stretched this 320 px fixture to 560 (#125).
+  await page.setViewportSize({ width: 1600, height: 900 })
+  const shot = carousel.locator('img')
+  const natural = await shot.evaluate((img) => (img as HTMLImageElement).naturalWidth)
+  const roomy = (await shot.boundingBox())!.width
+  expect(Math.abs(roomy - natural)).toBeLessThanOrEqual(4)
+
+  // And it tracks the window once the window is what constrains it.
+  await page.setViewportSize({ width: 300, height: 500 })
+  expect((await shot.boundingBox())!.width).toBeLessThan(natural)
+
+  // Arrows walk by replacing, so leaving means the grid — not a retrace of
+  // every capture looked at.
+  await page.keyboard.press('ArrowLeft')
+  await expect(page).toHaveURL(new RegExp(`/steps/${grid.steps[0].id}/`))
+  await page.keyboard.press('Escape')
+  await expect(page).toHaveURL(new RegExp(`/cases/${seeded.caseId}$`))
+  await expect(page.locator('table').first()).toBeVisible()
+})
+
+test('a verdict held through an expired session survives closing the carousel', async ({
+  page,
+  context,
+}) => {
+  // The #70 walk, run from the carousel route. Closing navigates; the two
+  // routes share one component, so the instance — and the verdict it holds —
+  // must survive that navigation. A remount would drop it silently (#125).
+  const seeded = await seed(page)
+  const grid = await (
+    await page.request.get(`/api/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)
+  ).json()
+  const step = grid.steps[0]
+  await page.goto(
+    `/projects/${seeded.slug}/cases/${seeded.caseId}/steps/${step.id}/variants/${step.captures[0].variantId}`,
+  )
+  await expect(page.getByRole('dialog', { name: 'capture' })).toBeVisible()
+
+  // Somebody to come back as, made while the session still works: asking for
+  // another of REVIEWER's links would eat the rate limiter's per-address
+  // budget and starve the sign-in suite behind this test.
+  const email = `resumed-${Date.now()}@example.test`
+  const account = await (
+    await page.request.post(`/api/accounts`, { data: { name: 'resumed reviewer', email } })
+  ).json()
+  await page.request.put(`/api/projects/${seeded.slug}/members/${account.id}`, {
+    data: { rights: 'member' },
+  })
+
+  // The reviewer lets the case go before the session dies: resuming will
+  // come from another account, and a held case would refuse it (ADR 0005).
+  await page.request.delete(`/api/projects/${seeded.slug}/cases/${seeded.caseId}/lock`)
+
+  // The session dies under the verdict.
+  await context.clearCookies()
+  await page.keyboard.press(' ')
+  await expect(page.getByText('Session expired. The last verdict was not recorded.')).toBeVisible()
+
+  // The reviewer closes the capture anyway, then signs back in from the bar's
+  // own path: another tab claims a link, this tab is told and resumes.
+  await page.keyboard.press('Escape')
+  await expect(page).toHaveURL(new RegExp(`/cases/${seeded.caseId}$`))
+
+  await emptyMailbox(email)
+  const other = await context.newPage()
+  await other.goto('/sign-in')
+  await other.getByLabel('address').fill(email)
+  await other.getByRole('button', { name: 'Send the link' }).click()
+  await other.goto(`/sign-in/${await linkSentTo(email)}`)
+
+  // The held verdict lands: the capture the space bar judged is accepted.
+  await expect(page.getByText('Session expired')).toHaveCount(0)
+  await expect(
+    page.locator('table').first().locator('[aria-label="accepted"]').first(),
+  ).toBeVisible()
+})
+
+test('refusing writes the remark and the capture stays on screen', async ({ page }) => {
+  // The sheet opens under the image (ADR 0020): the reviewer describes pixels
+  // they can still see — a modal covering them was rejected for exactly that.
+  const seeded = await seed(page)
+  await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  await page.locator('tbody button[aria-label*="in the carousel"]').first().click()
+
+  const carousel = page.getByRole('dialog', { name: 'capture' })
+  await carousel.getByRole('button', { name: 'refuse', exact: true }).click()
+  await expect(carousel.locator('textarea')).toBeVisible()
+  await expect(carousel.locator('img')).toBeVisible()
+
+  // Escape closes the sheet, not the carousel, and nothing was sent.
+  await page.keyboard.press('Escape')
+  await expect(carousel.locator('textarea')).toHaveCount(0)
+  await expect(carousel).toBeVisible()
+  await expect(page.locator('table').first().locator('[aria-label="refused"]')).toHaveCount(0)
+})
+
+test('a capture taller than the stage is scaled to fit, never overflowing', async ({
+  page,
+  request,
+  browser,
+}) => {
+  // An oversized capture, pushed the way a client would push one (#177).
+  const seeded = await seed(page)
+  const shooter = await browser.newPage({ viewport: { width: 900, height: 1800 } })
+  await shooter.setContent(
+    `<!doctype html><style>body{margin:0;width:900px;height:1800px;background:#eef}</style><p>tall</p>`,
+  )
+  const bytes = await shooter.screenshot()
+  await shooter.close()
+  const { createHash } = await import('node:crypto')
+  const hash = `sha256:${createHash('sha256').update(bytes).digest('hex')}`
+  const TOKEN = process.env.OZALID_E2E_TOKEN ?? ''
+  await request.put(`${API}/api/projects/${seeded.slug}/blobs/${hash}`, {
+    headers: { authorization: `Bearer ${TOKEN}` },
+    data: bytes,
+  })
+  const categories = await (
+    await request.get(`${API}/api/projects/${seeded.slug}/categories`, {
+      headers: { authorization: `Bearer ${TOKEN}` },
+    })
+  ).json()
+  const making = await request.post(`${API}/api/projects/${seeded.slug}/cases`, {
+    headers: { authorization: `Bearer ${TOKEN}` },
+    data: { title: `tall ${Date.now()}`, categoryId: categories[0].id },
+  })
+  expect(making.status(), await making.text()).toBe(201)
+  const made = await making.json()
+  await request.post(`${API}/api/projects/${seeded.slug}/editions`, {
+    headers: { authorization: `Bearer ${TOKEN}` },
+    data: {
+      cases: [
+        {
+          id: made.id,
+          steps: [
+            {
+              name: 'a very tall screen',
+              captures: [
+                {
+                  variant: { theme: 'light', device: 'desktop' },
+                  hash,
+                  provenance: { environmentId: 'ci' },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  })
+
+  await page.goto(`/projects/${seeded.slug}/cases/${made.id}`)
+  await page.locator('tbody button[aria-label*="a very tall screen"]').first().click()
+  const dialog = page.getByRole('dialog', { name: 'capture' })
+  const img = dialog.locator('img')
+  await expect(img).toBeVisible()
+
+  // The pixels are judged at the largest size that fits (#125) — and fitting
+  // is the whole claim: the image never leaves the viewport.
+  const box = (await img.boundingBox())!
+  const viewport = page.viewportSize()!
+  expect(box.y).toBeGreaterThanOrEqual(0)
+  expect(box.y + box.height).toBeLessThanOrEqual(viewport.height)
+  expect(box.x + box.width).toBeLessThanOrEqual(viewport.width)
+})
+
+test('the case page finds its way back to its category (#190)', async ({ page }) => {
+  // The trail shows ancestors only: the title right below says the current
+  // page, and repeating it in the trail would be noise.
+  const seeded = await seed(page)
+  await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
+
+  const nav = page.getByRole('navigation', { name: 'breadcrumb' })
+  // The suite's category shares the project's name, so target by destination.
+  await expect(nav.getByRole('link').first()).toHaveAttribute('href', `/projects/${seeded.slug}`)
+  await expect(nav).not.toContainText('reset a forgotten password')
+
+  // The last ancestor is the case's own category, and it leads back there.
+  await nav.getByRole('link').last().click()
+  await expect(page).toHaveURL(/\/categories\//)
+  await expect(
+    page.locator(`a[href="/projects/${seeded.slug}/cases/${seeded.caseId}"]`),
+  ).toBeVisible()
+})
+
+test('the recording is judged in the carousel, and a new push resets it (#226)', async ({
+  page,
+  request,
+}) => {
+  const seeded = await seed(page)
+  await pushRecordings(page, seeded)
+  await acceptEverything(seeded)
+
+  // Every capture accepted, yet the case waits: nobody judged the videos.
+  let detail = await request.get(`${API}/api/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  expect(((await detail.json()) as { state: string }).state).toBe('to-review')
+
+  await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  // Clicking the video opens the player — no download, an address.
+  await page.locator('[aria-label^="watch the recording"]').first().click()
+  const carousel = page.getByRole('dialog', { name: 'capture' })
+  await expect(carousel.locator('video')).toBeVisible()
+  expect(page.url()).toContain('/recordings/')
+
+  // Judge both videos: accept on each variant of the walk.
+  await carousel.getByRole('button', { name: 'accept', exact: true }).click()
+  await expect(carousel.getByRole('button', { name: '✓ accepted' })).toBeVisible()
+  await page.keyboard.press('ArrowDown')
+  await carousel.getByRole('button', { name: 'accept', exact: true }).click()
+  await expect(carousel.getByRole('button', { name: '✓ accepted' })).toBeVisible()
+
+  detail = await request.get(`${API}/api/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  expect(((await detail.json()) as { state: string }).state).toBe('accepted')
+
+  // New push, new bytes: the videos are to judge again.
+  await pushRecordings(page, seeded)
+  detail = await request.get(`${API}/api/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  expect(((await detail.json()) as { state: string }).state).toBe('to-review')
+})
+
+test('a held case reads the same and refuses the verdict (#95)', async ({ page, context }) => {
+  const seeded = await seed(page)
+
+  // A second reviewer, onboarded by the admin through the interface.
+  const email = `second-${Date.now()}@example.test`
+  await page.goto('/accounts')
+  await page.getByRole('button', { name: 'New account' }).click()
+  await page.getByLabel('name').fill('marc')
+  await page.getByLabel('address').fill(email)
+  await page.getByRole('button', { name: 'Create the account' }).click()
+  await expect(page.getByRole('cell', { name: 'marc', exact: true })).toBeVisible()
+  await page.goto(`/projects/${seeded.slug}/access`)
+  await page.getByRole('button', { name: 'Add' }).first().click()
+  await page.getByLabel('account').selectOption({ label: 'marc' })
+  await page.getByRole('button', { name: 'Add', exact: true }).last().click()
+  await expect(page.getByRole('cell', { name: 'marc', exact: true })).toBeVisible()
+
+  // The first reviewer opens the case: opening is claiming (ADR 0005).
+  await page.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  await expect(page.locator('table').first()).toBeVisible()
+
+  // Marc, in a browser of his own — from nothing, and asking as himself: a
+  // bare newContext() would carry the first reviewer's session, and this test
+  // would be checking that somebody is refused their own lock (#123).
+  const theirs = await freshContext(context)
+  const their = await theirs.newPage()
+  await signIn(their, email)
+  await asksAsThemselves(context, theirs)
+
+  // The server refuses his verdict, whatever the screen offers — and names
+  // the holder. The state reads the same as before the hold.
+  const grid = await (
+    await theirs.request.get(`${API}/api/projects/${seeded.slug}/cases/${seeded.caseId}/captures`)
+  ).json()
+  const cell = { stepId: grid.steps[0].id, variantId: grid.steps[0].captures[0].variantId }
+  const refused = await theirs.request.post(
+    `${API}/api/projects/${seeded.slug}/cases/${seeded.caseId}/reviews`,
+    { data: { accepted: [cell] } },
+  )
+  expect(refused.status()).toBe(423)
+  expect(await refused.text()).toContain('e2e')
+
+  const detail = await (
+    await theirs.request.get(`${API}/api/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  ).json()
+  expect(detail.state).toBe('to-review')
+  expect(detail.held.name).toBe('e2e')
+
+  // Marc's own screen says who holds it.
+  await their.goto(`/projects/${seeded.slug}/cases/${seeded.caseId}`)
+  await expect(their.getByText('held by e2e')).toBeVisible()
+
+  // The first reviewer walks away: leaving is letting go, and marc's next
+  // verdict lands.
+  await page.goto(`/projects/${seeded.slug}`)
+  const landed = await theirs.request.post(
+    `${API}/api/projects/${seeded.slug}/cases/${seeded.caseId}/reviews`,
+    { data: { accepted: [cell] } },
+  )
+  expect(landed.status()).toBe(200)
+  await theirs.close()
 })

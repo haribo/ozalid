@@ -98,8 +98,19 @@ func (s *Server) DeliverComment(ctx context.Context, request openapi.DeliverComm
 			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
 		}, nil
 	}
-	out, err := s.comment.Deliver(ctx, request.Slug, request.CommentId, actorFrom(ctx))
+	issueRefID := ""
+	if request.Body != nil && request.Body.IssueId != nil {
+		issueRefID = *request.Body.IssueId
+	}
+	out, err := s.comment.Deliver(ctx, request.Slug, request.CommentId, issueRefID, actorFrom(ctx))
 	switch {
+	case errors.Is(err, comment.ErrAmbiguousIssue):
+		return openapi.DeliverComment400ApplicationProblemPlusJSONResponse{
+			BadRequestApplicationProblemPlusJSONResponse: openapi.BadRequestApplicationProblemPlusJSONResponse(
+				problem("issue-required", "Several issues are attached, name one", http.StatusBadRequest,
+					"Pass issueId: the server will not guess which fix was delivered."),
+			),
+		}, nil
 	case errors.Is(err, app.ErrNotFound):
 		return openapi.DeliverComment404ApplicationProblemPlusJSONResponse{
 			NotFoundApplicationProblemPlusJSONResponse: notFound("comment"),
@@ -128,9 +139,27 @@ func (s *Server) JudgeComment(ctx context.Context, request openapi.JudgeCommentR
 	if request.Body.Remark != nil {
 		remark = *request.Body.Remark
 	}
+	issueRefID := ""
+	if request.Body.IssueId != nil {
+		issueRefID = *request.Body.IssueId
+	}
 
-	out, err := s.comment.Judge(ctx, request.Slug, request.CommentId, actorFrom(ctx), request.Body.Accept, remark)
+	out, err := s.comment.Judge(ctx, request.Slug, request.CommentId, issueRefID, request.Body.VariantId, actorFrom(ctx), request.Body.Accept, remark)
 	switch {
+	case errors.Is(err, comment.ErrAmbiguousIssue):
+		return openapi.JudgeComment400ApplicationProblemPlusJSONResponse{
+			BadRequestApplicationProblemPlusJSONResponse: openapi.BadRequestApplicationProblemPlusJSONResponse(
+				problem("issue-required", "Several issues are attached, name one", http.StatusBadRequest,
+					"Pass issueId: the server will not guess which fix was judged."),
+			),
+		}, nil
+	case errors.Is(err, comment.ErrVariantRequired):
+		return openapi.JudgeComment400ApplicationProblemPlusJSONResponse{
+			BadRequestApplicationProblemPlusJSONResponse: openapi.BadRequestApplicationProblemPlusJSONResponse(
+				problem("variant-required", "A judgment names its variant", http.StatusBadRequest,
+					"A verdict always lands on the capture on screen (ADR 0022)."),
+			),
+		}, nil
 	case errors.Is(err, review.ErrRemarkRequired):
 		return openapi.JudgeComment400ApplicationProblemPlusJSONResponse{
 			BadRequestApplicationProblemPlusJSONResponse: openapi.BadRequestApplicationProblemPlusJSONResponse(
@@ -144,10 +173,101 @@ func (s *Server) JudgeComment(ctx context.Context, request openapi.JudgeCommentR
 		}, nil
 	case isRefusedMove(err):
 		return openapi.JudgeComment409ApplicationProblemPlusJSONResponse{MoveRefusedApplicationProblemPlusJSONResponse: openapi.MoveRefusedApplicationProblemPlusJSONResponse(refusedMove(err))}, nil
+	case heldOf(err) != nil:
+		return openapi.JudgeComment423ApplicationProblemPlusJSONResponse{
+			HeldApplicationProblemPlusJSONResponse: openapi.HeldApplicationProblemPlusJSONResponse(heldProblem(heldOf(err))),
+		}, nil
 	case err != nil:
 		return nil, err
 	}
 	return openapi.JudgeComment200JSONResponse{MoveAppliedJSONResponse: openapi.MoveAppliedJSONResponse(toAPIMove(out))}, nil
+}
+
+// UnjudgeComment takes a judgment back: the ref returns to to-review, and the
+// capture it covers with it (#167, #171).
+func (s *Server) UnjudgeComment(ctx context.Context, request openapi.UnjudgeCommentRequestObject) (openapi.UnjudgeCommentResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.WriteProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.UnjudgeComment401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.UnjudgeComment403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
+	issueRefID, variantID := "", ""
+	if request.Body != nil {
+		if request.Body.IssueId != nil {
+			issueRefID = *request.Body.IssueId
+		}
+		if request.Body.VariantId != nil {
+			variantID = *request.Body.VariantId
+		}
+	}
+
+	out, err := s.comment.Unjudge(ctx, request.Slug, request.CommentId, issueRefID, variantID, actorFrom(ctx))
+	switch {
+	case errors.Is(err, comment.ErrAmbiguousIssue):
+		return openapi.UnjudgeComment400ApplicationProblemPlusJSONResponse{
+			BadRequestApplicationProblemPlusJSONResponse: openapi.BadRequestApplicationProblemPlusJSONResponse(
+				problem("issue-required", "Several issues are attached, name one", http.StatusBadRequest,
+					"Pass issueId: the server will not guess which judgment is taken back."),
+			),
+		}, nil
+	case errors.Is(err, app.ErrNotFound):
+		return openapi.UnjudgeComment404ApplicationProblemPlusJSONResponse{
+			NotFoundApplicationProblemPlusJSONResponse: notFound("comment"),
+		}, nil
+	case isRefusedMove(err):
+		return openapi.UnjudgeComment409ApplicationProblemPlusJSONResponse{MoveRefusedApplicationProblemPlusJSONResponse: openapi.MoveRefusedApplicationProblemPlusJSONResponse(refusedMove(err))}, nil
+	case heldOf(err) != nil:
+		return openapi.UnjudgeComment423ApplicationProblemPlusJSONResponse{
+			HeldApplicationProblemPlusJSONResponse: openapi.HeldApplicationProblemPlusJSONResponse(heldProblem(heldOf(err))),
+		}, nil
+	case err != nil:
+		return nil, err
+	}
+	return openapi.UnjudgeComment200JSONResponse{MoveAppliedJSONResponse: openapi.MoveAppliedJSONResponse(toAPIMove(out))}, nil
+}
+
+// EditComment is the author reworking their own draft (ADR 0020).
+func (s *Server) EditComment(ctx context.Context, request openapi.EditCommentRequestObject) (openapi.EditCommentResponseObject, error) {
+	if why, no := s.mayNot(ctx, request.Slug, access.WriteProject); no {
+		if why.Status == http.StatusUnauthorized {
+			return openapi.EditComment401ApplicationProblemPlusJSONResponse{
+				UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(why),
+			}, nil
+		}
+		return openapi.EditComment403ApplicationProblemPlusJSONResponse{
+			ForbiddenApplicationProblemPlusJSONResponse: openapi.ForbiddenApplicationProblemPlusJSONResponse(why),
+		}, nil
+	}
+
+	out, err := s.comment.Edit(ctx, request.Slug, request.CommentId, actorFrom(ctx), request.Body.Body, request.Body.VariantIds)
+	switch {
+	case errors.Is(err, comment.ErrEmptyEdit):
+		return openapi.EditComment400ApplicationProblemPlusJSONResponse{
+			BadRequestApplicationProblemPlusJSONResponse: openapi.BadRequestApplicationProblemPlusJSONResponse(
+				problem("empty-edit", "An edit needs a body and a variant", http.StatusBadRequest,
+					"A remark saying or covering nothing is one nobody can act on."),
+			),
+		}, nil
+	case errors.Is(err, comment.ErrNotADraft), errors.Is(err, comment.ErrNotTheAuthor):
+		return openapi.EditComment409ApplicationProblemPlusJSONResponse{
+			MoveRefusedApplicationProblemPlusJSONResponse: openapi.MoveRefusedApplicationProblemPlusJSONResponse(
+				problem("not-a-draft", "Only the author edits, and only a draft", http.StatusConflict,
+					"Once an issue is attached, its title speaks in the remark's place."),
+			),
+		}, nil
+	case errors.Is(err, app.ErrNotFound):
+		return openapi.EditComment404ApplicationProblemPlusJSONResponse{
+			NotFoundApplicationProblemPlusJSONResponse: notFound("comment"),
+		}, nil
+	case err != nil:
+		return nil, err
+	}
+	return openapi.EditComment200JSONResponse{MoveAppliedJSONResponse: openapi.MoveAppliedJSONResponse(toAPIMove(out))}, nil
 }
 
 // ListComments returns what has been said about a case, settled included.
@@ -204,7 +324,6 @@ func toAPIComment(c comment.Record) openapi.Comment {
 	out := openapi.Comment{
 		Id:         c.ID,
 		StepId:     c.StepID,
-		Kind:       openapi.CommentKind(c.Kind),
 		Body:       c.Body,
 		State:      openapi.CommentState(c.State),
 		VariantIds: c.VariantIDs,
@@ -217,13 +336,36 @@ func toAPIComment(c comment.Record) openapi.Comment {
 			Id: c.Issue.ID, Url: nonEmptyPtr(c.Issue.URL), Title: nonEmptyPtr(c.Issue.Title),
 		}
 	}
+	if len(c.Issues) > 0 {
+		refs := make([]openapi.IssueTracking, 0, len(c.Issues))
+		for _, ref := range c.Issues {
+			tracked := openapi.IssueTracking{
+				Id: ref.RefID, IssueId: ref.ID,
+				Url: nonEmptyPtr(ref.URL), Title: nonEmptyPtr(ref.Title),
+				State:       openapi.IssueTrackingState(ref.State),
+				LastRefusal: nonEmptyPtr(ref.LastRefusal),
+			}
+			if len(ref.Refusals) > 0 {
+				standing := make([]openapi.Refusal, 0, len(ref.Refusals))
+				for _, refusal := range ref.Refusals {
+					standing = append(standing, openapi.Refusal{
+						VariantId: nonEmptyPtr(refusal.VariantID), Remark: refusal.Remark,
+					})
+				}
+				tracked.Refusals = &standing
+			}
+			refs = append(refs, tracked)
+		}
+		out.Issues = &refs
+	}
 	out.DiscardReason = nonEmptyPtr(c.DiscardReason)
 	for _, j := range c.Judgments {
 		out.Judgments = append(out.Judgments, openapi.Judgment{
-			Verdict: openapi.JudgmentVerdict(j.Verdict),
-			Remark:  nonEmptyPtr(j.Remark),
-			ActorId: j.ActorID,
-			At:      j.At,
+			Verdict:   openapi.JudgmentVerdict(j.Verdict),
+			Remark:    nonEmptyPtr(j.Remark),
+			VariantId: nonEmptyPtr(j.VariantID),
+			ActorId:   j.ActorID,
+			At:        j.At,
 		})
 	}
 	return out

@@ -14,9 +14,9 @@ const props = withDefaults(
   defineProps<{
     label: string
     values: Record<string, string>
-    /** Drop the word and keep the shapes. For a column too narrow to carry the
-     * label — the recap's one-tick columns — where the grid above has already
-     * taught what each shape means. */
+    /** Keep the shapes and drop the words they replace. A value the interface
+     * has no icon for keeps its text even here — two columns must never render
+     * identically (#220). */
     compact?: boolean
   }>(),
   { compact: false },
@@ -27,6 +27,11 @@ type Known = (typeof KNOWN)[number]
 
 const icons = computed(() =>
   Object.values(props.values).filter((v): v is Known => (KNOWN as readonly string[]).includes(v)),
+)
+
+/** The values no icon covers: spelled out even in compact mode. */
+const leftover = computed(() =>
+  Object.values(props.values).filter((v) => !(KNOWN as readonly string[]).includes(v)),
 )
 </script>
 
@@ -65,5 +70,6 @@ const icons = computed(() =>
       </template>
     </svg>
     <template v-if="!compact">{{ label }}</template>
+    <template v-else-if="leftover.length">{{ leftover.join('·') }}</template>
   </span>
 </template>

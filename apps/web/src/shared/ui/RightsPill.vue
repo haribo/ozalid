@@ -18,7 +18,7 @@ const CLASSES: Record<string, string> = {
 
 <template>
   <span
-    class="inline-block rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide uppercase"
+    class="inline-block rounded border px-1.5 py-0.5 font-mono text-label tracking-wide uppercase"
     :class="CLASSES[props.rights]"
   >
     {{ rights }}

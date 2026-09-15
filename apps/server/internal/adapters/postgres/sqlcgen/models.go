@@ -28,8 +28,15 @@ type Capture struct {
 	VariantID   string
 	BlobHash    string
 	Provenance  []byte
-	Freshness   *string
 	MovedPixels *int32
+}
+
+type CaptureAcceptance struct {
+	CaseID     string
+	StepID     string
+	VariantID  string
+	AcceptedBy *string
+	AcceptedAt pgtype.Timestamptz
 }
 
 type CaptureReference struct {
@@ -42,25 +49,24 @@ type CaptureReference struct {
 	EnvironmentID string
 }
 
-type CaptureVerdict struct {
-	CaseID    string
-	StepID    string
-	VariantID string
-	Status    string
-	UpdatedAt pgtype.Timestamptz
+type Case struct {
+	ID          string
+	ProjectID   string
+	CategoryID  *string
+	Title       string
+	Description *string
+	State       string
+	ArchivedAt  pgtype.Timestamptz
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
 }
 
-type Case struct {
-	ID               string
-	ProjectID        string
-	CategoryID       *string
-	Title            string
-	Description      *string
-	State            string
-	ArchivedAt       pgtype.Timestamptz
-	CreatedAt        pgtype.Timestamptz
-	UpdatedAt        pgtype.Timestamptz
-	CurrentEditionID *string
+type CaseLock struct {
+	CaseID    string
+	AccountID string
+	ClaimedAt pgtype.Timestamptz
+	BeatenAt  pgtype.Timestamptz
+	EditionID *string
 }
 
 type Category struct {
@@ -76,30 +82,40 @@ type Comment struct {
 	ID            string
 	CaseID        string
 	StepID        string
-	Kind          string
 	Body          string
 	State         string
-	IssueRef      *string
-	IssueUrl      *string
-	IssueTitle    *string
 	DiscardReason *string
 	AuthorID      string
 	CreatedAt     pgtype.Timestamptz
 	UpdatedAt     pgtype.Timestamptz
 }
 
+type CommentIssue struct {
+	ID          string
+	CommentID   string
+	IssueID     string
+	Url         *string
+	Title       *string
+	State       string
+	CreatedAt   pgtype.Timestamptz
+	DeliveredAt pgtype.Timestamptz
+}
+
 type CommentJudgment struct {
-	ID        string
-	CommentID string
-	Verdict   string
-	Remark    *string
-	ActorID   string
-	CreatedAt pgtype.Timestamptz
+	ID             string
+	CommentID      string
+	Verdict        string
+	Remark         *string
+	ActorID        string
+	CreatedAt      pgtype.Timestamptz
+	CommentIssueID *string
+	VariantID      *string
 }
 
 type CommentVariant struct {
 	CommentID string
 	VariantID string
+	CaptureID *string
 }
 
 type Edition struct {
@@ -146,6 +162,15 @@ type Recording struct {
 	CaseID    string
 	VariantID string
 	BlobHash  string
+}
+
+type RecordingJudgment struct {
+	ID          string
+	RecordingID string
+	Verdict     string
+	Remark      *string
+	ActorID     string
+	CreatedAt   pgtype.Timestamptz
 }
 
 type ServiceAccount struct {

@@ -47,7 +47,10 @@ const box = computed(() => Math.round(props.size * 1.55))
     >
       <title>{{ title }}</title>
       <path v-if="tone === 'done'" d="M4.6 8.3l2.3 2.3 4.5-5" />
-      <path v-else-if="tone === 'dev'" d="M3 4.4h10v6.2H7.6L4.9 12.6v-2H3z" />
+      <!-- A refusal is a verdict (ADR 0020): the counterpart of the check. -->
+      <path v-else-if="tone === 'dev'" d="M5.2 5.2l5.6 5.6M10.8 5.2l-5.6 5.6" />
+      <!-- The dash the gauge prints when it has nothing to count (#209). -->
+      <path v-else-if="tone === 'idle'" d="M5.4 8h5.2" />
     </svg>
   </span>
 </template>

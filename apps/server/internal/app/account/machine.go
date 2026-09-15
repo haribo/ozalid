@@ -39,6 +39,16 @@ type ServiceToken struct {
 	CreatedAt  time.Time
 }
 
+// TokenIdentity is what a token may learn about itself (#180): whose key it
+// is, and which project it opens. Never the token, never the rights — asking
+// is not being granted more.
+type TokenIdentity struct {
+	ID          string
+	Name        string
+	ProjectSlug string
+	ProjectName string
+}
+
 // Machines stores the programs that reach a project, and their credentials.
 type Machines interface {
 	CreateServiceAccount(ctx context.Context, slug, name, ownerID string, rights access.Rights) (ServiceAccount, error)
@@ -46,6 +56,12 @@ type Machines interface {
 	MintToken(ctx context.Context, slug, serviceAccountID, label string) (MintedToken, error)
 	ListTokens(ctx context.Context, slug, serviceAccountID string) ([]ServiceToken, error)
 	RetireToken(ctx context.Context, slug, serviceAccountID, tokenID string) error
+	TokenIdentity(ctx context.Context, serviceAccountID string) (TokenIdentity, bool, error)
+}
+
+// TokenIdentity answers whose key the calling program holds.
+func (s *Service) TokenIdentity(ctx context.Context, serviceAccountID string) (TokenIdentity, bool, error) {
+	return s.machines.TokenIdentity(ctx, serviceAccountID)
 }
 
 // ErrLabelRequired means a token was minted without saying what it is for.

@@ -6,37 +6,44 @@
  * Its counted legend is what keeps the two readings apart.
  */
 import { RouterLink } from 'vue-router'
-import { StateGauge, StatePill } from '@/shared/ui'
-import { formatMoment, type CaseState } from '@/shared/lib'
+import { StateGauge, StateIcon, StateKey } from '@/shared/ui'
+import { formatMoment, toneOfCase, type CaseState } from '@/shared/lib'
 import type { components } from '@/shared/api'
 
 type Case = components['schemas']['Case']
 
 const props = defineProps<{ slug: string; cases: Case[] }>()
 
+const INK: Record<string, string> = {
+  reviewer: 'text-indigo-700 dark:text-indigo-300',
+  done: 'text-emerald-700 dark:text-emerald-400',
+  dev: 'text-amber-700 dark:text-amber-400',
+  idle: 'text-slate-500 dark:text-slate-400',
+}
+
 function parts(c: Case) {
   const k = c.captures
   if (!k) return []
   return [
-    { tone: 'done' as const, count: k.validated, label: 'validées' },
-    { tone: 'reviewer' as const, count: k.toJudge, label: 'à juger' },
-    { tone: 'dev' as const, count: k.commented, label: 'commentées' },
+    { tone: 'done' as const, count: k.accepted, label: 'accepted' },
+    { tone: 'reviewer' as const, count: k.toJudge, label: 'to review' },
+    { tone: 'dev' as const, count: k.refused, label: 'refused' },
   ]
 }
 </script>
 
 <template>
   <div class="overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700">
-    <table class="w-full border-collapse text-[13.5px]">
+    <table class="w-full border-collapse text-body">
       <thead>
         <tr
-          class="bg-slate-50 font-mono text-[10.5px] tracking-widest text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400"
+          class="bg-slate-50 font-mono text-label tracking-widest text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400"
         >
           <th class="px-3 py-2 text-left font-medium">id</th>
-          <th class="px-3 py-2 text-left font-medium">cas</th>
-          <th class="px-3 py-2 text-left font-medium">état</th>
+          <th class="px-3 py-2 text-left font-medium">cases</th>
+          <th class="px-3 py-2 text-left font-medium">state</th>
           <th class="w-1/4 px-3 py-2 text-left font-medium">captures</th>
-          <th class="px-3 py-2 text-left font-medium whitespace-nowrap">dernière mise à jour</th>
+          <th class="px-3 py-2 text-left font-medium whitespace-nowrap">last updated</th>
         </tr>
       </thead>
       <tbody>
@@ -46,7 +53,7 @@ function parts(c: Case) {
           class="border-t border-slate-200 dark:border-slate-700"
         >
           <td
-            class="px-3 py-2.5 font-mono text-[11px] whitespace-nowrap text-slate-500 dark:text-slate-400"
+            class="px-3 py-2.5 font-mono text-mono whitespace-nowrap text-slate-500 dark:text-slate-400"
           >
             {{ c.id }}
           </td>
@@ -59,13 +66,17 @@ function parts(c: Case) {
             </RouterLink>
           </td>
           <td class="px-3 py-2.5">
-            <StatePill :state="c.state as CaseState" />
+            <!-- The disc alone (#238): the word lives in the legend below
+                 and in the accessible name. -->
+            <span class="inline-flex" :class="INK[toneOfCase(c.state as CaseState)]">
+              <StateIcon :tone="toneOfCase(c.state as CaseState)" :size="13" />
+            </span>
           </td>
           <td class="px-3 py-2.5">
             <StateGauge :parts="parts(c)" />
           </td>
           <td
-            class="px-3 py-2.5 font-mono text-[11px] whitespace-nowrap text-slate-500 dark:text-slate-400"
+            class="px-3 py-2.5 font-mono text-mono whitespace-nowrap text-slate-500 dark:text-slate-400"
           >
             {{ formatMoment(c.lastEdition) }}
           </td>
@@ -73,4 +84,5 @@ function parts(c: Case) {
       </tbody>
     </table>
   </div>
+  <StateKey />
 </template>

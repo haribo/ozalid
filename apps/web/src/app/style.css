@@ -1,1 +1,17 @@
 @import 'tailwindcss';
+
+/* The four type roles, and nothing else (#145). `mono` is body's monospace
+ * companion, one notch under; a fifth size is a lint error, not a choice —
+ * `text-[` is forbidden in apps/web/src. */
+@theme {
+  --text-label: 12px;
+  --text-label--line-height: 1.4;
+  --text-mono: 13px;
+  --text-mono--line-height: 1.5;
+  --text-body: 14.5px;
+  --text-body--line-height: 1.55;
+  --text-title: 17px;
+  --text-title--line-height: 1.3;
+  --text-display: 22px;
+  --text-display--line-height: 1.2;
+}

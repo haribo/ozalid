@@ -8,6 +8,7 @@ import (
 	"github.com/haribo/ozalid/apps/server/internal/app/account"
 	app "github.com/haribo/ozalid/apps/server/internal/app/catalogue"
 	"github.com/haribo/ozalid/apps/server/internal/domain/access"
+	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
 	"github.com/haribo/ozalid/apps/server/internal/ports/http/openapi"
 )
 
@@ -167,6 +168,40 @@ func (s *Server) RetireServiceToken(ctx context.Context, request openapi.RetireS
 		return nil, err
 	}
 	return openapi.RetireServiceToken204Response{}, nil
+}
+
+// WhoIsTheToken answers whose key the bearer token is, and which project it
+// opens (#180). /me stays the person's mirror; this is the machine's.
+func (s *Server) WhoIsTheToken(ctx context.Context, _ openapi.WhoIsTheTokenRequestObject) (openapi.WhoIsTheTokenResponseObject, error) {
+	by := actorFrom(ctx)
+	if by.Kind != actor.Machine || by.Zero() {
+		return openapi.WhoIsTheToken401ApplicationProblemPlusJSONResponse{
+			UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(
+				problem("unknown-token", "No live token was presented", http.StatusUnauthorized,
+					"Retired tokens and deactivated accounts resolve to nobody, exactly like a token that never existed."),
+			),
+		}, nil
+	}
+
+	identity, ok, err := s.account.TokenIdentity(ctx, by.ID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return openapi.WhoIsTheToken401ApplicationProblemPlusJSONResponse{
+			UnauthenticatedApplicationProblemPlusJSONResponse: openapi.UnauthenticatedApplicationProblemPlusJSONResponse(
+				problem("unknown-token", "No live token was presented", http.StatusUnauthorized, ""),
+			),
+		}, nil
+	}
+	return openapi.WhoIsTheToken200JSONResponse{
+		ServiceAccountId: identity.ID,
+		Name:             identity.Name,
+		Project: struct {
+			Name string `json:"name"`
+			Slug string `json:"slug"`
+		}{Name: identity.ProjectName, Slug: identity.ProjectSlug},
+	}, nil
 }
 
 func badServiceAccount(kind, title, detail string) openapi.CreateServiceAccount400ApplicationProblemPlusJSONResponse {

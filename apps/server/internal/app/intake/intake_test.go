@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/haribo/ozalid/apps/server/internal/app/intake"
@@ -15,7 +16,7 @@ import (
 type refusingRepo struct{ t *testing.T }
 
 func (r refusingRepo) WriteEdition(
-	context.Context, string, contract.Manifest, map[intake.Square]intake.Verdict,
+	context.Context, string, contract.Manifest, map[intake.ReferenceKey]intake.Verdict,
 ) (intake.Result, error) {
 	r.t.Error("the manifest reached the repository, want it refused first")
 	return intake.Result{}, nil
@@ -28,7 +29,7 @@ func (r refusingRepo) AxisOrder(context.Context, string) ([]string, error) {
 
 func (r refusingRepo) ApprovedBytes(
 	context.Context, string, contract.Manifest,
-) (map[intake.Square]string, error) {
+) (map[intake.ReferenceKey]string, error) {
 	r.t.Error("the manifest reached the repository, want it refused first")
 	return nil, nil
 }
@@ -45,6 +46,11 @@ type refusingBlobs struct{ t *testing.T }
 func (b refusingBlobs) Get(context.Context, string) (io.ReadCloser, error) {
 	b.t.Error("intake read a blob, want the manifest refused first")
 	return nil, nil
+}
+
+func (b refusingBlobs) Exists(context.Context, string) (bool, error) {
+	b.t.Error("intake checked a blob, want the manifest refused first")
+	return false, nil
 }
 
 func validHash(b byte) string {
@@ -135,6 +141,35 @@ func TestAxisNamesAreCollectedFromEveryCaptureAndSorted(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("got %v, want %v", got, want)
 			break
+		}
+	}
+}
+
+func TestTheSameSquareTwiceIsRefusedNamingIt(t *testing.T) {
+	svc := intake.New(refusingRepo{t}, refusingBlobs{t})
+
+	// One (case, step, variant) twice in one manifest hit the storage's unique
+	// key and came back as a bare 500 — a full elimination round to trace a
+	// client-side collision (#182). Refused before anything is written, and
+	// the refusal names the exact capture.
+	m := contract.Manifest{Cases: []contract.ManifestCase{{
+		ID: "abc",
+		Steps: []contract.ManifestStep{
+			{Name: "opens the door", Captures: []contract.ManifestCapture{
+				{Variant: map[string]string{"theme": "dark"}, Hash: "sha256:aa"},
+			}},
+			{Name: "opens the door", Captures: []contract.ManifestCapture{
+				{Variant: map[string]string{"theme": "dark"}, Hash: "sha256:bb"},
+			}},
+		},
+	}}}
+	_, err := svc.Take(context.Background(), "demo", m)
+	if !errors.Is(err, intake.ErrDuplicateCapture) {
+		t.Fatalf("err = %v, want ErrDuplicateCapture", err)
+	}
+	for _, needle := range []string{"abc", "opens the door", "dark"} {
+		if !strings.Contains(err.Error(), needle) {
+			t.Errorf("error %q does not name %q", err, needle)
 		}
 	}
 }

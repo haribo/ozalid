@@ -9,7 +9,7 @@ type Comment = components['schemas']['Comment']
  *
  * Each verdict is sent as it is made. Nothing accumulates in the browser: a
  * review started on one machine continues on another, and closing the tab
- * loses nothing. A case with eight squares of twelve judged is not a broken
+ * loses nothing. A case with eight captures of twelve judged is not a broken
  * state — it is `to-review`, exactly what the server computes.
  *
  * The single exception is a write the server refused for want of a session:
@@ -41,32 +41,172 @@ export function useReview(slug: () => string, caseId: () => string) {
     comments.value = said.error ? [] : said.data
   }
 
-  /** Validate one square: looked at, nothing to say. */
-  async function validate(stepId: string, variantId: string) {
-    await send({ validated: [{ stepId, variantId }] })
+  /** Accept one capture — and, switching from a refusal, withdraw the draft
+   * remark in the same write: one gesture, never two (ADR 0020). */
+  async function accept(stepId: string, variantId: string, withdraw = false) {
+    await send({
+      accepted: [{ stepId, variantId }],
+      ...(withdraw ? { unrefused: [{ stepId, variantId }] } : {}),
+    })
   }
 
-  /** Report something on one step, over the variants it applies to. */
-  async function comment(input: {
+  /** Take an acceptance back — a misclick, or a second look (#156). */
+  async function unaccept(stepId: string, variantId: string) {
+    await send({ unaccepted: [{ stepId, variantId }] })
+  }
+
+  /** Refuse: the remark over the variants it covers — and, switching from an
+   * acceptance, take it back in the same write. */
+  async function refuse(input: {
     stepId: string
-    kind: 'defect' | 'improvement'
     body: string
     variantIds: string[]
+    unaccept: boolean
   }) {
-    await send({ comments: [input] })
+    await send({
+      comments: [{ stepId: input.stepId, body: input.body, variantIds: input.variantIds }],
+      ...(input.unaccept
+        ? { unaccepted: input.variantIds.map((variantId) => ({ stepId: input.stepId, variantId })) }
+        : {}),
+    })
   }
 
-  /** Accept a delivered fix, or refuse it with a remark. */
-  async function judge(commentId: string, accept: boolean, remark?: string) {
+  /** Withdraw a draft refusal: the reviewer's own remark goes with it. */
+  async function unrefuse(stepId: string, variantId: string) {
+    await send({ unrefused: [{ stepId, variantId }] })
+  }
+
+  /** Edit a draft remark — the author reworking their own words (ADR 0020). */
+  async function edit(commentId: string, body: string, variantIds: string[]) {
     saving.value = true
-    const result = await api.POST('/projects/{slug}/comments/{commentId}/judgment', {
+    const result = await api.PATCH('/projects/{slug}/comments/{commentId}', {
       params: { path: { slug: slug(), commentId } },
-      body: { accept, remark },
+      body: { body, variantIds },
     })
     saving.value = false
     if (result.error) {
       if (expired(result.response)) {
-        held.value = () => judge(commentId, accept, remark)
+        held.value = () => edit(commentId, body, variantIds)
+        return
+      }
+      error.value = result.error.title
+      return
+    }
+    held.value = null
+    await load()
+  }
+
+  /** Accept one delivered fix, or refuse it with a remark.
+   *
+   * Per ref: a comment may carry several issues, each judged on its own
+   * round (#138). */
+  async function judge(
+    commentId: string,
+    issueId: string,
+    accept: boolean,
+    remark: string,
+    variantId: string,
+  ) {
+    saving.value = true
+    const result = await api.POST('/projects/{slug}/comments/{commentId}/judgment', {
+      params: { path: { slug: slug(), commentId } },
+      body: { accept, remark, issueId, variantId },
+    })
+    saving.value = false
+    if (result.error) {
+      if (expired(result.response)) {
+        held.value = () => judge(commentId, issueId, accept, remark, variantId)
+        return
+      }
+      error.value = result.error.title
+      return
+    }
+    held.value = null
+    await load()
+  }
+
+  /** Who else holds the case (ADR 0005, #95): null while the caller does —
+   * or while nobody does. Filled from the claim's 423 and the case read. */
+  const lockedBy = ref<{ name: string; since: string } | null>(null)
+
+  /** Claim the case, or keep holding it — the same call is the heartbeat.
+   * A 423 means somebody else reviews: the page turns read-only. */
+  async function claim(fresh = false) {
+    const result = await api.POST('/projects/{slug}/cases/{caseId}/lock', {
+      params: { path: { slug: slug(), caseId: caseId() } },
+      body: { fresh },
+    })
+    if (result.response.status === 423) {
+      const found = await api.GET('/projects/{slug}/cases/{caseId}', {
+        params: { path: { slug: slug(), caseId: caseId() } },
+      })
+      lockedBy.value = found.data?.held
+        ? { name: found.data.held.name, since: found.data.held.since }
+        : { name: 'somebody', since: '' }
+      return
+    }
+    if (!result.error) lockedBy.value = null
+  }
+
+  /** Let the case go — leaving the page is letting go. */
+  async function release() {
+    await api.DELETE('/projects/{slug}/cases/{caseId}/lock', {
+      params: { path: { slug: slug(), caseId: caseId() } },
+    })
+  }
+
+  /** Judge the flow video on screen (ADR 0023): the verdict lands on
+   * exactly these bytes, and a new edition resets it. */
+  async function judgeRecording(recordingId: string, accept: boolean, remark: string) {
+    saving.value = true
+    const result = await api.POST('/projects/{slug}/recordings/{recordingId}/judgment', {
+      params: { path: { slug: slug(), recordingId } },
+      body: { accept, remark: remark || undefined },
+    })
+    saving.value = false
+    if (result.error) {
+      if (expired(result.response)) {
+        held.value = () => judgeRecording(recordingId, accept, remark)
+        return
+      }
+      error.value = result.error.title
+      return
+    }
+    held.value = null
+    await load()
+  }
+
+  /** Take the video's verdict back, symmetrically. */
+  async function unjudgeRecording(recordingId: string) {
+    saving.value = true
+    const result = await api.DELETE('/projects/{slug}/recordings/{recordingId}/judgment', {
+      params: { path: { slug: slug(), recordingId } },
+    })
+    saving.value = false
+    if (result.error) {
+      if (expired(result.response)) {
+        held.value = () => unjudgeRecording(recordingId)
+        return
+      }
+      error.value = result.error.title
+      return
+    }
+    held.value = null
+    await load()
+  }
+
+  /** Take a judgment back — the reviewer reconsiders an acceptance or a
+   * refusal, and the ref returns to their court (#167, #171). */
+  async function unjudge(commentId: string, issueId: string, variantId: string) {
+    saving.value = true
+    const result = await api.DELETE('/projects/{slug}/comments/{commentId}/judgment', {
+      params: { path: { slug: slug(), commentId } },
+      body: { issueId, variantId: variantId || undefined },
+    })
+    saving.value = false
+    if (result.error) {
+      if (expired(result.response)) {
+        held.value = () => unjudge(commentId, issueId, variantId)
         return
       }
       error.value = result.error.title
@@ -111,7 +251,27 @@ export function useReview(slug: () => string, caseId: () => string) {
     await load()
   }
 
-  return { grid, comments, error, saving, held, load, validate, comment, judge, resume }
+  return {
+    grid,
+    comments,
+    error,
+    saving,
+    held,
+    load,
+    claim,
+    release,
+    lockedBy,
+    accept,
+    unaccept,
+    refuse,
+    unrefuse,
+    edit,
+    judge,
+    unjudge,
+    judgeRecording,
+    unjudgeRecording,
+    resume,
+  }
 }
 
 /**

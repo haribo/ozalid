@@ -4,6 +4,7 @@ import { AccessPage, TokensPage } from '@/pages/access'
 import { CataloguePage } from '@/pages/catalogue'
 import { ProjectsPage } from '@/pages/projects'
 import { CasePage } from '@/pages/case'
+import { DesignSystemPage } from '@/pages/dev'
 import { SignInPage, ClaimPage } from '@/pages/sign-in'
 import { useSession } from '@/features/session'
 
@@ -23,7 +24,40 @@ export const router = createRouter({
     { path: '/projects/:slug/access/:serviceAccountId', component: TokensPage },
     { path: '/projects/:slug', component: CataloguePage },
     { path: '/projects/:slug/categories/:categoryId', component: CataloguePage },
+    // The queue walk, addressed down to the capture it is looking at, and
+    // resolving to the catalogue for the same reason the carousel resolves to
+    // the case page: the page underneath must not unmount, or a held verdict
+    // dies with it (frontend ADR 0007). Two addresses, mirroring the
+    // catalogue's own two, because the walk's reach is the depth it was
+    // started from (#205).
+    {
+      path: '/projects/:slug/queue/cases/:caseId/steps/:stepId/variants/:variantId',
+      component: CataloguePage,
+    },
+    {
+      path: '/projects/:slug/categories/:categoryId/queue/cases/:caseId/steps/:stepId/variants/:variantId',
+      component: CataloguePage,
+    },
     { path: '/projects/:slug/cases/:caseId', component: CasePage },
+    // The carousel: the same component, so the instance — and the verdict it
+    // may be holding through an expired session (#70) — survives opening and
+    // closing a capture. A capture worth judging is a capture worth pointing
+    // at, which is why this is an address and not a component state (#125).
+    {
+      path: '/projects/:slug/cases/:caseId/steps/:stepId/variants/:variantId',
+      component: CasePage,
+    },
+    // The recording view, addressed by variant: the address survives a push —
+    // it always shows the current edition's video (ADR 0023).
+    {
+      path: '/projects/:slug/cases/:caseId/recordings/:variantId',
+      component: CasePage,
+    },
+    // The gallery exists only in a dev build: no end user ever sees it, and
+    // the production bundle does not carry it (#155).
+    ...(import.meta.env.DEV
+      ? [{ path: '/dev/design-system', component: DesignSystemPage, meta: { anonymous: true } }]
+      : []),
     { path: '/sign-in', component: SignInPage, meta: { anonymous: true } },
     { path: '/sign-in/:link', component: ClaimPage, meta: { anonymous: true } },
   ],

@@ -1,22 +1,12 @@
-// Package freshness answers one question about one capture: are the bytes on
-// display still the bytes the reviewer approved?
+// Package movement answers one question about one capture: how far are the
+// bytes on display from the bytes the reviewer approved?
 //
 // Everything here is a pure function over two decoded images. No clock, no
 // database, no file — the same two images always give the same answer, which is
 // what lets a stored verdict be replayed later and checked (ADR 0002).
-package freshness
+package movement
 
 import "image"
-
-// State is what a capture is worth against what was approved (product.md §3.3).
-type State string
-
-const (
-	// Current — the bytes the reviewer approved are still the bytes on display.
-	Current State = "current"
-	// ToReReview — the capture moved, and by more than noise.
-	ToReReview State = "to-re-review"
-)
 
 // Tolerance is how far two pixels may differ, per channel, before they count as
 // different at all.
@@ -31,20 +21,22 @@ const (
 // renderers agreeing on a colour.
 const Tolerance = 2
 
-// Comparison is what looking at two images found.
+// Comparison is what looking at two images found: the measurement, and only
+// the measurement — the conclusion is derived at read time against the
+// project's threshold (ADR 0021).
 type Comparison struct {
-	State State
 	// Pixels is how many differed by more than Tolerance, or -1 when no
 	// pixel-by-pixel reading was possible.
 	Pixels int
 }
 
-// Compare reads two images and says whether the second moved away from the
-// first by more than threshold pixels.
+// Compare reads two images and measures how far the second moved from the
+// first.
 //
-// Images of different dimensions are moved without being compared: there is no
-// pixel-to-pixel reading of two pictures that are not the same shape, and
-// pretending otherwise would produce a number nobody could act on.
+// Images of different dimensions are not compared: there is no pixel-to-pixel
+// reading of two pictures that are not the same shape, and pretending
+// otherwise would produce a number nobody could act on — Pixels is -1, and
+// the derivation reads that as moved (ADR 0021).
 //
 // Every pixel is counted, even once the answer is settled. Stopping early would
 // be cheaper and would make the count useless: it would always report one more
@@ -52,22 +44,17 @@ type Comparison struct {
 // project can judge its threshold rather than guess it. A project whose
 // threshold is still the default zero — every project, on its first run — would
 // learn nothing at all about the noise its own suite makes.
-func Compare(approved, incoming image.Image, threshold int) Comparison {
+func Compare(approved, incoming image.Image) Comparison {
 	a, b := approved.Bounds(), incoming.Bounds()
 	if a.Dx() != b.Dx() || a.Dy() != b.Dy() {
-		return Comparison{State: ToReReview, Pixels: -1}
+		return Comparison{Pixels: -1}
 	}
 
 	differing := countRGBA(approved, incoming)
 	if differing < 0 {
 		differing = countAny(approved, incoming)
 	}
-
-	state := Current
-	if differing > threshold {
-		state = ToReReview
-	}
-	return Comparison{State: state, Pixels: differing}
+	return Comparison{Pixels: differing}
 }
 
 // countRGBA walks two RGBA images through their byte slices, which is what

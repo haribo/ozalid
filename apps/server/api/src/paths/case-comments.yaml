@@ -13,7 +13,6 @@ get:
   security:
     - serviceToken: []
     - session: []
-    - session: []
   summary: Read what has been said about a case
   description: |
     Settled comments included. Nothing is deleted, and a discarded one stays

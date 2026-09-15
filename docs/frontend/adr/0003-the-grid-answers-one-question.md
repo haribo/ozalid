@@ -5,18 +5,18 @@
 Accepted — 2026-08-26
 
 Edited in place the same day, before any code was written against it: the mark
-was specified as sitting at the cell's corner, which is a placement the decision
+was specified as sitting at the capture's corner, which is a placement the decision
 had no business fixing, and the count of readings fell from seven to six once
-*validated and moved* and *commented and moved* proved to be one cell.
+*validated and moved* and *commented and moved* proved to be one capture.
 
 ## Context
 
 A case's grid puts steps down the page and variants across it, one capture per
-cell. Each cell carries a verdict — `to-review`, `to-fix`, `validated` — and,
+capture. Each capture carries a verdict — `to-review`, `to-fix`, `validated` — and,
 since freshness landed, whether that capture still shows the bytes a reviewer
 approved.
 
-Two facts, one cell. The first attempt showed both: the word `validée` next to
+Two facts, one capture. The first attempt showed both: the word `validée` next to
 the word `a bougé`, the green ring kept, the verdict's badge dropped. It was
 defensible on paper — both facts are true, and freshness is an overlay rather
 than a replacement (`product.md` §3.3) — and it read badly.
@@ -41,7 +41,7 @@ opacity — carrying the mark that says why it came back in place of the verdict
 badge it used to wear. It is the truth: for the only question the grid asks, it
 *is* to judge.
 
-It follows that *validated and moved* and *commented and moved* are one cell,
+It follows that *validated and moved* and *commented and moved* are one capture,
 not two: nothing visible separated them, and the verdict they used to carry is
 precisely what the grid no longer reports. A commented capture that has moved
 also loses its bubble, and that is not a loss — the comment is about an image
@@ -72,7 +72,7 @@ colour would say *settled* while the mark says *moved*, and colour wins that
 argument every time.
 
 **Keeping the word and letting the verdict recede to grey.** Built, looked at,
-rejected: it fixes the shouting but not the joining. The cell still reports two
+rejected: it fixes the shouting but not the joining. The capture still reports two
 things where the grid asks one.
 
 ## Consequences
@@ -87,7 +87,7 @@ things where the grid asks one.
   is the difference — not the verdict, but whether the mark still designates
   something exact.
 - The grid needs a legend, since the words are gone. One place to learn the
-  language, rather than a translation repeated under every cell.
+  language, rather than a translation repeated under every capture.
 - `to-review` combined with *moved* cannot occur: a reference is only stamped
   when a reviewer validates, so a capture never validated has nothing to compare
   against ([ADR 0017](../../adr/0017-a-reference-belongs-to-an-environment.md)).

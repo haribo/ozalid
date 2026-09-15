@@ -32,7 +32,7 @@ refuse are gestures; putting a disc on them would say that pressing the button
 *is* the state rather than the way to reach it. The two are told apart by shape
 before they are read.
 
-**An empty disc is a status.** Nothing has been said about this square yet. It
+**An empty disc is a status.** Nothing has been said about this capture yet. It
 needs no glyph, and inventing one would name something that has not happened.
 
 ## Alternatives rejected

@@ -18,6 +18,10 @@ hash = "aabd778ef08e"
 adopted = "2026-08-19"
 hash = "6d93ba90db46"
 
+[rules.issue-handling]
+adopted = "2026-09-07"
+hash = "bd91539c493b"
+
 [rules.measurable-defect]
 adopted = "2026-08-19"
 hash = "268cf19aeb9d"

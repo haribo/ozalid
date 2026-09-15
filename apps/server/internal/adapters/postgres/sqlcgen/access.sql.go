@@ -607,6 +607,36 @@ func (q *Queries) ServiceAccountByTokenHash(ctx context.Context, tokenHash strin
 	return i, err
 }
 
+const serviceAccountIdentity = `-- name: ServiceAccountIdentity :one
+SELECT sa.id, sa.name, p.slug AS project_slug, p.name AS project_name
+FROM service_accounts sa
+JOIN project_members m ON m.service_account_id = sa.id
+JOIN projects p ON p.id = m.project_id
+WHERE sa.id = $1 AND sa.deactivated_at IS NULL
+`
+
+type ServiceAccountIdentityRow struct {
+	ID          string
+	Name        string
+	ProjectSlug string
+	ProjectName string
+}
+
+// What a token can learn about itself (#180): whose key it is, and which
+// project it opens. A program fails fast on "token retired" instead of
+// discovering it on its first real call.
+func (q *Queries) ServiceAccountIdentity(ctx context.Context, id string) (ServiceAccountIdentityRow, error) {
+	row := q.db.QueryRow(ctx, serviceAccountIdentity, id)
+	var i ServiceAccountIdentityRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.ProjectSlug,
+		&i.ProjectName,
+	)
+	return i, err
+}
+
 const serviceAccountInProject = `-- name: ServiceAccountInProject :one
 SELECT sa.id, sa.name, sa.owner_id, sa.created_at, sa.deactivated_at FROM service_accounts sa
 JOIN project_members m ON m.service_account_id = sa.id

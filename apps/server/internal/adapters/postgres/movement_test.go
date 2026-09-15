@@ -7,16 +7,17 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/haribo/ozalid/apps/server/internal/adapters/blobstore"
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres"
 	"github.com/haribo/ozalid/apps/server/internal/adapters/postgres/sqlcgen"
+	appcomment "github.com/haribo/ozalid/apps/server/internal/app/comment"
 	"github.com/haribo/ozalid/apps/server/internal/app/intake"
 	"github.com/haribo/ozalid/apps/server/internal/app/session"
 	"github.com/haribo/ozalid/apps/server/internal/domain/actor"
-	"github.com/haribo/ozalid/apps/server/internal/domain/freshness"
 	"github.com/haribo/ozalid/apps/server/internal/domain/review"
 	"github.com/haribo/ozalid/internal/contract"
 )
@@ -70,7 +71,7 @@ func storeBlobBytes(t *testing.T, ctx context.Context, repo *postgres.Repository
 	return hash
 }
 
-// takeIn pushes one capture through the real intake service, so the freshness
+// takeIn pushes one capture through the real intake service, so the movement
 // path is exercised end to end rather than simulated.
 func takeIn(
 	t *testing.T, ctx context.Context, repo *postgres.Repository,
@@ -94,14 +95,14 @@ func takeIn(
 	return err
 }
 
-func freshnessOf(t *testing.T, ctx context.Context, repo *postgres.Repository, slug, caseID string) (string, *int) {
+func statusOfFirst(t *testing.T, ctx context.Context, repo *postgres.Repository, slug, caseID string) (string, *int) {
 	t.Helper()
 	grid, err := repo.CaseGrid(ctx, slug, caseID, nil)
 	if err != nil {
 		t.Fatalf("reading the grid: %v", err)
 	}
-	cell := grid.Steps[0].Cells[0]
-	return cell.Freshness, cell.MovedPixels
+	capture := grid.Steps[0].Captures[0]
+	return capture.Status, capture.MovedPixels
 }
 
 func validateOnly(t *testing.T, ctx context.Context, repo *postgres.Repository, slug, caseID string) {
@@ -111,8 +112,8 @@ func validateOnly(t *testing.T, ctx context.Context, repo *postgres.Repository, 
 		t.Fatalf("reading the grid: %v", err)
 	}
 	if _, err := repo.SaveReview(ctx, slug, caseID, actor.Actor{ID: "nina", Kind: actor.Human}, session.Save{
-		Validated: []review.Cell{{
-			StepID: grid.Steps[0].ID, VariantID: grid.Steps[0].Cells[0].VariantID,
+		Accepted: []review.Capture{{
+			StepID: grid.Steps[0].ID, VariantID: grid.Steps[0].Captures[0].VariantID,
 		}},
 	}); err != nil {
 		t.Fatalf("saving the review: %v", err)
@@ -127,9 +128,9 @@ func TestACaptureNobodyApprovedSaysNothingAboutItsFreshness(t *testing.T) {
 		t.Fatalf("taking the edition in: %v", err)
 	}
 
-	state, moved := freshnessOf(t, ctx, repo, project.Slug, kase.ID)
-	if state != "" {
-		t.Errorf("freshness = %q, want nothing — no reference exists", state)
+	state, moved := statusOfFirst(t, ctx, repo, project.Slug, kase.ID)
+	if state != "to-review" {
+		t.Errorf("status = %q, want to-review — no reference exists, nothing was judged", state)
 	}
 	if moved != nil {
 		t.Errorf("movedPixels = %v, want nothing", *moved)
@@ -148,9 +149,9 @@ func TestTheSameBytesComeBackCurrentWithoutBeingCompared(t *testing.T) {
 		t.Fatalf("taking the second edition in: %v", err)
 	}
 
-	state, moved := freshnessOf(t, ctx, repo, project.Slug, kase.ID)
-	if state != string(freshness.Current) {
-		t.Errorf("freshness = %q, want current", state)
+	state, moved := statusOfFirst(t, ctx, repo, project.Slug, kase.ID)
+	if state != "accepted" {
+		t.Errorf("status = %q, want accepted — the same bytes moved nothing", state)
 	}
 	// Content addressing answers this one for free: same address, same bytes,
 	// nothing decoded (ADR 0004).
@@ -170,9 +171,9 @@ func TestAnImageThatMovedIsMarkedAndCounted(t *testing.T) {
 		t.Fatalf("taking the second edition in: %v", err)
 	}
 
-	state, moved := freshnessOf(t, ctx, repo, project.Slug, kase.ID)
-	if state != string(freshness.ToReReview) {
-		t.Errorf("freshness = %q, want to-re-review", state)
+	state, moved := statusOfFirst(t, ctx, repo, project.Slug, kase.ID)
+	if state != "moved" {
+		t.Errorf("status = %q, want moved", state)
 	}
 	if moved == nil {
 		t.Fatal("movedPixels is nil, want the count that makes the threshold judgeable")
@@ -201,9 +202,9 @@ func TestNoiseUnderTheProjectsThresholdSummonsNobody(t *testing.T) {
 		t.Fatalf("taking the second edition in: %v", err)
 	}
 
-	state, moved := freshnessOf(t, ctx, repo, project.Slug, kase.ID)
-	if state != string(freshness.Current) {
-		t.Errorf("freshness = %q, want current — four pixels under a threshold of ten", state)
+	state, moved := statusOfFirst(t, ctx, repo, project.Slug, kase.ID)
+	if state != "accepted" {
+		t.Errorf("status = %q, want accepted — four pixels under a threshold of ten", state)
 	}
 	if moved == nil || *moved != 4 {
 		t.Errorf("movedPixels = %v, want 4 kept even though nothing was raised", moved)
@@ -303,5 +304,183 @@ func TestMissingContentIsReportedBeforeAFormatProblem(t *testing.T) {
 	var missing *intake.MissingContent
 	if !errors.As(err, &missing) {
 		t.Fatalf("err = %v, want the missing content reported first", err)
+	}
+}
+
+// Accepting a moved capture clears the mark: the acceptance re-stamps the
+// reference, so the derivation compares the pixels against what was just
+// approved — the bug that had no test before ADR 0021 (#194).
+func TestAcceptingAMovedCaptureClearsTheMark(t *testing.T) {
+	ctx, repo, blobs, project, kase := freshnessFixture(t)
+	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 0)); err != nil {
+		t.Fatalf("first edition: %v", err)
+	}
+	validateOnly(t, ctx, repo, project.Slug, kase.ID)
+	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 6)); err != nil {
+		t.Fatalf("second edition: %v", err)
+	}
+	if state, _ := statusOfFirst(t, ctx, repo, project.Slug, kase.ID); state != "moved" {
+		t.Fatalf("status = %q before the acceptance, want moved", state)
+	}
+
+	validateOnly(t, ctx, repo, project.Slug, kase.ID)
+	if state, _ := statusOfFirst(t, ctx, repo, project.Slug, kase.ID); state != "accepted" {
+		t.Errorf("status = %q after accepting the moved capture, want accepted — no mark remains", state)
+	}
+}
+
+// Raising the threshold reclassifies at once, with no new intake: the
+// conclusion is derived, only the measurement is stored (ADR 0021, #194).
+func TestRaisingTheThresholdReclassifiesAtOnce(t *testing.T) {
+	ctx, repo, blobs, project, kase := freshnessFixture(t)
+	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 0)); err != nil {
+		t.Fatalf("first edition: %v", err)
+	}
+	validateOnly(t, ctx, repo, project.Slug, kase.ID)
+	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 6)); err != nil {
+		t.Fatalf("second edition: %v", err)
+	}
+	state, moved := statusOfFirst(t, ctx, repo, project.Slug, kase.ID)
+	if state != "moved" || moved == nil {
+		t.Fatalf("status = %q (moved=%v), want moved with its measurement", state, moved)
+	}
+
+	if _, err := repo.Pool().Exec(ctx,
+		"UPDATE projects SET pixel_threshold = $2 WHERE id = $1", project.ID, *moved); err != nil {
+		t.Fatalf("raising the threshold: %v", err)
+	}
+	if state, _ := statusOfFirst(t, ctx, repo, project.Slug, kase.ID); state != "accepted" {
+		t.Errorf("status = %q after raising the threshold above the measurement, want accepted", state)
+	}
+}
+
+// Accepting a delivered fix is approving the displayed bytes (#206): the
+// judgment stamps the reference for every covered capture, so the capture
+// derives accepted — not moved against the pre-fix pixels. Observed on
+// production rc.18: a judged fix read "moved · 19203 px".
+func TestAcceptingAFixApprovesItsBytes(t *testing.T) {
+	ctx, repo, blobs, project, kase := freshnessFixture(t)
+	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 0)); err != nil {
+		t.Fatalf("first edition: %v", err)
+	}
+	validateOnly(t, ctx, repo, project.Slug, kase.ID)
+	nina := actor.Actor{ID: "nina", Kind: actor.Human}
+
+	// The reviewer refuses; the remark is tracked and the fix delivered on a
+	// second edition whose pixels moved — that is what a fix does.
+	grid, err := repo.CaseGrid(ctx, project.Slug, kase.ID, nil)
+	if err != nil {
+		t.Fatalf("reading the grid: %v", err)
+	}
+	cell := review.Capture{StepID: grid.Steps[0].ID, VariantID: grid.Steps[0].Captures[0].VariantID}
+	if _, err := repo.SaveReview(ctx, project.Slug, kase.ID, nina, session.Save{
+		Unaccepted: []review.Capture{cell},
+		Comments: []session.NewComment{{
+			StepID: cell.StepID, Body: "too much green", VariantIDs: []string{cell.VariantID},
+		}},
+	}); err != nil {
+		t.Fatalf("refusing: %v", err)
+	}
+	comments, err := repo.OfCase(ctx, project.Slug, kase.ID)
+	if err != nil || len(comments) != 1 {
+		t.Fatalf("comments = %v, %v", comments, err)
+	}
+	id := comments[0].ID
+	if _, err := repo.Track(ctx, project.Slug, id, nina, appcomment.IssueRef{ID: "206"}); err != nil {
+		t.Fatalf("tracking: %v", err)
+	}
+	if err := takeIn(t, ctx, repo, blobs, project, kase, screen(t, ctx, repo, blobs, 10, 6)); err != nil {
+		t.Fatalf("the fix's edition: %v", err)
+	}
+	if _, err := repo.Deliver(ctx, project.Slug, id, "", nina); err != nil {
+		t.Fatalf("delivering: %v", err)
+	}
+
+	// Accepting the fix approves these bytes: accepted, and no moved mark.
+	if _, err := repo.Judge(ctx, project.Slug, id, "", cell.VariantID, nina, true, ""); err != nil {
+		t.Fatalf("accepting the fix: %v", err)
+	}
+	if state, _ := statusOfFirst(t, ctx, repo, project.Slug, kase.ID); state != "accepted" {
+		t.Errorf("status = %q after accepting the fix, want accepted", state)
+	}
+}
+
+// The frugal contract: one refusal names every missing address (#223). When
+// a capture and a recording are both absent, the first answer names both —
+// before the fix it named the captures alone, the recording surfaced only on
+// the second push, and the one-refusal promise broke for any client sending
+// videos.
+func TestAMissingRecordingIsNamedInTheFirstRefusal(t *testing.T) {
+	ctx, repo, blobs, project, kase := freshnessFixture(t)
+	absentCapture := "sha256:" + strings.Repeat("ab", 32)
+	absentRecording := "sha256:" + strings.Repeat("cd", 32)
+
+	svc := intake.New(repo, blobs)
+	_, err := svc.Take(ctx, project.Slug, contract.Manifest{
+		Cases: []contract.ManifestCase{{
+			ID: kase.ID,
+			Steps: []contract.ManifestStep{{
+				Name: "opens",
+				Captures: []contract.ManifestCapture{{
+					Variant: map[string]string{"theme": "light"}, Hash: absentCapture,
+				}},
+			}},
+			Recordings: []contract.ManifestRecording{{
+				Variant: map[string]string{"theme": "light"}, Hash: absentRecording,
+			}},
+		}},
+	})
+
+	var missing *intake.MissingContent
+	if !errors.As(err, &missing) {
+		t.Fatalf("err = %v, want MissingContent naming both addresses", err)
+	}
+	got := slices.Sorted(slices.Values(missing.Hashes))
+	want := slices.Sorted(slices.Values([]string{absentCapture, absentRecording}))
+	if !slices.Equal(got, want) {
+		t.Errorf("hashes = %v, want the capture and the recording together", missing.Hashes)
+	}
+}
+
+// A pusher that never says where its captures come from still gets the moved
+// mark (#230). Observed on production: repushed captures carried movedPixels
+// in the hundreds of thousands and read accepted — intake compared with the
+// empty environment while the read derivation compared with SQL NULL, which
+// matches nothing.
+func TestAPushWithoutProvenanceStillTurnsMoved(t *testing.T) {
+	ctx, repo, blobs, project, kase := freshnessFixture(t)
+	bare := func(hash string) error {
+		svc := intake.New(repo, blobs)
+		_, err := svc.Take(ctx, project.Slug, contract.Manifest{
+			Cases: []contract.ManifestCase{{
+				ID: kase.ID,
+				Steps: []contract.ManifestStep{{
+					Name: "opens",
+					Captures: []contract.ManifestCapture{{
+						Variant: map[string]string{"theme": "light"},
+						Hash:    hash,
+					}},
+				}},
+			}},
+		})
+		return err
+	}
+
+	if err := bare(screen(t, ctx, repo, blobs, 10, 0)); err != nil {
+		t.Fatalf("first edition: %v", err)
+	}
+	validateOnly(t, ctx, repo, project.Slug, kase.ID)
+
+	// The dev repushes moved pixels, still without provenance.
+	if err := bare(screen(t, ctx, repo, blobs, 10, 40)); err != nil {
+		t.Fatalf("second edition: %v", err)
+	}
+
+	status, pixels := statusOfFirst(t, ctx, repo, project.Slug, kase.ID)
+	if pixels == nil {
+		t.Fatal("movedPixels = nil, want the intake measurement recorded")
+	}
+	if status != "moved" {
+		t.Errorf("status = %q with %d moved pixels, want moved", status, *pixels)
 	}
 }

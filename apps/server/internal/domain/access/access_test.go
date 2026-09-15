@@ -26,18 +26,20 @@ func TestWhoMayDoWhat(t *testing.T) {
 		{"a member reads", access.Standing{Rights: access.Member}, access.ReadProject, true},
 		{"a member writes", access.Standing{Rights: access.Member}, access.WriteProject, true},
 
-		// The line that matters: administration reaches accounts, never content
-		// (product.md §8.2).
+		// An administrator reaches everything, membership or not
+		// (product.md §8.2). This asserted the opposite until somebody ran an
+		// instance, created a project and was refused entry to it.
 		{"an admin manages accounts", access.Standing{Admin: true}, access.ManageAccounts, true},
 		{"an admin creates a project", access.Standing{Admin: true}, access.CreateProject, true},
-		{"an admin does not read a project they are not in", access.Standing{Admin: true}, access.ReadProject, false},
-		{"an admin does not write a project they are not in", access.Standing{Admin: true}, access.WriteProject, false},
-
-		// Being an administrator neither adds to nor removes from a membership.
+		{"an admin reads a project they are not in", access.Standing{Admin: true}, access.ReadProject, true},
+		{"an admin writes a project they are not in", access.Standing{Admin: true}, access.WriteProject, true},
 		{"an admin who is a member writes", access.Standing{Admin: true, Rights: access.Member}, access.WriteProject, true},
 
+		// Administration is the way past membership; it is not what membership
+		// grants. A member still administers nothing.
 		{"a member does not manage accounts", access.Standing{Rights: access.Member}, access.ManageAccounts, false},
 		{"a member does not create a project", access.Standing{Rights: access.Member}, access.CreateProject, false},
+		{"a reader does not manage accounts", access.Standing{Rights: access.Reader}, access.ManageAccounts, false},
 	}
 
 	for _, c := range cases {

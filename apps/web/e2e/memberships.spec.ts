@@ -121,23 +121,40 @@ test('a service account grants nothing, however good its token', async () => {
   expect(refused.status).toBe(403)
 })
 
-test('an administrator grants on a project they still cannot read', async ({ request }) => {
+test('an administrator reaches a project they created and never joined', async ({ request }) => {
   const slug = `outsiders-${unique()}`
   expect(
     (
       await request.post(`${API}/api/projects`, {
-        data: { slug, name: 'a team the administrator is not on' },
+        data: { slug, name: 'a project its creator never joined' },
       })
     ).status(),
   ).toBe(201)
 
-  // Creating it does not join it. This is the line §8.2 turns on: an
-  // administrator who could read every project would see every team's work.
-  expect((await request.get(`${API}/api/projects/${slug}/cases`)).status()).toBe(403)
-  expect((await request.get(`${API}/api/projects/${slug}/members`)).status()).toBe(403)
+  // Creating it still does not write a membership row: what follows is
+  // administration reaching past membership, not a grant somebody forgot.
+  const members = await request.get(`${API}/api/projects/${slug}/members`)
+  expect(members.status()).toBe(200)
+  expect(await members.json()).toEqual([])
 
-  // And they can still put somebody on it, which is the whole point of the
-  // separation: administering is not reading.
+  // Read and write both, which is the decision: read alone would give screens
+  // where everything shows and every button fails (product.md §8.2).
+  expect((await request.get(`${API}/api/projects/${slug}/cases`)).status()).toBe(200)
+  // A case names the category it belongs to (#115); making one here is part of
+  // writing, which is what this asserts.
+  const branch = await request.post(`${API}/api/projects/${slug}/categories`, {
+    data: { name: 'written from outside' },
+  })
+  expect(branch.status()).toBe(201)
+  const made = await request.post(`${API}/api/projects/${slug}/cases`, {
+    data: {
+      title: 'written by somebody who is not a member',
+      categoryId: (await branch.json()).id,
+    },
+  })
+  expect(made.status()).toBe(201)
+
+  // And administering it still works, which never depended on membership.
   const accountId = await anAccount(request)
   expect(
     (
@@ -146,9 +163,6 @@ test('an administrator grants on a project they still cannot read', async ({ req
       })
     ).status(),
   ).toBe(204)
-
-  // Still not theirs to read, membership granted or not.
-  expect((await request.get(`${API}/api/projects/${slug}/cases`)).status()).toBe(403)
 })
 
 test('a person sees the projects they belong to, and an admin sees them all', async ({
@@ -158,13 +172,13 @@ test('a person sees the projects they belong to, and an admin sees them all', as
   await request.post(`${API}/api/projects`, { data: { slug, name: 'a team nobody is on' } })
 
   // The administrator belongs to the suite's project and not to this one, and
-  // sees both names — never anything inside (product.md §8.2).
+  // sees both — the names here, and what is inside them too (product.md §8.2).
   const mine = await request.get(`${API}/api/projects`)
   expect(mine.status()).toBe(200)
   const seen = (await mine.json()).map((p: { slug: string }) => p.slug)
   expect(seen).toContain(PROJECT)
   expect(seen).toContain(slug)
-  expect((await request.get(`${API}/api/projects/${slug}/cases`)).status()).toBe(403)
+  expect((await request.get(`${API}/api/projects/${slug}/cases`)).status()).toBe(200)
 
   // The suite's token belongs to one project and sees that one.
   const asProgram = await fetch(`${API}/api/projects`, {
@@ -201,4 +215,29 @@ test('a deactivated account leaves the access list, and a program says how many 
   for (const m of after) {
     expect(m.isPerson ? m.tokens === undefined : typeof m.tokens === 'number').toBe(true)
   }
+})
+
+test('the add form says why there is nobody to add', async ({ page }) => {
+  // An empty list is an answer, not a failure. Before this, the form opened on
+  // a select holding only "choisir…" and there was no way to tell the two
+  // apart — which is what a production instance with one account showed (#109).
+  const slug = `alone-${unique()}`
+  await page.request.post(`${API}/api/projects`, { data: { slug, name: 'nobody to add here' } })
+
+  // Everybody who exists is already a member, so nobody is addable.
+  const accounts = await (await page.request.get(`${API}/api/accounts`)).json()
+  for (const a of accounts.filter((x: { deactivatedAt?: string }) => !x.deactivatedAt)) {
+    await page.request.put(`${API}/api/projects/${slug}/members/${a.id}`, {
+      data: { rights: 'member' },
+    })
+  }
+
+  await page.goto(`/projects/${slug}/access`)
+  await page.getByRole('button', { name: 'Add' }).first().click()
+
+  await expect(
+    page.getByText('Every account on this instance is already on this project.'),
+  ).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Create an account' })).toBeVisible()
+  await expect(page.getByLabel('account')).toHaveCount(0)
 })

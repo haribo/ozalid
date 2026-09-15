@@ -65,3 +65,30 @@ test('reading a project needs a credential, like everything else', async () => {
   })
   expect(withToken.status).toBe(200)
 })
+
+test('a token can ask whose key it is, and a dead one is told nothing (#180)', async () => {
+  // The runner's fail-fast: which project, which account, still alive —
+  // instead of discovering a retired token on its first real call.
+  const alive = await fetch(`${API}/api/token`, {
+    headers: { authorization: `Bearer ${TOKEN}` },
+  })
+  expect(alive.status).toBe(200)
+  const identity = (await alive.json()) as {
+    serviceAccountId: string
+    name: string
+    project: { slug: string; name: string }
+  }
+  expect(identity.project.slug).toBe(PROJECT)
+  expect(identity.name).not.toBe('')
+
+  const dead = await fetch(`${API}/api/token`, {
+    headers: { authorization: `Bearer ozp_nobody-ever-minted-this` },
+  })
+  expect(dead.status).toBe(401)
+  const problem = (await dead.json()) as { type: string }
+  expect(problem.type).toContain('unknown-token')
+
+  // A browser session is not a token: /token stays the machine's mirror.
+  const nobody = await fetch(`${API}/api/token`)
+  expect(nobody.status).toBe(401)
+})

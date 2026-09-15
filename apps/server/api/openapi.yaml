@@ -114,6 +114,48 @@ paths:
       responses:
         '204':
           description: Signed out, or was not signed in — the same answer.
+  /token:
+    get:
+      operationId: whoIsTheToken
+      security:
+        - serviceToken: []
+      summary: What a token can learn about itself
+      description: |
+        A program holding an `ozp_` token asks whose key it is and which project it
+        opens — and fails fast with a clear 401 when the token is retired or the
+        account deactivated, instead of discovering it on its first real call
+        (#180). `/me` stays the person's mirror; this is the machine's.
+      tags:
+        - service-accounts
+      responses:
+        '200':
+          description: Whose key this is.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - serviceAccountId
+                  - name
+                  - project
+                properties:
+                  serviceAccountId:
+                    type: string
+                  name:
+                    type: string
+                    description: The service account's label.
+                  project:
+                    type: object
+                    required:
+                      - slug
+                      - name
+                    properties:
+                      slug:
+                        type: string
+                      name:
+                        type: string
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
   /me:
     get:
       operationId: whoAmI
@@ -145,7 +187,9 @@ paths:
                     type: string
                   isAdmin:
                     type: boolean
-                    description: Manages accounts and creates projects; reaches no content.
+                    description: |
+                      Manages accounts, creates projects, and reaches every one of them
+                      (`product.md` §8.2).
         '401':
           $ref: '#/components/responses/Unauthenticated'
   /projects/{slug}/blobs/{hash}:
@@ -414,7 +458,6 @@ paths:
       security:
         - serviceToken: []
         - session: []
-        - session: []
       summary: Open a book
       tags:
         - projects
@@ -455,7 +498,6 @@ paths:
       security:
         - serviceToken: []
         - session: []
-        - session: []
       summary: Read a project
       tags:
         - projects
@@ -484,7 +526,6 @@ paths:
       security:
         - serviceToken: []
         - session: []
-        - session: []
       summary: Read the project's rendering axes, in their declared order
       tags:
         - projects
@@ -507,7 +548,6 @@ paths:
       operationId: orderAxes
       security:
         - serviceToken: []
-        - session: []
         - session: []
       summary: Declare the order the axes read in
       description: |
@@ -569,7 +609,6 @@ paths:
       security:
         - serviceToken: []
         - session: []
-        - session: []
       summary: List the catalogue
       description: |
         Filters on the stored state, without scanning — which is why the state is
@@ -604,7 +643,6 @@ paths:
       operationId: createCase
       security:
         - serviceToken: []
-        - session: []
         - session: []
       summary: Open a case and receive its id
       description: |
@@ -1006,7 +1044,6 @@ paths:
       security:
         - serviceToken: []
         - session: []
-        - session: []
       summary: Read the catalogue tree
       tags:
         - categories
@@ -1029,7 +1066,6 @@ paths:
       operationId: createCategory
       security:
         - serviceToken: []
-        - session: []
         - session: []
       summary: Add a node to the tree
       tags:
@@ -1126,13 +1162,24 @@ paths:
       description: |
         Read through the recording, for the same reason a capture's image is
         (`product.md` §8.1). A recording is a supporting exhibit: never
-        byte-compared, never a source of state (ADR 0013).
+        byte-compared, judged, never byte-compared (ADR 0013, ADR 0023).
       tags:
         - blobs
       responses:
         '200':
-          description: The video.
+          description: |
+            The video, served as what its first bytes say it is (#226): a browser
+            streams a `video/*` answer inline instead of downloading it. Unknown
+            bytes fall back to `application/octet-stream`.
           content:
+            video/webm:
+              schema:
+                type: string
+                format: binary
+            video/mp4:
+              schema:
+                type: string
+                format: binary
             application/octet-stream:
               schema:
                 type: string
@@ -1143,6 +1190,98 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /projects/{slug}/recordings/{recordingId}/judgment:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: recordingId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: judgeRecording
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Render a verdict on the recording on screen
+      description: |
+        A recording is judged (ADR 0023): the verdict lands on exactly these
+        bytes — one edition, one variant. A refusal carries its mandatory remark
+        (ADR 0020). A new edition brings new bytes and a new `to-review`
+        recording.
+      tags:
+        - reviews
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - accept
+              properties:
+                accept:
+                  type: boolean
+                remark:
+                  type: string
+                  description: Mandatory on a refusal. It is what the dev has to read.
+      responses:
+        '200':
+          description: The judgment is recorded; the case state follows.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - caseState
+                properties:
+                  caseState:
+                    $ref: '#/components/schemas/CaseState'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '423':
+          $ref: '#/components/responses/Held'
+    delete:
+      operationId: unjudgeRecording
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Take the recording's verdict back
+      description: |
+        Symmetric with giving it (ADR 0023): the recording returns to the
+        reviewer, the history keeps the move.
+      tags:
+        - reviews
+      responses:
+        '200':
+          description: The take-back is recorded; the case state follows.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - caseState
+                properties:
+                  caseState:
+                    $ref: '#/components/schemas/CaseState'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '423':
+          $ref: '#/components/responses/Held'
   /projects/{slug}/cases/{caseId}:
     parameters:
       - name: slug
@@ -1159,7 +1298,6 @@ paths:
       operationId: getCase
       security:
         - serviceToken: []
-        - session: []
         - session: []
       summary: Read a case, archived or not
       tags:
@@ -1182,9 +1320,13 @@ paths:
       security:
         - serviceToken: []
         - session: []
-        - session: []
       summary: Change what is mutable about a case
-      description: Its id and its state are not part of that.
+      description: |
+        Its id and its state are not part of that.
+
+        A merge patch: a field the body does not carry is left untouched. The
+        empty string clears a description; nothing clears a category, since a
+        case belongs to exactly one (#229).
       tags:
         - cases
       requestBody:
@@ -1208,6 +1350,122 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /projects/{slug}/cases/{caseId}/lock:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: claimCase
+      security:
+        - session: []
+      summary: Hold the case, or keep holding it
+      description: |
+        Claiming is also the heartbeat (ADR 0005, #95): the same call takes a free
+        or expired lock and renews the caller's own. Somebody else's live hold
+        answers 423, naming them. Occupancy is never a state — the case reads the
+        same before and after.
+      tags:
+        - reviews
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fresh:
+                  type: boolean
+                  description: |
+                    Opening the page (true) re-stamps the hold onto the latest
+                    edition; the heartbeat (false, the default) keeps the bytes.
+      responses:
+        '200':
+          description: The caller holds the case.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hold'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '423':
+          $ref: '#/components/responses/Held'
+    delete:
+      operationId: releaseCase
+      security:
+        - session: []
+      summary: Let the case go
+      description: |
+        Releasing a lock nobody holds, or somebody else's, changes nothing
+        (ADR 0005).
+      tags:
+        - reviews
+      responses:
+        '204':
+          description: The caller no longer holds the case.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /projects/{slug}/cases/{caseId}/history:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getCaseHistory
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Read how a case reached the state it is in
+      description: |
+        The transition journal (`product.md` §9): every recorded change of state on
+        this case, oldest first, each naming what caused it and who.
+
+        It answers *what happened on this case, in order, caused by whom*. It is
+        **not** an audit export (`product.md` §10) and it is not a second source of
+        truth for the state: the state is stored and computed by the server
+        (ADR 0002), and the journal says how it got there without getting to
+        disagree about where it is.
+
+        A case nobody has ever moved answers an empty history, not an error.
+      tags:
+        - cases
+      responses:
+        '200':
+          description: The transitions, oldest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transition'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /projects/{slug}/cases/{caseId}/captures:
     parameters:
       - name: slug
@@ -1225,11 +1483,10 @@ paths:
       security:
         - serviceToken: []
         - session: []
-        - session: []
       summary: Read the evidence a case is judged from
       description: |
         The grid: steps in order, the variants that exist, and the capture sitting
-        at each cell. A cell with no capture is simply absent — not every variant
+        at each step and variant. A missing one is simply absent — not every variant
         exists at every step.
 
         Defaults to the project's most recent edition. A specific one can be asked
@@ -1274,7 +1531,6 @@ paths:
       security:
         - serviceToken: []
         - session: []
-        - session: []
       summary: Read what has been said about a case
       description: |
         Settled comments included. Nothing is deleted, and a discarded one stays
@@ -1297,6 +1553,53 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /projects/{slug}/comments/{commentId}:
+    parameters:
+      - $ref: '#/components/parameters/Slug'
+      - $ref: '#/components/parameters/CommentId'
+    patch:
+      operationId: editComment
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Edit a draft remark
+      description: |
+        The author reworking their own draft (ADR 0020): text and covered
+        variants, while no issue is attached. Once tracked, the issue's title
+        speaks in the remark's place and editing is refused.
+      tags:
+        - comments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - body
+                - variantIds
+              properties:
+                body:
+                  type: string
+                  minLength: 1
+                variantIds:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/MoveApplied'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MoveRefused'
   /projects/{slug}/comments/{commentId}/reference:
     parameters:
       - $ref: '#/components/parameters/Slug'
@@ -1392,11 +1695,28 @@ paths:
 
         They may ask without having implemented everything else on the case: one
         issue can depend on the verdict given on another.
+
+        A comment may carry several issue refs (#138): `issueId` names the one
+        delivered. It may be omitted while the comment carries exactly one.
       tags:
         - comments
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                issueId:
+                  type: string
+                  description: |
+                    The ref delivered — its `id` in the comment's `issues` list.
+                    Mandatory once the comment carries more than one.
       responses:
         '200':
           $ref: '#/components/responses/MoveApplied'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -1409,6 +1729,52 @@ paths:
     parameters:
       - $ref: '#/components/parameters/Slug'
       - $ref: '#/components/parameters/CommentId'
+    delete:
+      operationId: unjudgeComment
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Take a judgment back
+      description: |
+        The reviewer reconsiders an acceptance or a refusal: the ref returns to
+        to-review, and the capture it covers with it (#167, #171). The take-back
+        joins the judgment history as `taken-back` — who reconsidered, and when,
+        is information exactly like the judgment was.
+      tags:
+        - comments
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                issueId:
+                  type: string
+                  description: |
+                    The ref unjudged — its `id` in the comment's `issues` list.
+                    Mandatory once the comment carries more than one (#138).
+                variantId:
+                  type: string
+                  description: |
+                    The capture on screen. Taking an acceptance back restores
+                    this variant's coverage (ADR 0022); absent, the take-back
+                    is ref-level — a refusal returning to to-review.
+      responses:
+        '200':
+          $ref: '#/components/responses/MoveApplied'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MoveRefused'
+        '423':
+          $ref: '#/components/responses/Held'
     post:
       operationId: judgeComment
       security:
@@ -1429,12 +1795,24 @@ paths:
               type: object
               required:
                 - accept
+                - variantId
               properties:
                 accept:
                   type: boolean
+                variantId:
+                  type: string
+                  description: |
+                    The capture on screen: a judgment always lands on one
+                    variant (ADR 0022). Accepting releases it from the remark's
+                    coverage; refusing opens a partial round for what remains.
                 remark:
                   type: string
                   description: Mandatory when refusing. It is what the dev has to read.
+                issueId:
+                  type: string
+                  description: |
+                    The ref judged — its `id` in the comment's `issues` list.
+                    Mandatory once the comment carries more than one (#138).
       responses:
         '200':
           $ref: '#/components/responses/MoveApplied'
@@ -1448,6 +1826,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MoveRefused'
+        '423':
+          $ref: '#/components/responses/Held'
   /projects/{slug}/cases/{caseId}/reviews:
     parameters:
       - name: slug
@@ -1465,10 +1845,9 @@ paths:
       security:
         - serviceToken: []
         - session: []
-        - session: []
       summary: Save what one review session decided
       description: |
-        One save carries everything the sitting produced: the squares looked at with
+        One save carries everything the sitting produced: the captures looked at with
         nothing to say, and the comments written on the rest. Splitting it would
         leave a case half-judged between two calls.
 
@@ -1498,6 +1877,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '423':
+          $ref: '#/components/responses/Held'
   /projects/{slug}/cases/{caseId}/archive:
     parameters:
       - name: slug
@@ -1514,7 +1895,6 @@ paths:
       operationId: archiveCase
       security:
         - serviceToken: []
-        - session: []
         - session: []
       summary: Take a case out of the catalogue
       description: |
@@ -1549,11 +1929,59 @@ paths:
         required: true
         schema:
           type: string
+    patch:
+      operationId: updateCategory
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Rename or move a node
+      description: |
+        Rename, re-parent and reorder in one call — a language fix no longer costs
+        delete + recreate + re-parenting every case of the subtree (#179).
+
+        `parentId` present moves the node: another category's id, or the empty
+        string for the root. A move that would make a node its own ancestor is
+        refused, as is a sibling name collision.
+      tags:
+        - categories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                parentId:
+                  type: string
+                  description: Another category's id, or the empty string for the root. Absent = unchanged.
+                position:
+                  type: integer
+      responses:
+        '200':
+          description: The category, as it now stands.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: A sibling already bears the name, or the move would make the node its own ancestor.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problem'
     delete:
       operationId: deleteCategory
       security:
         - serviceToken: []
-        - session: []
         - session: []
       summary: Remove an empty node
       description: |
@@ -1580,6 +2008,51 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/problem'
+  /projects/{slug}/queue:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getReviewQueue
+      security:
+        - serviceToken: []
+        - session: []
+      summary: Read the captures awaiting the reviewer
+      description: |
+        The queue (`product.md` §3.6): every capture reading `to-review` or
+        `moved`, in the order a reviewer walks it — by case in catalogue order,
+        then by step position, then by variant label.
+
+        `categoryId` scopes it to that category and every one beneath it, at
+        unrestricted depth (ADR 0014). Without it, the whole project. A project
+        with nothing awaiting a verdict answers an empty queue, never an error.
+
+        Read-only, and computed at request time from stored facts: a capture's
+        status is derived, never stored (ADR 0021), and nothing enqueues or
+        dequeues (ADR 0002).
+      tags:
+        - reviews
+      parameters:
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The captures awaiting the reviewer, in walking order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewQueue'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   securitySchemes:
     session:
@@ -1645,7 +2118,9 @@ components:
           format: email
         isAdmin:
           type: boolean
-          description: Manages accounts and creates projects; reaches no content.
+          description: |
+            Manages accounts, creates projects, and reaches every one of them
+            (`product.md` §8.2).
         deactivatedAt:
           type: string
           format: date-time
@@ -1745,17 +2220,32 @@ components:
       enum:
         - not-instrumented
         - to-review
-        - to-fix
-        - reviewed
+        - refused
+        - accepted
       description: |
         Who holds the ball. Computed by the server from the case's comments; no
         endpoint accepts it as an argument.
+    Hold:
+      type: object
+      required:
+        - by
+        - name
+        - since
+      description: Who holds the case, and since when. Occupancy, never a state (ADR 0005).
+      properties:
+        by:
+          type: string
+        name:
+          type: string
+        since:
+          type: string
+          format: date-time
     CaptureCounts:
       type: object
       required:
         - total
-        - validated
-        - commented
+        - accepted
+        - refused
         - toJudge
       description: |
         How this case's captures stand at the edition it points at. A capture with
@@ -1763,9 +2253,9 @@ components:
       properties:
         total:
           type: integer
-        validated:
+        accepted:
           type: integer
-        commented:
+        refused:
           type: integer
         toJudge:
           type: integer
@@ -1793,6 +2283,10 @@ components:
         description:
           type: string
           nullable: true
+        held:
+          description: Present while a reviewer holds the case (ADR 0005,
+          allOf:
+            - $ref: '#/components/schemas/Hold'
         state:
           $ref: '#/components/schemas/CaseState'
         archived:
@@ -1814,6 +2308,7 @@ components:
       type: object
       required:
         - title
+        - categoryId
       properties:
         title:
           type: string
@@ -1822,6 +2317,7 @@ components:
           type: string
         categoryId:
           type: string
+          minLength: 1
     Variant:
       type: object
       additionalProperties:
@@ -2090,8 +2586,8 @@ components:
       required:
         - notInstrumented
         - toReview
-        - toFix
-        - reviewed
+        - refused
+        - accepted
       description: |
         How many cases sit in each state under this node, across its **whole
         descendance** — not just its direct children. A branch in trouble has to be
@@ -2101,9 +2597,9 @@ components:
           type: integer
         toReview:
           type: integer
-        toFix:
+        refused:
           type: integer
-        reviewed:
+        accepted:
           type: integer
     Category:
       type: object
@@ -2143,18 +2639,61 @@ components:
           default: 0
     CaseUpdate:
       type: object
-      required:
-        - title
       properties:
         title:
           type: string
           minLength: 1
         description:
           type: string
-          nullable: true
+          description: Absent leaves it alone; the empty string clears it.
         categoryId:
           type: string
-          nullable: true
+          minLength: 1
+          description: |
+            Another category of the same project. Absent leaves it alone, and
+            there is no way to remove it: a case belongs to exactly one.
+    Actor:
+      type: object
+      required:
+        - id
+        - kind
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum:
+            - human
+            - machine
+        name:
+          type: string
+          description: |
+            Absent when the account is gone or was never named — rows written
+            before identity existed keep whatever they named, and history is not
+            rewritten to look answered.
+    Transition:
+      type: object
+      required:
+        - at
+        - cause
+        - actor
+      properties:
+        at:
+          type: string
+          format: date-time
+        fromState:
+          $ref: '#/components/schemas/CaseState'
+        toState:
+          $ref: '#/components/schemas/CaseState'
+        cause:
+          type: string
+          description: |
+            The fact that caused the change, in the server's own words —
+            `edition-accepted`, `review-saved`, `comment-discarded`. Not an enum:
+            the vocabulary grows with the moves the product records, and a client
+            that switches on it would break on the next one.
+        actor:
+          $ref: '#/components/schemas/Actor'
     GridVariant:
       type: object
       required:
@@ -2171,7 +2710,7 @@ components:
           type: object
           additionalProperties:
             type: string
-    GridCell:
+    GridCapture:
       type: object
       required:
         - id
@@ -2185,6 +2724,10 @@ components:
             The capture. Fetch its image at
             `/projects/{slug}/captures/{captureId}` — the hash names no project and
             cannot be authorised (`product.md` §8.1).
+
+            It names **these bytes at this edition**: the same step and variant,
+            re-captured by the next run, is a different capture with a different
+            id. Quoting one elsewhere quotes a moment, not a screen.
         variantId:
           type: string
         hash:
@@ -2196,21 +2739,14 @@ components:
           type: string
           enum:
             - to-review
-            - to-fix
-            - validated
+            - refused
+            - accepted
+            - moved
           description: |
-            Where this square stands. Computed by the server from the comments
-            covering it — never set by a caller (ADR 0012).
-        freshness:
-          type: string
-          enum:
-            - current
-            - to-re-review
-          description: |
-            Whether this capture still shows what a reviewer approved, computed once
-            when it arrived. **Absent means nothing to compare against** — nobody has
-            approved this square in this capture's environment — which is not the
-            same as unchanged (ADR 0017).
+            Where this capture stands — derived at read time from the stored
+            facts, never set by a caller and never stored (ADR 0012, ADR 0021).
+            `moved`: accepted, and the image has since changed beyond the
+            project's noise threshold.
 
             Freshness is an overlay, never a state: a `reviewed` case whose captures
             move stays `reviewed` until its reviewer says otherwise.
@@ -2231,7 +2767,7 @@ components:
         - id
         - name
         - position
-        - cells
+        - captures
       properties:
         id:
           type: string
@@ -2239,17 +2775,18 @@ components:
           type: string
         position:
           type: integer
-        cells:
+        captures:
           type: array
           description: One entry per variant that has a capture at this step.
           items:
-            $ref: '#/components/schemas/GridCell'
+            $ref: '#/components/schemas/GridCapture'
     GridRecording:
       type: object
       required:
         - id
         - variantId
         - hash
+        - status
       properties:
         id:
           type: string
@@ -2258,6 +2795,18 @@ components:
           type: string
         hash:
           type: string
+        status:
+          type: string
+          enum:
+            - to-review
+            - accepted
+            - refused
+          description: |
+            Where the judgment on exactly these bytes stands (ADR 0023). A new
+            edition brings new bytes and a new `to-review` recording.
+        refusal:
+          type: string
+          description: The standing refusal's remark, absent otherwise.
     Grid:
       type: object
       required:
@@ -2299,10 +2848,10 @@ components:
         - tracked
         - to-review
         - refused
-        - validated
+        - accepted
         - discarded
       description: |
-        Where the comment stands. `validated` and `discarded` are the only terminal
+        Where the comment stands. `accepted` and `discarded` are the only terminal
         states; a refusal returns to `to-review` on the next delivery.
     IssueRef:
       type: object
@@ -2323,6 +2872,56 @@ components:
           description: |
             Shown next to the comment. ozalid never refreshes it, so it is whatever
             the client said at the time.
+    Refusal:
+      type: object
+      required:
+        - remark
+      properties:
+        variantId:
+          type: string
+          description: The capture the refusal landed on. Absent on ref-level history from before ADR 0022.
+        remark:
+          type: string
+          description: What the dev has to read.
+    IssueTracking:
+      type: object
+      required:
+        - id
+        - issueId
+        - state
+      properties:
+        id:
+          type: string
+          description: The ref's own id — what `delivery` and `judgment` name.
+        issueId:
+          type: string
+        url:
+          type: string
+          format: uri
+        title:
+          type: string
+          description: What the book reads once attached; the comment's text was the draft.
+        state:
+          type: string
+          description: accepted, not validated — validated is the vocabulary of captures (#170).
+          enum:
+            - tracked
+            - to-review
+            - refused
+            - accepted
+        lastRefusal:
+          type: string
+          description: |
+            The remark of the latest standing refusal on this ref, if any. A
+            refusal speaks only while it stands (#212): taken back, or answered
+            by a redelivery, it leaves this field — the journal keeps it.
+        refusals:
+          type: array
+          description: |
+            Every standing refusal of the current round, each naming the capture
+            it was given on (ADR 0022, #212). Empty when nothing stands.
+          items:
+            $ref: '#/components/schemas/Refusal'
     Judgment:
       type: object
       required:
@@ -2330,11 +2929,18 @@ components:
         - actorId
         - at
       properties:
+        variantId:
+          type: string
+          description: |
+            The capture the judgment landed on (ADR 0022). Absent on history from
+            before, and on ref-level moves.
         verdict:
           type: string
+          description: 'taken-back is a reviewer reconsidering an acceptance: unvalidating a capture whose validation derived from the settled reference (#167).'
           enum:
             - accepted
             - refused
+            - taken-back
         remark:
           type: string
           description: Mandatory on a refusal. It is what the dev has to read.
@@ -2348,7 +2954,6 @@ components:
       required:
         - id
         - stepId
-        - kind
         - body
         - state
         - variantIds
@@ -2360,11 +2965,6 @@ components:
           type: string
         stepId:
           type: string
-        kind:
-          type: string
-          enum:
-            - defect
-            - improvement
         body:
           type: string
           description: What the reviewer wrote, in their words. It survives the issue title.
@@ -2376,6 +2976,14 @@ components:
             type: string
         issue:
           $ref: '#/components/schemas/IssueRef'
+          description: The first ref, kept for old readers. The table reads `issues`.
+        issues:
+          type: array
+          description: |
+            One row per attached issue, each on its own delivered-and-judged round
+            (#138). The comment's own state derives from these.
+          items:
+            $ref: '#/components/schemas/IssueTracking'
         discardReason:
           type: string
           description: Mandatory when discarded, and kept forever with its author.
@@ -2399,8 +3007,11 @@ components:
           $ref: '#/components/schemas/CommentState'
         caseState:
           $ref: '#/components/schemas/CaseState'
-    CellRef:
+    CaptureRef:
       type: object
+      description: |
+        Names one capture by its step and variant — the address a verdict is
+        written at, distinct from ADR 0017's *reference* (the approved bytes).
       required:
         - stepId
         - variantId
@@ -2413,20 +3024,11 @@ components:
       type: object
       required:
         - stepId
-        - kind
         - body
         - variantIds
       properties:
         stepId:
           type: string
-        kind:
-          type: string
-          enum:
-            - defect
-            - improvement
-          description: |
-            What it is. The kind is written on the comment, where it is exact and
-            where the issue is written from — it never colours the case's state.
         body:
           type: string
           minLength: 1
@@ -2441,19 +3043,34 @@ components:
     ReviewSave:
       type: object
       properties:
-        validated:
+        accepted:
           type: array
-          description: The squares the reviewer looked at with nothing to say.
+          description: The captures the reviewer looked at with nothing to say.
           items:
-            $ref: '#/components/schemas/CellRef'
+            $ref: '#/components/schemas/CaptureRef'
         comments:
           type: array
-          description: What the reviewer wrote during the sitting.
+          description: The remarks of this sitting's refusals (ADR 0020).
           items:
             $ref: '#/components/schemas/NewComment'
-    CellVerdict:
+        unaccepted:
+          type: array
+          description: |
+            Captures whose acceptance the reviewer takes back — a misclick, or a
+            second look. The verdict is a toggle until the review ends (#156); the
+            journal keeps both moves.
+          items:
+            $ref: '#/components/schemas/CaptureRef'
+        unrefused:
+          type: array
+          description: |
+            Captures whose draft refusal the reviewer takes back: their own remarks
+            with no issue attached are withdrawn with it (ADR 0020).
+          items:
+            $ref: '#/components/schemas/CaptureRef'
+    CaptureVerdict:
       allOf:
-        - $ref: '#/components/schemas/CellRef'
+        - $ref: '#/components/schemas/CaptureRef'
         - type: object
           required:
             - status
@@ -2462,8 +3079,9 @@ components:
               type: string
               enum:
                 - to-review
-                - to-fix
-                - validated
+                - refused
+                - accepted
+                - moved
     ReviewOutcome:
       type: object
       required:
@@ -2480,7 +3098,54 @@ components:
           type: array
           description: The status of every capture the case has, after the save.
           items:
-            $ref: '#/components/schemas/CellVerdict'
+            $ref: '#/components/schemas/CaptureVerdict'
+    QueueEntry:
+      type: object
+      required:
+        - caseId
+        - caseTitle
+        - stepId
+        - stepName
+        - stepPosition
+        - variant
+        - capture
+      properties:
+        caseId:
+          type: string
+        caseTitle:
+          type: string
+        categoryId:
+          type: string
+          description: Where the case is filed. Absent only for a case filed nowhere, which creation has refused since
+        stepId:
+          type: string
+        stepName:
+          type: string
+        stepPosition:
+          type: integer
+        variant:
+          $ref: '#/components/schemas/GridVariant'
+        capture:
+          description: |
+            The capture awaiting a verdict. Its `status` reads `to-review` or
+            `moved` — the two that await the reviewer, and nothing on the entry
+            repeats what that status already says (`product.md` §3.6).
+          allOf:
+            - $ref: '#/components/schemas/GridCapture'
+    ReviewQueue:
+      type: object
+      required:
+        - entries
+      properties:
+        entries:
+          type: array
+          description: |
+            In walking order: by case in catalogue order, then by step position,
+            then by variant label (`product.md` §3.6). A flat list, because the
+            reviewer walks one capture at a time; the grouping by case is the
+            order, not a nesting.
+          items:
+            $ref: '#/components/schemas/QueueEntry'
   responses:
     BadRequest:
       description: The request is malformed.
@@ -2502,6 +3167,14 @@ components:
             $ref: '#/components/schemas/problem'
     NotFound:
       description: No such resource.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/problem'
+    Held:
+      description: |
+        Somebody else holds this case (ADR 0005, #95): a held case takes no
+        verdict but its holder's. The detail names them.
       content:
         application/problem+json:
           schema:

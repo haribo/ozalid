@@ -26,7 +26,7 @@ const (
 
 // Standing is what the server knows about a caller when it decides.
 type Standing struct {
-	// Admin manages accounts and creates projects. It reaches no content
+	// Admin manages accounts, creates projects, and reaches every one of them
 	// (product.md §8.2).
 	Admin bool
 	// Rights on the project being reached, or empty when the caller is not a
@@ -51,20 +51,26 @@ const (
 
 // Allows reports whether a caller of this standing may take this action.
 //
-// An administrator is deliberately absent from the content answers. On an
-// instance carrying several projects, one who could read every review book
-// would see every team's work; separating administration from access to content
-// is what lets the running of the instance be handed to someone without handing
-// them everything. When they do need a project, they are added to it — which
-// leaves a trace, exactly what an exceptional access should do.
+// An administrator reaches everything. Membership decides what everybody else
+// may do; administering the instance is a way past it, on every project,
+// whether or not they were ever added to one (product.md §8.2).
+//
+// What that gives up is written down where the decision lives: the running of
+// the instance can no longer be handed to somebody without also handing them
+// every team's work, and an administrator reading a project leaves no trace —
+// they used to have to be added to it, and being a member was visible to the
+// team. Reads are not journalled; only writes are.
 func Allows(s Standing, a Action) bool {
 	switch a {
 	case ManageAccounts, CreateProject:
 		return s.Admin
 	case ReadProject:
-		return s.Rights == Reader || s.Rights == Member
+		return s.Admin || s.Rights == Reader || s.Rights == Member
 	case WriteProject:
-		return s.Rights == Member
+		// Reading without writing would give an administrator screens where
+		// everything shows and every button fails — worse than either whole
+		// answer, and useless to one who is also the reviewer.
+		return s.Admin || s.Rights == Member
 	default:
 		// An action nobody wrote a rule for is refused. A default that allowed
 		// would make every new endpoint open until someone remembered.

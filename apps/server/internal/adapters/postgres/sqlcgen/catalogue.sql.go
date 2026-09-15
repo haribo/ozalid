@@ -9,6 +9,37 @@ import (
 	"context"
 )
 
+const categoryAncestors = `-- name: CategoryAncestors :many
+WITH RECURSIVE up AS (
+    SELECT cat.id, cat.parent_id FROM categories cat WHERE cat.id = $1
+    UNION ALL
+    SELECT c.id, c.parent_id FROM categories c JOIN up ON c.id = up.parent_id
+)
+SELECT up.id FROM up
+`
+
+// The ancestors of one category, root first. What refuses making a node its
+// own ancestor (#179).
+func (q *Queries) CategoryAncestors(ctx context.Context, id string) ([]string, error) {
+	rows, err := q.db.Query(ctx, categoryAncestors, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countCategoryContents = `-- name: CountCategoryContents :one
 SELECT
     (SELECT count(*) FROM categories WHERE parent_id = $1) AS subcategories,
@@ -115,6 +146,32 @@ func (q *Queries) DeleteEmptyCategory(ctx context.Context, arg DeleteEmptyCatego
 	return result.RowsAffected(), nil
 }
 
+const getCategoryInProject = `-- name: GetCategoryInProject :one
+SELECT c.id, c.project_id, c.parent_id, c.name, c.position, c.created_at FROM categories c
+JOIN projects p ON p.id = c.project_id
+WHERE c.id = $1 AND p.slug = $2
+`
+
+type GetCategoryInProjectParams struct {
+	ID   string
+	Slug string
+}
+
+// Scoped by the project, like everything else (#71).
+func (q *Queries) GetCategoryInProject(ctx context.Context, arg GetCategoryInProjectParams) (Category, error) {
+	row := q.db.QueryRow(ctx, getCategoryInProject, arg.ID, arg.Slug)
+	var i Category
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.ParentID,
+		&i.Name,
+		&i.Position,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getProjectBySlug = `-- name: GetProjectBySlug :one
 SELECT id, slug, name, intake_policy, created_at, pixel_threshold FROM projects WHERE slug = $1
 `
@@ -164,4 +221,39 @@ func (q *Queries) ListCategories(ctx context.Context, projectID string) ([]Categ
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateCategory = `-- name: UpdateCategory :one
+UPDATE categories
+SET name = $2, parent_id = $3, position = $4
+WHERE id = $1
+RETURNING id, project_id, parent_id, name, position, created_at
+`
+
+type UpdateCategoryParams struct {
+	ID       string
+	Name     string
+	ParentID *string
+	Position int32
+}
+
+// Rename, re-parent and reorder in one write (#179). The sibling-name unique
+// key stays the arbiter of collisions.
+func (q *Queries) UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error) {
+	row := q.db.QueryRow(ctx, updateCategory,
+		arg.ID,
+		arg.Name,
+		arg.ParentID,
+		arg.Position,
+	)
+	var i Category
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.ParentID,
+		&i.Name,
+		&i.Position,
+		&i.CreatedAt,
+	)
+	return i, err
 }

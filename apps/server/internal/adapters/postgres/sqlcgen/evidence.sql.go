@@ -43,16 +43,10 @@ SELECT
     c.id       AS capture_id,
     c.blob_hash,
     c.provenance,
-    c.freshness,
-    c.moved_pixels,
-    -- A square with no verdict row has not been judged yet: the reviewer holds
-    -- the ball on it (ADR 0012).
-    coalesce(cv.status, 'to-review') AS status
+    c.moved_pixels
 FROM steps s
-LEFT JOIN captures c ON c.step_id = s.id AND c.edition_id = $2
-LEFT JOIN variants v ON v.id = c.variant_id
-LEFT JOIN capture_verdicts cv
-       ON cv.case_id = s.case_id AND cv.step_id = s.id AND cv.variant_id = c.variant_id
+JOIN captures c ON c.step_id = s.id AND c.edition_id = $2
+JOIN variants v ON v.id = c.variant_id
 WHERE s.case_id = $1
 ORDER BY s.position, v.label
 `
@@ -66,20 +60,22 @@ type CaseEvidenceRow struct {
 	StepID        string
 	StepName      string
 	StepPosition  int32
-	VariantID     *string
-	VariantLabel  *string
+	VariantID     string
+	VariantLabel  string
 	VariantValues []byte
-	CaptureID     *string
-	BlobHash      *string
+	CaptureID     string
+	BlobHash      string
 	Provenance    []byte
-	Freshness     *string
 	MovedPixels   *int32
-	Status        string
 }
 
 // Every capture of one case at one edition, joined with its step and variant.
 // One query rather than a walk over steps: a case with thirty steps in eight
 // variants would otherwise be two hundred and forty round trips.
+// A step belongs to the view only if the displayed edition captured it: since
+// steps outlive editions (#135), one born in a later edition would otherwise
+// render in an older view as a row of `missing` marks — and `missing` means a
+// failed run (ADR 0016), not a screen from the future (#137).
 func (q *Queries) CaseEvidence(ctx context.Context, arg CaseEvidenceParams) ([]CaseEvidenceRow, error) {
 	rows, err := q.db.Query(ctx, caseEvidence, arg.CaseID, arg.EditionID)
 	if err != nil {
@@ -99,9 +95,7 @@ func (q *Queries) CaseEvidence(ctx context.Context, arg CaseEvidenceParams) ([]C
 			&i.CaptureID,
 			&i.BlobHash,
 			&i.Provenance,
-			&i.Freshness,
 			&i.MovedPixels,
-			&i.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -181,6 +175,72 @@ func (q *Queries) EditionByID(ctx context.Context, arg EditionByIDParams) (Editi
 	return i, err
 }
 
+const insertRecordingJudgment = `-- name: InsertRecordingJudgment :exec
+INSERT INTO recording_judgments (recording_id, verdict, remark, actor_id)
+VALUES ($1, $2, $3, $4)
+`
+
+type InsertRecordingJudgmentParams struct {
+	RecordingID string
+	Verdict     string
+	Remark      *string
+	ActorID     string
+}
+
+// A recording's standing comes from its last judgment (ADR 0023): none or a
+// take-back reads to-review, and a refusal keeps its remark for the dev.
+func (q *Queries) InsertRecordingJudgment(ctx context.Context, arg InsertRecordingJudgmentParams) error {
+	_, err := q.db.Exec(ctx, insertRecordingJudgment,
+		arg.RecordingID,
+		arg.Verdict,
+		arg.Remark,
+		arg.ActorID,
+	)
+	return err
+}
+
+const lastRecordingJudgments = `-- name: LastRecordingJudgments :many
+SELECT r.id AS recording_id, j.verdict, j.remark
+FROM recordings r
+JOIN LATERAL (
+    SELECT verdict, remark FROM recording_judgments
+    WHERE recording_id = r.id
+    ORDER BY created_at DESC LIMIT 1
+) j ON true
+WHERE r.case_id = $1 AND r.edition_id = $2
+`
+
+type LastRecordingJudgmentsParams struct {
+	CaseID    string
+	EditionID string
+}
+
+type LastRecordingJudgmentsRow struct {
+	RecordingID string
+	Verdict     string
+	Remark      *string
+}
+
+func (q *Queries) LastRecordingJudgments(ctx context.Context, arg LastRecordingJudgmentsParams) ([]LastRecordingJudgmentsRow, error) {
+	rows, err := q.db.Query(ctx, lastRecordingJudgments, arg.CaseID, arg.EditionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LastRecordingJudgmentsRow{}
+	for rows.Next() {
+		var i LastRecordingJudgmentsRow
+		if err := rows.Scan(&i.RecordingID, &i.Verdict, &i.Remark); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const latestEdition = `-- name: LatestEdition :one
 SELECT id, project_id, revision, created_at FROM editions
 WHERE project_id = $1
@@ -191,6 +251,36 @@ LIMIT 1
 // The edition a case is read against defaults to the project's most recent.
 func (q *Queries) LatestEdition(ctx context.Context, projectID string) (Edition, error) {
 	row := q.db.QueryRow(ctx, latestEdition, projectID)
+	var i Edition
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Revision,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const latestEditionForCase = `-- name: LatestEditionForCase :one
+SELECT e.id, e.project_id, e.revision, e.created_at FROM editions e
+WHERE e.id = (
+    SELECT c.edition_id FROM captures c
+    JOIN steps s ON s.id = c.step_id
+    JOIN editions ce ON ce.id = c.edition_id
+    WHERE s.case_id = $1
+    ORDER BY ce.created_at DESC, ce.id DESC
+    LIMIT 1
+)
+`
+
+// The last edition that actually captured this case (#253).
+//
+// A free case used to read at the project's latest edition, which assumed
+// every run covers the whole book. When one does not, the case keeps its
+// state — the catalogue counts it, the queue promises it — while its grid
+// shows nothing. It reads at the run that did capture it instead.
+func (q *Queries) LatestEditionForCase(ctx context.Context, caseID string) (Edition, error) {
+	row := q.db.QueryRow(ctx, latestEditionForCase, caseID)
 	var i Edition
 	err := row.Scan(
 		&i.ID,
@@ -218,4 +308,30 @@ func (q *Queries) RecordingBlobInProject(ctx context.Context, arg RecordingBlobI
 	var blob_hash string
 	err := row.Scan(&blob_hash)
 	return blob_hash, err
+}
+
+const recordingInProject = `-- name: RecordingInProject :one
+SELECT r.id, r.case_id FROM recordings r
+JOIN cases k ON k.id = r.case_id
+JOIN projects p ON p.id = k.project_id
+WHERE r.id = $1 AND p.slug = $2
+`
+
+type RecordingInProjectParams struct {
+	ID   string
+	Slug string
+}
+
+type RecordingInProjectRow struct {
+	ID     string
+	CaseID string
+}
+
+// The recording inside the project the caller named, with its case: what a
+// judgment needs to authorise and to recompute.
+func (q *Queries) RecordingInProject(ctx context.Context, arg RecordingInProjectParams) (RecordingInProjectRow, error) {
+	row := q.db.QueryRow(ctx, recordingInProject, arg.ID, arg.Slug)
+	var i RecordingInProjectRow
+	err := row.Scan(&i.ID, &i.CaseID)
+	return i, err
 }
